@@ -9,6 +9,7 @@ interface JWTPayload {
   id: number
   username: string
   email: string
+  role?: 'admin' | 'user'
   iat?: number
   exp?: number
 }

@@ -21,7 +21,7 @@ export class ApiResponse {
     return res.status(statusCode).json({
       success: true,
       message: message || '操作成功',
-      data
+      result: data
     })
   }
 
@@ -123,7 +123,7 @@ export class ApiResponse {
     return res.status(statusCode).json({
       success: true,
       message: message || '操作成功',
-      data: null
+      result: null
     })
   }
 }

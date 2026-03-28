@@ -39,7 +39,7 @@ export const register = async (req: Request, res: Response) => {
     const userId = await UserModel.create({
       username,
       email,
-      password: hashedPassword
+      password: hashedPassword,
     })
 
     return ApiResponse.created(res, {
@@ -81,7 +81,8 @@ export const login = async (req: Request, res: Response) => {
       { 
         id: user.id, 
         username: user.username,
-        email: user.email 
+        email: user.email,
+        role: user.role 
       },
       process.env.JWT_SECRET || 'default-secret-key',
       { expiresIn: '7d' }
@@ -92,7 +93,8 @@ export const login = async (req: Request, res: Response) => {
       user: {
         id: user.id,
         username: user.username,
-        email: user.email
+        email: user.email,
+        role: user.role
       }
     }, '登录成功')
     
@@ -122,6 +124,7 @@ export const getUserInfo = async (req: Request, res: Response) => {
       id: user.id,
       username: user.username,
       email: user.email,
+      role: user.role,
       created_at: user.created_at
     })
     

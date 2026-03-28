@@ -3,11 +3,20 @@
     <div class="login-form-wrapper">
       <!-- 登录表单卡片 -->
       <el-card class="login-card" shadow="hover">
-        <!-- 标题 -->
+        <!-- 卡片头部：标题 + 管理员登录切换 -->
         <template #header>
-          <div class="login-title">
-            <h2>用户登录</h2>
-            <p>请输入您的账号和密码</p>
+          <div class="card-header">
+            <div class="login-title">
+              <h2>{{ isAdmin ? '管理员登录' : '用户登录' }}</h2>
+              <p>{{ isAdmin ? '请输入管理员账号和密码' : '请输入您的账号和密码' }}</p>
+            </div>
+            <el-switch 
+              v-model="isAdmin" 
+              active-text="管理员"
+              inactive-text="普通用户"
+              size="large"
+              class="admin-switch"
+            />
           </div>
         </template>
         
@@ -41,11 +50,18 @@
             />
           </el-form-item>
           
-          <!-- 记住我 -->
-          <el-form-item>
+          <!-- 记住我和忘记密码 -->
+          <el-form-item class="form-footer-item">
             <div class="form-footer">
               <el-checkbox v-model="loginForm.remember">记住我</el-checkbox>
               <el-link type="primary" :underline="false">忘记密码?</el-link>
+            </div>
+          </el-form-item>
+
+          <!-- 注册账号 -->
+          <el-form-item>
+            <div class="register-link">
+              <router-link to="/register">注册账号</router-link>
             </div>
           </el-form-item>
           
@@ -58,7 +74,7 @@
               size="large"
               class="login-btn"
             >
-              登录
+              {{ isAdmin ? '管理员登录' : '登录' }}
             </el-button>
           </el-form-item>
           
@@ -78,7 +94,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref} from 'vue'
+import { ref } from 'vue'
 import { Platform, ChatDotRound, Phone } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -88,11 +104,15 @@ import type { FormInstance } from 'element-plus'
 
 const router = useRouter()
 const userStore = useUserStore()
+
 // 表单引用
 const loginFormRef = ref<FormInstance>()
 
 // 加载状态
 const loading = ref(false)
+
+// 是否为管理员登录
+const isAdmin = ref(false)
 
 // 登录表单数据
 const loginForm = ref({
@@ -100,14 +120,15 @@ const loginForm = ref({
   password: '', // 密码
   remember: false // 记住我
 })
-//2.登录表单验证规则
+
+// 登录表单验证规则
 const LoginRules = {
-  username:[
+  username: [
     { required: true, message: '请输入用户名', trigger: 'blur' }
   ],
-  password:[
+  password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
-    {min:6,max:14,message:'密码长度在6-14个字符之间'}
+    { min: 6, max: 14, message: '密码长度在6-14个字符之间' }
   ]
 }
 
@@ -132,27 +153,48 @@ const handleLogin = async () => {
     
     // 4. 登录成功处理
     if (response.data.success) {
-      ElMessage.success('登录成功！')
+      // 5. 获取用户信息
+      const { token, user } = response.data.result
+      console.log('登录成功:', token, user)
       
-      // 5. 保存 token 和用户信息到 store
-      const { token, user } = response.data.data
+      // 6. 权限校验：检查登录模式与用户角色是否匹配
+      if (isAdmin.value && user.role !== 'admin') {
+        ElMessage.error('该账号不是管理员账号，无法使用管理员登录界面')
+        return
+      }
+      
+      if (!isAdmin.value && user.role === 'admin') {
+        ElMessage.error('管理员账号请使用管理员登录界面')
+        return
+      }
+      
+      // 7. 保存 token 和用户信息到 store
       userStore.setToken(token)
       userStore.setUserInfo(user)
       
-      // 6. 跳转到首页
+      // 8. 显示成功消息
+      ElMessage.success('登录成功！')
+      
+      // 9. 根据用户角色跳转
       setTimeout(() => {
-        router.push('/')
+        if (user.role === 'admin') {
+          // 管理员跳转到后台管理页面
+          router.push('/admin')
+        } else {
+          // 普通用户跳转到首页
+          router.push('/')
+        }
       }, 1000)
     }
   } catch (error: any) {
     console.error('登录失败:', error)
-  
+    // 显示错误信息
+    ElMessage.error(error.message || '登录失败，请稍后重试')
   } finally {
-    // 8. 隐藏加载状态
+    // 7. 隐藏加载状态
     loading.value = false
   }
 }
-
 </script>
 
 <style scoped lang="scss">
@@ -179,10 +221,17 @@ const handleLogin = async () => {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
 }
 
+// 卡片头部
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+}
+
 // 标题样式
 .login-title {
-  text-align: center;
-  margin-bottom: 20px;
+  flex: 1;
   
   h2 {
     font-size: 24px;
@@ -197,6 +246,11 @@ const handleLogin = async () => {
   }
 }
 
+// 管理员切换开关
+.admin-switch {
+  flex-shrink: 0;
+}
+
 // 登录表单
 .login-form {
   padding: 0 20px 20px;
@@ -207,12 +261,31 @@ const handleLogin = async () => {
   margin-bottom: 20px;
 }
 
+// 表单项底部
+.form-footer-item {
+  margin-bottom: 10px;
+}
+
 // 表单底部
 .form-footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  width: 100%;
 }
+
+// 注册账号链接
+.register-link {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  
+  :deep(.el-link) {
+    color: #667eea;
+  }
+}
+
 
 // 登录按钮
 .login-btn {
@@ -276,6 +349,11 @@ const handleLogin = async () => {
 @media (max-width: 480px) {
   .login-form-wrapper {
     max-width: 100%;
+  }
+  
+  .card-header {
+    flex-direction: column;
+    align-items: flex-start;
   }
   
   .login-title h2 {

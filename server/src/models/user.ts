@@ -5,6 +5,7 @@ export interface User {
   username: string
   email: string
   password: string
+  role?: 'admin' | 'user'
   created_at?: Date
 }
 
@@ -12,8 +13,8 @@ export class UserModel {
   // 创建用户
   static async create(user: Omit<User, 'id' | 'created_at'>): Promise<number> {
     const [result] = await pool.execute(
-      'INSERT INTO users (username, email, password) VALUES (?, ?, ?)',
-      [user.username, user.email, user.password]
+      'INSERT INTO users (username, email, password, role) VALUES (?, ?, ?, ?)',
+      [user.username, user.email, user.password, user.role || 'user']
     )
     return (result as any).insertId
   }
