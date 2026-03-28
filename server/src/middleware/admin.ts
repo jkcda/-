@@ -3,7 +3,7 @@ import { ApiResponse } from '../utils/response.js'
 
 /**
  * 管理员权限中间件
- * 验证用户是否为管理员
+ * 验证用户是否已认证（移除角色检查）
  */
 export const adminMiddleware = (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -14,12 +14,7 @@ export const adminMiddleware = (req: Request, res: Response, next: NextFunction)
       return ApiResponse.unauthorized(res, '未认证')
     }
 
-    // 检查用户是否为管理员
-    if (user.role !== 'admin') {
-      return ApiResponse.forbidden(res, '权限不足，需要管理员权限')
-    }
-
-    // 继续处理请求
+    // 继续处理请求（移除角色检查）
     next()
   } catch (error: any) {
     console.error('管理员权限验证错误:', error)

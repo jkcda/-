@@ -14,3 +14,8 @@ export const login = (data: { username: string; password: string }) => {
 export const getUserInfo = () => {
   return request.get('/user/info')
 }
+
+// 退出登录接口（清除对话历史）
+export const logout = () => {
+  return request.post('/user/logout')
+}

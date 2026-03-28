@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { UserModel } from '../models/user.js'
 import { ApiResponse } from '../utils/response.js'
+import config from '../config/index.js'
 
 // 注册接口
 export const register = async (req: Request, res: Response) => {
@@ -84,8 +85,8 @@ export const login = async (req: Request, res: Response) => {
         email: user.email,
         role: user.role 
       },
-      process.env.JWT_SECRET || 'default-secret-key',
-      { expiresIn: '7d' }
+      config.jwt.secret as any,
+      { expiresIn: config.jwt.expiresIn as any }
     )
 
     return ApiResponse.success(res, {

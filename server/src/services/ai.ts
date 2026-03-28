@@ -1,9 +1,10 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { ChatHistoryModel } from '../models/chatHistory.js'
+import config from '../config/index.js'
 
 const client = new Anthropic({
-  apiKey: process.env.DASHSCOPE_API_KEY,
-  baseURL: 'https://api-inference.modelscope.cn'
+  apiKey: config.ai.apiKey,
+  baseURL: config.ai.baseURL
 })
 
 interface Message {
@@ -12,7 +13,7 @@ interface Message {
 }
 
 // 上下文拼接，限制最大字符数
-function buildContext(messages: Message[], maxChars: number = 2000) {
+function buildContext(messages: Message[], maxChars: number = config.context.maxChars) {
   let context = ''
   let totalChars = 0
   
@@ -34,8 +35,8 @@ function buildContext(messages: Message[], maxChars: number = 2000) {
 
 export async function chatWithAI(message: string, sessionId: string, userId: number | null = null) {
   try {
-    // 获取历史对话
-    const history = await ChatHistoryModel.getBySessionId(sessionId)
+    // 获取历史对话 - 同时匹配 session_id 和 user_id
+    const history = await ChatHistoryModel.getBySessionIdAndUserId(sessionId, userId)
     const messages: Message[] = history.map(h => ({
       role: h.role,
       content: h.content
@@ -49,8 +50,8 @@ export async function chatWithAI(message: string, sessionId: string, userId: num
     await ChatHistoryModel.create(sessionId, userId, 'user', message)
     
     const response = await client.messages.create({
-      model: 'Qwen/Qwen3.5-35B-A3B',
-      max_tokens: 1024,
+      model: config.ai.model,
+      max_tokens: config.ai.maxTokens,
       messages: [
         { role: 'user', content: prompt }
       ]
@@ -69,8 +70,8 @@ export async function chatWithAI(message: string, sessionId: string, userId: num
 
 export async function chatWithAIStream(message: string, sessionId: string, userId: number | null = null) {
   try {
-    // 获取历史对话
-    const history = await ChatHistoryModel.getBySessionId(sessionId)
+    // 获取历史对话 - 同时匹配 session_id 和 user_id
+    const history = await ChatHistoryModel.getBySessionIdAndUserId(sessionId, userId)
     const messages: Message[] = history.map(h => ({
       role: h.role,
       content: h.content
@@ -84,8 +85,8 @@ export async function chatWithAIStream(message: string, sessionId: string, userI
     await ChatHistoryModel.create(sessionId, userId, 'user', message)
     
     const stream = await client.messages.stream({
-      model: 'Qwen/Qwen3.5-35B-A3B',
-      max_tokens: 1024,
+      model: config.ai.model,
+      max_tokens: config.ai.maxTokens,
       messages: [
         { role: 'user', content: prompt }
       ]

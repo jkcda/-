@@ -1,18 +1,17 @@
-//配置mysql连接
+// 配置mysql连接
 import mysql from 'mysql2/promise'
-import dotenv from 'dotenv'
-/// 配置环境变量
-dotenv.config() 
+import config from '../config/index.js'
 
-//创建连接池
+// 创建连接池
 const pool = mysql.createPool({
-    host: process.env.DB_HOST,
-    port: Number(process.env.DB_PORT),
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
+    host: config.database.host,
+    port: Number(process.env.DB_PORT) || 3306,
+    user: config.database.user,
+    password: config.database.password,
+    database: config.database.database,
 })
-//测试连接池
+
+// 测试连接池
 async function testConnection(){
     try{
         const connection = await pool.getConnection()
@@ -22,5 +21,6 @@ async function testConnection(){
         console.error('数据库连接失败', err)
     }
 }
+
 testConnection()
 export default pool

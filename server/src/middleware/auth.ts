@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express'
 import jwt from 'jsonwebtoken'
 import { ApiResponse } from '../utils/response.js'
+import config from '../config/index.js'
 
 /**
  * JWT Payload 类型
@@ -43,7 +44,7 @@ export const authMiddleware = (req: Request, res: Response, next: NextFunction) 
     // 验证 token
     const decoded = jwt.verify(
       token, 
-      process.env.JWT_SECRET || 'default-secret-key'
+      config.jwt.secret
     ) as JWTPayload
 
     // 将用户信息附加到 request 对象
@@ -79,7 +80,7 @@ export const optionalAuthMiddleware = (req: Request, res: Response, next: NextFu
       const token = authHeader.split(' ')[1]
       const decoded = jwt.verify(
         token, 
-        process.env.JWT_SECRET || 'default-secret-key'
+        config.jwt.secret
       ) as JWTPayload
       
       req.user = decoded

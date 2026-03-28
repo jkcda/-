@@ -53,12 +53,17 @@
 <script setup lang="ts">
 import { ref, nextTick, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import { getChatHistory, deleteChatHistory } from '@/apis/ai'
+import { handleSSE } from '@/utils/sse'
+import { useUserStore } from '@/stores/userStore'
 
+// 消息类型定义
 interface Message {
   role: 'user' | 'assistant'
   content: string
 }
 
+// 响应式数据
 const messages = ref<Message[]>([])
 const inputMessage = ref('')
 const isLoading = ref(false)
@@ -66,28 +71,50 @@ const loadingHistory = ref(true)
 const messagesContainer = ref<HTMLElement>()
 const sessionId = ref<string>('')
 
-// 生成或获取 sessionId
-const getSessionId = () => {
-  let id = localStorage.getItem('chatSessionId')
-  if (!id) {
-    id = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
-    localStorage.setItem('chatSessionId', id)
+// 使用用户 store
+const userStore = useUserStore()
+
+// 生成或获取 sessionId - 每个用户有独立的 sessionid
+const getSessionId = (): string => {
+  // 从 store 中获取用户信息
+  const userInfo = userStore.getUserInfo()
+  const userId = userInfo?.id
+  
+  // 如果用户已登录，使用用户ID作为key存储sessionid
+  if (userId) {
+    const storageKey = `chatSessionId_${userId}`
+    let id = localStorage.getItem(storageKey)
+    if (!id) {
+      id = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
+      localStorage.setItem(storageKey, id)
+    }
+    return id
+  } else {
+    // 未登录用户使用默认的 sessionid
+    let id = localStorage.getItem('chatSessionId')
+    if (!id) {
+      id = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
+      localStorage.setItem('chatSessionId', id)
+    }
+    return id
   }
-  return id
 }
 
 // 加载历史对话
 const loadHistory = async () => {
   try {
-    const response = await fetch(`http://localhost:3000/api/ai/history?sessionId=${sessionId.value}`)
-    if (response.ok) {
-      const data = await response.json()
-      if (data.success) {
-        messages.value = data.result.messages
-      }
+    // 从 store 中获取用户信息
+    const userInfo = userStore.getUserInfo()
+    const userId = userInfo?.id || null
+    
+    // 调用接口获取历史记录，传递用户 ID
+    const response = await getChatHistory(sessionId.value, userId)
+    if (response.data.success) {
+      messages.value = response.data.result.messages
     }
   } catch (error) {
     console.error('加载历史对话失败:', error)
+    ElMessage.error('加载历史对话失败')
   } finally {
     loadingHistory.value = false
   }
@@ -101,17 +128,25 @@ const sendMessage = async () => {
   }
 
   const userMessage = inputMessage.value
+  
+  // 添加用户消息到界面
   messages.value.push({
     role: 'user',
     content: userMessage
   })
+  
   inputMessage.value = ''
   isLoading.value = true
 
   await scrollToBottom()
 
   try {
-    const response = await fetch('http://localhost:3000/api/ai/chat', {
+    // 从 store 中获取用户信息
+    const userInfo = userStore.getUserInfo()
+    const userId = userInfo?.id || null
+    
+    // 发送消息到服务器（使用 SSE 流式接口）
+    const response = await fetch('/api/ai/chat', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -119,7 +154,7 @@ const sendMessage = async () => {
       body: JSON.stringify({ 
         message: userMessage,
         sessionId: sessionId.value,
-        userId: null // 如果有用户登录，可以传用户ID
+        userId: userId // 传递用户 ID
       })
     })
 
@@ -127,61 +162,64 @@ const sendMessage = async () => {
       throw new Error('网络请求失败')
     }
 
-    const reader = response.body?.getReader()
-    const decoder = new TextDecoder()
-
     let assistantMessage = ''
+    
+    // 添加助手消息占位符
     messages.value.push({
       role: 'assistant',
       content: ''
     })
 
-    if (reader) {
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        const chunk = decoder.decode(value)
-        const lines = chunk.split('\n')
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6)
-            if (data === '[DONE]') {
-              isLoading.value = false
-              await scrollToBottom()
-              return
-            }
-
-            try {
-              const parsed = JSON.parse(data)
-              if (parsed.content) {
-                assistantMessage += parsed.content
-                const lastMessage = messages.value[messages.value.length - 1]
-                if (lastMessage) {
-                  lastMessage.content = assistantMessage
-                  await scrollToBottom()
-                }
-              } else if (parsed.error) {
-                throw new Error(parsed.error)
-              }
-            } catch (e) {
-              console.error('解析数据失败:', e)
-            }
-          }
+    // 使用 SSE 工具函数处理流式响应
+    await handleSSE(
+      response,
+      (content) => {
+        // 处理收到的内容
+        assistantMessage += content
+        const lastMessage = messages.value[messages.value.length - 1]
+        if (lastMessage) {
+          lastMessage.content = assistantMessage
+          scrollToBottom()
         }
+      },
+      (error) => {
+        // 处理错误
+        ElMessage.error(error.message || '发送消息失败')
+        isLoading.value = false
+      },
+      () => {
+        // 处理完成
+        isLoading.value = false
+        scrollToBottom()
       }
-    }
+    )
   } catch (error: any) {
     ElMessage.error(error.message || '发送消息失败')
     isLoading.value = false
   }
 }
 
-// 清空历史
-const clearHistory = () => {
-  messages.value = []
-  ElMessage.success('历史对话已清空')
+// 清空历史 - 同时删除数据库中的记录
+const clearHistory = async () => {
+  try {
+    // 从 store 中获取用户信息
+    const userInfo = userStore.getUserInfo()
+    const userId = userInfo?.id || null
+    
+    // 调用后端接口删除数据库中的历史记录，传递用户 ID
+    const response = await deleteChatHistory(sessionId.value, userId)
+    
+    if (response.data.success) {
+      // 清空前端显示的消息
+      messages.value = []
+      ElMessage.success('历史对话已清空')
+    } else {
+      ElMessage.error('清空历史对话失败')
+    }
+  } catch (error) {
+    console.error('清空历史对话失败:', error)
+    ElMessage.error('清空历史对话失败')
+  }
 }
 
 // 滚动到底部
@@ -194,7 +232,9 @@ const scrollToBottom = async () => {
 
 // 组件挂载时
 onMounted(() => {
+  // 获取或生成会话ID
   sessionId.value = getSessionId()
+  // 加载历史对话
   loadHistory()
 })
 </script>

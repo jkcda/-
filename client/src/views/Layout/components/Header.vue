@@ -1,179 +1,176 @@
 <template>
-    <div class="header-wrapper">
-        <div class="header-left">
-            <el-icon class="collapse-btn" @click="handleToggle">
-                <Fold v-if="!props.isCollapse" />
-                <Expand v-else />
-            </el-icon>
-            <el-breadcrumb separator="/">
-                <el-breadcrumb-item>首页</el-breadcrumb-item>
-                <el-breadcrumb-item v-if="currentTitle">{{ currentTitle }}</el-breadcrumb-item>
-            </el-breadcrumb>
-        </div>
-        
-        <div class="header-right">
-            
-            <!-- 全屏切换 -->
-            <el-icon class="icon-button" @click="toggleFullscreen">
-                <FullScreen v-if="!isFullscreen" />
-                <Close v-else />
-            </el-icon>
-            
-            <!-- 用户信息 -->
-            <el-dropdown trigger="click">
-                <div class="user-info">
-                    <el-avatar :size="32" :icon="UserFilled" />
-                    <span class="username">管理员</span>
-                </div>
-                <template #dropdown>
-                    <el-dropdown-menu>
-                        <el-dropdown-item>个人中心</el-dropdown-item>
-                        <el-dropdown-item>系统设置</el-dropdown-item>
-                        <el-dropdown-item divided @click="handleLogout">退出登录</el-dropdown-item>
-                    </el-dropdown-menu>
-                </template>
-            </el-dropdown>
-        </div>
+  <div class="layout-header">
+    <!-- 网站标题 -->
+    <div class="header-logo">
+      <h1>AI 智能对话系统</h1>
     </div>
+    
+    <!-- 导航菜单 -->
+    <div class="header-nav">
+      <router-link to="/front/home">首页</router-link>
+      <router-link to="/front/chat">AI对话</router-link>
+    </div>
+    
+    <!-- 用户信息和退出登录 -->
+    <div class="header-user">
+      <div v-if="userInfo" class="user-info">
+        <span class="username">{{ userInfo.username }}</span>
+        <el-button 
+          type="danger" 
+          size="small" 
+          @click="handleLogout"
+          :loading="logoutLoading"
+        >
+          退出登录
+        </el-button>
+      </div>
+      <div v-else class="login-register">
+        <router-link to="/login">登录</router-link>
+        <router-link to="/register">注册</router-link>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useRoute } from 'vue-router'
-import router from '@/router/index'
-// 引入 Element Plus 图标组件
-import {
-    Fold,
-    Expand,
-    Bell,
-    FullScreen,
-    Close,
-    UserFilled
-} from '@element-plus/icons-vue'
+// 布局头部组件
+// 包含网站标题、导航菜单和用户信息
+
+import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { useUserStore } from '@/stores/userStore'
+import { logout } from '@/apis/user'
 
-// 定义 props
-interface Props {
-    isCollapse?: boolean
-}
+// 使用用户 store
+const userStore = useUserStore()
+const router = useRouter()
 
-const props = withDefaults(defineProps<Props>(), {
-    isCollapse: false
-})
+// 用户信息
+const userInfo = ref<any>(null)
+// 退出登录加载状态
+const logoutLoading = ref(false)
 
-// 定义 emits
-const emit = defineEmits<{
-    toggle: []
-}>()
-
-const route = useRoute()
-const isFullscreen = ref(false)
-
-// 当前路由标题
-const currentTitle = computed(() => {
-    return route.meta.title as string || ''
-})
-
-// 处理折叠切换
-const handleToggle = () => {
-    emit('toggle')
-}
-
-// 切换全屏
-const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen()
-        isFullscreen.value = true
-    } else {
-        document.exitFullscreen()
-        isFullscreen.value = false
-    }
+// 加载用户信息
+const loadUserInfo = () => {
+  userInfo.value = userStore.getUserInfo()
 }
 
 // 退出登录
-const handleLogout = () => {
-    ElMessage.info('退出登录')
-    // TODO: 实现退出登录逻辑
-    router.replace('/login')
-    localStorage.removeItem('token')
-    localStorage.removeItem('userInfo')
+const handleLogout = async () => {
+  try {
+    logoutLoading.value = true
+    
+    // 获取当前用户信息，用于清除对应的sessionid
+    const currentUserInfo = userStore.getUserInfo()
+    
+    // 调用后端接口清除对话历史
+    const response = await logout()
+    
+    if (response.data.success) {
+      // 清除用户的sessionid
+      if (currentUserInfo?.id) {
+        localStorage.removeItem(`chatSessionId_${currentUserInfo.id}`)
+      }
+      
+      // 清除用户信息
+      userStore.clearUserInfo()
+      
+      // 跳转到登录页面
+      router.push('/login')
+      // 显示退出成功提示
+      ElMessage.success('退出登录成功，对话历史已清除')
+    } else {
+      ElMessage.error(response.data.message || '退出登录失败')
+    }
+  } catch (error: any) {
+    console.error('退出登录失败:', error)
+    ElMessage.error(error.response?.data?.message || '退出登录失败')
+  } finally {
+    logoutLoading.value = false
+  }
 }
+
+// 组件挂载时加载用户信息
+onMounted(() => {
+  loadUserInfo()
+})
 </script>
 
-<style scoped lang="scss">
-.header-wrapper {
-    height: 100%;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0 20px;
-    
-    .header-left {
-        display: flex;
-        align-items: center;
-        gap: 20px;
-        
-        .collapse-btn {
-            font-size: 20px;
-            cursor: pointer;
-            transition: color 0.3s;
-            
-            &:hover {
-                color: #409EFF;
-            }
-        }
-        
-        :deep(.el-breadcrumb) {
-            white-space: nowrap;
-        }
-    }
-    
-    .header-right {
-        display: flex;
-        align-items: center;
-        gap: 20px;
-        
-        .notification {
-            cursor: pointer;
-            
-            :deep(.el-badge__content.is-fixed) {
-                top: 5px;
-                right: 5px;
-            }
-        }
-        
-        .icon-button {
-            font-size: 18px;
-            cursor: pointer;
-            padding: 8px;
-            border-radius: 4px;
-            transition: all 0.3s;
-            
-            &:hover {
-                background-color: #f5f7fa;
-                color: #409EFF;
-            }
-        }
-        
-        .user-info {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            cursor: pointer;
-            padding: 8px 12px;
-            border-radius: 4px;
-            transition: background-color 0.3s;
-            
-            &:hover {
-                background-color: #f5f7fa;
-            }
-            
-            .username {
-                font-size: 14px;
-                color: #606266;
-                white-space: nowrap;
-            }
-        }
-    }
+<style scoped>
+.layout-header {
+  background: white;
+  padding: 15px 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.header-logo h1 {
+  margin: 0;
+  font-size: 20px;
+  color: #409EFF;
+  font-weight: 600;
+}
+
+.header-nav {
+  display: flex;
+  gap: 20px;
+}
+
+.header-nav a {
+  text-decoration: none;
+  color: #333;
+  font-weight: 500;
+  padding: 8px 16px;
+  border-radius: 4px;
+  transition: all 0.3s;
+}
+
+.header-nav a:hover {
+  background: #409EFF;
+  color: white;
+}
+
+.header-nav a.router-link-active {
+  background: #409EFF;
+  color: white;
+}
+
+.header-user {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.username {
+  font-weight: 500;
+  color: #333;
+}
+
+.login-register {
+  display: flex;
+  gap: 15px;
+}
+
+.login-register a {
+  text-decoration: none;
+  color: #409EFF;
+  font-weight: 500;
+  padding: 8px 16px;
+  border-radius: 4px;
+  transition: all 0.3s;
+}
+
+.login-register a:hover {
+  background: #409EFF;
+  color: white;
 }
 </style>

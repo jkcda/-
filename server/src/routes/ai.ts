@@ -35,7 +35,8 @@ router.post('/chat', async (req, res) => {
           const content = (event.delta as any)?.text
           if (content) {
             assistantContent += content
-            res.write(`data: ${JSON.stringify({ content })}\n\n`)
+            res.write(`data: ${JSON.stringify({ content })}
+\n`)
           }
         }
       }
@@ -59,19 +60,42 @@ router.post('/chat', async (req, res) => {
 // GET /api/ai/history - 获取对话历史
 router.get('/history', async (req, res) => {
   try {
-    const { sessionId } = req.query
+    const { sessionId, userId } = req.query
 
     if (!sessionId) {
       return ApiResponse.badRequest(res, '请提供会话ID')
     }
 
-    const history = await ChatHistoryModel.getBySessionId(sessionId as string)
+    // 使用新的查询方法，同时匹配 session_id 和 user_id
+    const history = await ChatHistoryModel.getBySessionIdAndUserId(
+      sessionId as string,
+      userId ? Number(userId) : null
+    )
+    
     const messages = history.map(item => ({
       role: item.role,
       content: item.content
     }))
 
     ApiResponse.success(res, { messages }, '获取对话历史成功')
+  } catch (error: any) {
+    ApiResponse.internalServerError(res, '服务器错误', error.message)
+  }
+})
+
+// DELETE /api/ai/history - 删除对话历史
+router.delete('/history', async (req, res) => {
+  try {
+    const { sessionId, userId } = req.query
+
+    if (!sessionId) {
+      return ApiResponse.badRequest(res, '请提供会话ID')
+    }
+
+    // 删除数据库中的对话历史
+    await ChatHistoryModel.deleteBySessionId(sessionId as string)
+
+    ApiResponse.success(res, null, '对话历史已清空')
   } catch (error: any) {
     ApiResponse.internalServerError(res, '服务器错误', error.message)
   }
