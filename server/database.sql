@@ -16,6 +16,19 @@ CREATE TABLE IF NOT EXISTS `users` (
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户表';
 
+-- 创建对话历史表
+CREATE TABLE IF NOT EXISTS `chat_history` (
+  `id` INT PRIMARY KEY AUTO_INCREMENT COMMENT '对话历史 ID',
+  `session_id` VARCHAR(100) NOT NULL COMMENT '会话 ID',
+  `user_id` INT NULL COMMENT '用户 ID（可为空，表示未登录用户）',
+  `role` ENUM('user', 'assistant') NOT NULL COMMENT '角色：user 用户，assistant 助手',
+  `content` TEXT NOT NULL COMMENT '对话内容',
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  INDEX `idx_session_id` (`session_id`),
+  INDEX `idx_user_id` (`user_id`),
+  FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='对话历史表';
+
 -- 示例数据（可选，用于测试）
 -- INSERT INTO users (username, email, password, role) VALUES 
 -- ('admin', 'admin@example.com', '$2a$10$example_hashed_password', 'admin'),
