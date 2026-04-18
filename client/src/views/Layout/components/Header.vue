@@ -64,22 +64,17 @@ const handleLogout = async () => {
     // 获取当前用户信息，用于清除对应的sessionid
     const currentUserInfo = userStore.getUserInfo()
     
-    // 调用后端接口清除对话历史
+    // 调用后端接口退出登录
     const response = await logout()
     
     if (response.data.success) {
-      // 清除用户的sessionid
-      if (currentUserInfo?.id) {
-        localStorage.removeItem(`chatSessionId_${currentUserInfo.id}`)
-      }
-      
-      // 清除用户信息
+      // 清除用户信息（保留 sessionid）
       userStore.clearUserInfo()
       
       // 跳转到登录页面
       router.push('/login')
       // 显示退出成功提示
-      ElMessage.success('退出登录成功，对话历史已清除')
+      ElMessage.success('退出登录成功')
     } else {
       ElMessage.error(response.data.message || '退出登录失败')
     }
