@@ -23,7 +23,7 @@
         :key="index" 
         :class="['message', msg.role]"
       >
-        <div class="message-content">{{ msg.content }}</div>
+        <div class="message-content" v-html="renderMarkdown(msg.content)"></div>
       </div>
       <div v-if="isLoading" class="message assistant">
         <div class="message-content">正在思考中...</div>
@@ -56,6 +56,19 @@ import { ElMessage } from 'element-plus'
 import { getChatHistory, deleteChatHistory } from '@/apis/ai'
 import { handleSSE } from '@/utils/sse'
 import { useUserStore } from '@/stores/userStore'
+import { marked } from 'marked'
+
+// 配置 marked 选项
+marked.setOptions({
+  breaks: true,       // 保留换行符为 <br>
+  gfm: true           // 启用 GitHub 风格 Markdown
+})
+
+// 渲染 Markdown 内容为 HTML
+function renderMarkdown(content: string): string {
+  if (!content) return ''
+  return marked.parse(content) as string
+}
 
 // 消息类型定义
 interface Message {
@@ -304,9 +317,76 @@ onMounted(() => {
 
 .message-content {
   max-width: 70%;
-  padding: 12px 16px;
+  padding: 10px 14px;
   border-radius: 8px;
   word-wrap: break-word;
+  line-height: 1.5;
+}
+
+.message-content :deep(*) {
+  margin: 0;
+}
+
+.message-content :deep(* + *) {
+  margin-top: 6px;
+}
+
+.message-content :deep(h1),
+.message-content :deep(h2),
+.message-content :deep(h3),
+.message-content :deep(h4) {
+  font-weight: 600;
+}
+
+.message-content :deep(h1) { font-size: 1.2em; }
+.message-content :deep(h2) { font-size: 1.15em; }
+.message-content :deep(h3) { font-size: 1.1em; }
+.message-content :deep(h4) { font-size: 1.05em; }
+
+.message-content :deep(ul),
+.message-content :deep(ol) {
+  padding-left: 20px;
+}
+
+.message-content :deep(li) {
+  margin-top: 2px;
+}
+
+.message-content :deep(code) {
+  background: #f0f0f0;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 0.88em;
+}
+
+.message-content :deep(pre) {
+  background: #f5f5f5;
+  padding: 10px 12px;
+  border-radius: 6px;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.message-content :deep(pre code) {
+  background: none;
+  padding: 0;
+}
+
+.message-content :deep(blockquote) {
+  border-left: 3px solid #409EFF;
+  padding-left: 10px;
+  color: #666;
+}
+
+.message-content :deep(a) {
+  color: #409EFF;
+  text-decoration: none;
+}
+
+.message-content :deep(hr) {
+  border: none;
+  border-top: 1px solid #e0e0e0;
+  margin: 8px 0;
 }
 
 .message.user .message-content {

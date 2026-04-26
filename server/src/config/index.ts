@@ -36,7 +36,7 @@ const config = {
   
   // 上下文配置
   context: {
-    maxChars: 2000 // 上下文最大字符数
+    maxChars: 10000 // 上下文最大字符数
   }
 }
 
