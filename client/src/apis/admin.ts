@@ -1,0 +1,46 @@
+import request from '@/utils/http'
+
+// 获取后台首页数据
+export const getDashboard = () => {
+  return request.get('/admin/dashboard')
+}
+
+// 获取所有用户对话统计
+export const getUserChatStats = () => {
+  return request.get('/admin/chat-stats')
+}
+
+// 获取指定用户的对话历史详情
+export const getUserChatHistory = (userId: number) => {
+  return request.get(`/admin/chat-history/${userId}`)
+}
+
+// 获取用户列表
+export const getUsers = () => {
+  return request.get('/admin/users')
+}
+
+// 创建用户
+export const createUser = (data: {
+  username: string
+  email: string
+  password: string
+  role?: string
+}) => {
+  return request.post('/admin/users', data)
+}
+
+// 更新用户
+export const updateUser = (id: number, data: {
+  username?: string
+  email?: string
+  password?: string
+  role?: string
+}) => {
+  return request.put(`/admin/users/${id}`, data)
+}
+
+// 删除用户
+export const deleteUser = (id: number) => {
+  return request.delete(`/admin/users/${id}`)
+}

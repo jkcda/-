@@ -9,6 +9,7 @@
     <div class="header-nav">
       <router-link to="/front/home">首页</router-link>
       <router-link to="/front/chat">AI对话</router-link>
+      <router-link v-if="isAdmin" to="/admin/dashboard" class="admin-link">后台管理</router-link>
     </div>
     
     <!-- 用户信息和退出登录 -->
@@ -50,40 +51,28 @@ const router = useRouter()
 const userInfo = ref<any>(null)
 // 退出登录加载状态
 const logoutLoading = ref(false)
+// 是否为管理员
+const isAdmin = ref(false)
 
 // 加载用户信息
 const loadUserInfo = () => {
   userInfo.value = userStore.getUserInfo()
+  isAdmin.value = userInfo.value?.role === 'admin'
 }
 
 // 退出登录
 const handleLogout = async () => {
   try {
     logoutLoading.value = true
-    
-    // 获取当前用户信息，用于清除对应的sessionid
-    const currentUserInfo = userStore.getUserInfo()
-    
-    // 调用后端接口退出登录
-    const response = await logout()
-    
-    if (response.data.success) {
-      // 清除用户信息（保留 sessionid）
-      userStore.clearUserInfo()
-      
-      // 跳转到登录页面
-      router.push('/login')
-      // 显示退出成功提示
-      ElMessage.success('退出登录成功')
-    } else {
-      ElMessage.error(response.data.message || '退出登录失败')
-    }
-  } catch (error: any) {
-    console.error('退出登录失败:', error)
-    ElMessage.error(error.response?.data?.message || '退出登录失败')
-  } finally {
-    logoutLoading.value = false
+    await logout()
+  } catch {
+    // 接口失败（如 token 已过期）仍继续清除本地状态
   }
+  // 无论接口成功与否，都清除本地状态并跳转
+  userStore.clearUserInfo()
+  router.push('/login')
+  ElMessage.success('退出登录成功')
+  logoutLoading.value = false
 }
 
 // 组件挂载时加载用户信息
@@ -131,6 +120,18 @@ onMounted(() => {
 .header-nav a.router-link-active {
   background: #409EFF;
   color: white;
+}
+
+.admin-link {
+  background: #E6A23C !important;
+}
+
+.admin-link:hover {
+  background: #d4890e !important;
+}
+
+.admin-link.router-link-active {
+  background: #E6A23C !important;
 }
 
 .header-user {

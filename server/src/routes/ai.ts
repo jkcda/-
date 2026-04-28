@@ -57,6 +57,18 @@ router.post('/chat', async (req, res) => {
   }
 })
 
+// GET /api/ai/sessions - 获取用户的会话列表
+router.get('/sessions', async (req, res) => {
+  try {
+    const { userId } = req.query
+    const uid = userId ? Number(userId) : null
+    const sessions = await ChatHistoryModel.getSessionsByUserId(uid)
+    ApiResponse.success(res, { sessions }, '获取会话列表成功')
+  } catch (error: any) {
+    ApiResponse.internalServerError(res, '服务器错误', error.message)
+  }
+})
+
 // GET /api/ai/history - 获取对话历史
 router.get('/history', async (req, res) => {
   try {

@@ -15,17 +15,10 @@ router.post('/login', login)
 // GET /api/user/info - 获取用户信息（需要认证）
 router.get('/info', authMiddleware, getUserInfo)
 
-// POST /api/user/logout - 用户退出登录
-router.post('/logout', authMiddleware, async (req, res) => {
+// POST /api/user/logout - 用户退出登录（不需要认证，前端已清除 token）
+router.post('/logout', async (req, res) => {
   try {
-    // 从认证中间件获取用户信息
-    const userId = req.user?.id
-    
-    if (!userId) {
-      return ApiResponse.unauthorized(res, '用户未登录')
-    }
-    
-    // 退出登录只清除 token，保留对话历史
+    // 退出登录只返回成功，前端负责清除 token
     ApiResponse.success(res, null, '退出登录成功')
   } catch (error: any) {
     ApiResponse.internalServerError(res, '退出登录失败', error.message)

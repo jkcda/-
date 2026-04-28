@@ -18,6 +18,15 @@ export const chatWithAI = (data: {
   return request.post('/ai/chat', data)
 }
 
+// 获取用户的会话列表
+export const getSessions = (userId?: number | null) => {
+  const params = new URLSearchParams()
+  if (userId) {
+    params.append('userId', userId.toString())
+  }
+  return request.get(`/ai/sessions?${params.toString()}`)
+}
+
 // 删除对话历史接口
 export const deleteChatHistory = (sessionId: string, userId?: number | null) => {
   const params = new URLSearchParams({ sessionId })

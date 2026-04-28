@@ -448,6 +448,56 @@ ORDER BY created_at ASC
 
 ---
 
+#### 2.4 获取会话列表
+
+**接口地址:** `GET /api/ai/sessions`
+
+**查询参数：**
+- `userId`: 可选，用户 ID
+
+**请求示例：**
+```
+GET /api/ai/sessions?userId=1
+```
+
+**成功响应 (200):**
+```json
+{
+  "success": true,
+  "message": "获取会话列表成功",
+  "result": {
+    "sessions": [
+      {
+        "session_id": "session_1700000000_abc123",
+        "created_at": "2026-04-28T10:00:00.000Z",
+        "last_active_at": "2026-04-28T12:00:00.000Z",
+        "message_count": 8,
+        "first_message": "你好，请介绍一下自己"
+      }
+    ]
+  }
+}
+```
+
+**查询逻辑：**
+```sql
+SELECT session_id,
+  MIN(created_at) AS created_at,
+  MAX(created_at) AS last_active_at,
+  COUNT(*) AS message_count,
+  (SELECT content FROM chat_history c2
+   WHERE c2.session_id = ch.session_id AND c2.role = 'user'
+   ORDER BY c2.created_at ASC LIMIT 1) AS first_message
+FROM chat_history ch
+WHERE user_id = ?
+GROUP BY session_id
+ORDER BY last_active_at DESC
+```
+
+**用途:** 前端根据此接口实现多会话切换功能，每个会话显示首条用户消息预览和消息数量。
+
+---
+
 ### 3. 管理员模块 (`/api/admin`)
 
 > ⚠️ **注意:** 所有管理员接口需要双重认证：`authMiddleware` + `adminMiddleware`
@@ -487,12 +537,18 @@ ORDER BY created_at ASC
   "success": true,
   "message": "获取用户列表成功",
   "result": {
-    "users": []
+    "users": [
+      {
+        "id": 1,
+        "username": "admin",
+        "email": "admin@example.com",
+        "role": "admin",
+        "created_at": "2026-01-01T00:00:00.000Z"
+      }
+    ]
   }
 }
 ```
-
-> 📝 待完善功能
 
 ---
 
@@ -502,7 +558,21 @@ ORDER BY created_at ASC
 
 **认证要求:** Token + 管理员权限
 
-**请求体：** 用户信息对象
+**请求参数：**
+```json
+{
+  "username": "newuser",
+  "email": "newuser@example.com",
+  "password": "123456",
+  "role": "user"
+}
+```
+
+**参数验证规则：**
+- `username`: 必填，3-20 字符，不能与已有用户名重复
+- `email`: 必填，合法邮箱格式，不能与已有邮箱重复
+- `password`: 必填，至少 6 位字符
+- `role`: 可选，值为 `admin` 或 `user`，默认 `user`
 
 **成功响应 (201):**
 ```json
@@ -510,12 +580,177 @@ ORDER BY created_at ASC
   "success": true,
   "message": "创建用户成功",
   "result": {
-    "user": { ... }
+    "user": {
+      "id": 3,
+      "username": "newuser",
+      "email": "newuser@example.com",
+      "role": "user"
+    }
   }
 }
 ```
 
-> 📝 待完善功能
+**错误情况：**
+- 400: 参数缺失或格式错误
+- 400: 用户名已存在
+- 400: 邮箱已被注册
+- 500: 服务器内部错误
+
+**安全机制：** 密码使用 bcrypt 加盐哈希存储（10 轮）
+
+---
+
+#### 3.4 更新用户
+
+**接口地址:** `PUT /api/admin/users/:id`
+
+**认证要求:** Token + 管理员权限
+
+**路径参数:**
+- `id`: 用户 ID
+
+**请求参数（所有字段可选，只更新传入的字段）：**
+```json
+{
+  "username": "updatedname",
+  "email": "updated@example.com",
+  "password": "newpassword",
+  "role": "admin"
+}
+```
+
+**成功响应 (200):**
+```json
+{
+  "success": true,
+  "message": "更新用户成功",
+  "result": {
+    "user": {
+      "id": 3,
+      "username": "updatedname",
+      "email": "updated@example.com",
+      "role": "admin",
+      "created_at": "2026-04-26T12:00:00.000Z"
+    }
+  }
+}
+```
+
+**说明:** 密码字段留空则不修改密码；编辑模式下支持部分更新。
+
+---
+
+#### 3.5 删除用户
+
+**接口地址:** `DELETE /api/admin/users/:id`
+
+**认证要求:** Token + 管理员权限
+
+**路径参数:**
+- `id`: 用户 ID
+
+**成功响应 (200):**
+```json
+{
+  "success": true,
+  "message": "删除用户成功",
+  "result": null
+}
+```
+
+**安全限制：**
+- 400: 不能删除自己的账号
+- 400: 不能删除最后一个管理员账号
+- 404: 用户不存在
+
+---
+
+#### 3.6 获取用户对话统计
+
+**接口地址:** `GET /api/admin/chat-stats`
+
+**认证要求:** Token + 管理员权限
+
+**功能说明:** 聚合查询所有用户的对话数据，用于后台可视化展示
+
+**成功响应 (200):**
+```json
+{
+  "success": true,
+  "message": "获取对话统计成功",
+  "result": {
+    "stats": [
+      {
+        "user_id": 1,
+        "username": "testuser",
+        "email": "test@example.com",
+        "session_count": 3,
+        "message_count": 24,
+        "user_message_count": 12,
+        "assistant_message_count": 12,
+        "last_active_at": "2026-04-26T12:00:00.000Z"
+      }
+    ]
+  }
+}
+```
+
+**查询逻辑:**
+```sql
+SELECT u.id AS user_id, u.username, u.email,
+  COUNT(DISTINCT ch.session_id) AS session_count,
+  COUNT(ch.id) AS message_count,
+  SUM(CASE WHEN ch.role = 'user' THEN 1 ELSE 0 END) AS user_message_count,
+  SUM(CASE WHEN ch.role = 'assistant' THEN 1 ELSE 0 END) AS assistant_message_count,
+  MAX(ch.created_at) AS last_active_at
+FROM users u
+LEFT JOIN chat_history ch ON u.id = ch.user_id
+GROUP BY u.id, u.username, u.email
+ORDER BY last_active_at DESC
+```
+
+---
+
+#### 3.7 获取指定用户对话历史
+
+**接口地址:** `GET /api/admin/chat-history/:userId`
+
+**认证要求:** Token + 管理员权限
+
+**路径参数:**
+- `userId`: 用户 ID
+
+**成功响应 (200):**
+```json
+{
+  "success": true,
+  "message": "获取对话历史成功",
+  "result": {
+    "history": [
+      {
+        "id": 1,
+        "session_id": "session_xxx",
+        "user_id": 1,
+        "role": "user",
+        "content": "你好",
+        "created_at": "2026-04-26T12:00:00.000Z"
+      },
+      {
+        "id": 2,
+        "session_id": "session_xxx",
+        "user_id": 1,
+        "role": "assistant",
+        "content": "你好！我是 AI 助手...",
+        "created_at": "2026-04-26T12:00:01.000Z"
+      }
+    ]
+  }
+}
+```
+
+**实现代码位置:** [routes/admin.ts](src/routes/admin.ts)
+
+---
 
 ---
 
@@ -564,6 +799,42 @@ export const authMiddleware = (req, res, next) => {
 - Token 缺失 → 401 未提供认证令牌
 - Token 过期 → 401 认证令牌已过期
 - Token 无效 → 401 无效的认证令牌
+
+---
+
+### 管理员权限中间件 ([middleware/admin.ts](src/middleware/admin.ts))
+
+**功能说明：** 在 JWT 认证通过后，进一步验证用户角色是否为 `admin`，用于保护后台管理接口。
+
+**核心逻辑：**
+```typescript
+export const adminMiddleware = (req, res, next) => {
+  const user = req.user
+
+  // 1. 检查是否已认证
+  if (!user) {
+    return ApiResponse.unauthorized(res, '未认证')
+  }
+
+  // 2. 检查是否为管理员角色
+  if (user.role !== 'admin') {
+    return ApiResponse.forbidden(res, '无管理员权限')
+  }
+
+  next()
+}
+```
+
+**错误处理：**
+- 用户未认证 → 401 未认证
+- 角色非 admin → 403 无管理员权限
+
+**使用方式：** 与 `authMiddleware` 组合使用，先认证再鉴权：
+```typescript
+router.get('/admin/users', authMiddleware, adminMiddleware, handler)
+```
+
+**实现代码位置:** [middleware/admin.ts](src/middleware/admin.ts)
 
 ---
 
@@ -665,6 +936,29 @@ interface ChatHistory {
 | `deleteBySessionId(sessionId)` | 会话ID | Promise\<number\> | 删除指定会话的所有记录 |
 | `deleteByUserId(userId)` | 用户ID | Promise\<number\> | 删除指定用户的所有记录 |
 | `deleteBySessionIdAndUserId(sessionId, userId)` | 会话ID, 用户ID | Promise\<number\> | 删除指定用户的指定会话 |
+| `getUserChatStats()` | 无 | Promise\<any[]\> | 获取所有用户的对话统计（管理员用） |
+| `getByUserId(userId)` | 用户ID | Promise\<ChatHistory[]\> | 根据用户ID获取对话历史（管理员用） |
+
+**新增方法说明（管理员用）：**
+
+**getUserChatStats() 查询逻辑：**
+```sql
+SELECT u.id AS user_id, u.username, u.email,
+  COUNT(DISTINCT ch.session_id) AS session_count,
+  COUNT(ch.id) AS message_count,
+  SUM(CASE WHEN ch.role = 'user' THEN 1 ELSE 0 END) AS user_message_count,
+  SUM(CASE WHEN ch.role = 'assistant' THEN 1 ELSE 0 END) AS assistant_message_count,
+  MAX(ch.created_at) AS last_active_at
+FROM users u
+LEFT JOIN chat_history ch ON u.id = ch.user_id
+GROUP BY u.id, u.username, u.email
+ORDER BY last_active_at DESC
+```
+
+**getByUserId(userId) 查询逻辑：**
+```sql
+SELECT * FROM chat_history WHERE user_id = ? ORDER BY created_at ASC
+```
 
 **关键特性：**
 - 支持未登录用户（user_id 可为 NULL）
@@ -1476,4 +1770,4 @@ hotfix/xxx (紧急修复)
 
 ---
 
-*本文档最后更新于 2026-04-26 | 由后端开发团队维护*
+*本文档最后更新于 2026-04-28 | 由后端开发团队维护*

@@ -62,4 +62,57 @@ export class ChatHistoryModel {
     )
     return (result as any).affectedRows
   }
+
+  // 获取所有用户的对话统计信息（管理员用）
+  static async getUserChatStats() {
+    const [rows] = await pool.execute(`
+      SELECT
+        u.id AS user_id,
+        u.username,
+        u.email,
+        COUNT(DISTINCT ch.session_id) AS session_count,
+        COUNT(ch.id) AS message_count,
+        SUM(CASE WHEN ch.role = 'user' THEN 1 ELSE 0 END) AS user_message_count,
+        SUM(CASE WHEN ch.role = 'assistant' THEN 1 ELSE 0 END) AS assistant_message_count,
+        MAX(ch.created_at) AS last_active_at
+      FROM users u
+      LEFT JOIN chat_history ch ON u.id = ch.user_id
+      GROUP BY u.id, u.username, u.email
+      ORDER BY last_active_at DESC
+    `)
+    return rows
+  }
+
+  // 根据用户ID获取对话历史（管理员用）
+  static async getByUserId(userId: number) {
+    const [rows] = await pool.execute(
+      'SELECT * FROM chat_history WHERE user_id = ? ORDER BY created_at ASC',
+      [userId]
+    )
+    return rows as ChatHistory[]
+  }
+
+  // 获取用户的所有会话列表（含预览信息）
+  static async getSessionsByUserId(userId: number | null) {
+    if (userId !== null) {
+      const [rows] = await pool.execute(`
+        SELECT
+          ch.session_id,
+          MIN(ch.created_at) AS created_at,
+          MAX(ch.created_at) AS last_active_at,
+          COUNT(*) AS message_count,
+          (SELECT c2.content FROM chat_history c2
+           WHERE c2.session_id = ch.session_id AND c2.role = 'user'
+           ORDER BY c2.created_at ASC LIMIT 1) AS first_message
+        FROM chat_history ch
+        WHERE ch.user_id = ?
+        GROUP BY ch.session_id
+        ORDER BY last_active_at DESC
+      `, [userId])
+      return rows
+    } else {
+      // 未登录用户：通过传入的 session_id 列表查询
+      return []
+    }
+  }
 }
