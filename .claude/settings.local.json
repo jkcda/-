@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir /s /b \"C:\\\\Users\\\\ak195\\\\Desktop\\\\aiconnent\")"
+    ]
+  }
+}

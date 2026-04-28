@@ -140,10 +140,10 @@ const registerRules = {
 **核心特性：**
 - **流式输出**: 使用 SSE (Server-Sent Events) 接收 AI 回复
 - **打字机效果**: SSE 数据块先写入缓冲区，再以逐字动画方式呈现（每 30ms 释放 2~5 字符，积压超 200 字符自动加速）
-- **多会话管理**: 支持新建对话、切换对话、删除对话，左侧侧边栏展示会话列表
-- **会话持久化**: 会话列表存储于 localStorage（按用户隔离），后端同步元数据
-- **历史记录**: 切换会话时自动加载对应历史对话
-- **用户隔离**: 已登录和未登录用户的独立会话存储
+- **多会话管理**: 支持新建对话、切换对话、删除对话，左侧侧边栏展示会话列表（可折叠）
+- **会话持久化**: 会话列表存储于 localStorage（按用户隔离），组件挂载时自动从 MySQL 同步历史会话并合并
+- **历史记录**: 切换会话时自动加载对应历史对话；登录用户可读取历史遗留的匿名会话（user_id IS NULL）
+- **用户隔离**: 已登录和未登录用户独立的会话存储，通过 `chatSessions_{userId}` / `chatSessions_anon` 键隔离
 
 **消息类型定义：**
 ```typescript
@@ -155,34 +155,37 @@ interface Message {
 
 **Session ID 生成策略：**
 ```typescript
-const getSessionId = (): string => {
-  const userInfo = userStore.getUserInfo()
-  const userId = userInfo?.id
-  
-  if (userId) {
-    // 已登录用户：使用 userId 作为 key 存储 sessionid
-    const storageKey = `chatSessionId_${userId}`
-    let id = localStorage.getItem(storageKey)
-    if (!id) {
-      id = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
-      localStorage.setItem(storageKey, id)
-    }
-    return id
-  } else {
-    // 未登录用户：使用默认的 sessionid
-    // ...
-  }
+const generateSessionId = () => {
+  return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
+}
+```
+
+**会话存储键设计（按用户隔离）：**
+```typescript
+const getStorageKey = () => {
+  const uid = userInfo?.id || 'anon'
+  return `chatSessions_${uid}`   // 会话列表
+}
+const getCurrentKey = () => {
+  const uid = userInfo?.id || 'anon'
+  return `chatCurrentSession_${uid}`  // 当前选中的会话 ID
 }
 ```
 
 **发送消息流程：**
 1. 添加用户消息到界面，更新侧边栏会话预览
-2. 调用 `/api/ai/chat` 接口（POST，携带当前 sessionId）
+2. 调用 `/api/ai/chat` 接口（POST，携带当前 sessionId 和 userId）
 3. 添加助手消息占位符
 4. 启动打字机效果（创建缓冲区和 30ms 定时器）
 5. SSE 数据块写入缓冲区，打字机定时器逐字释放到界面
 6. 流式传输结束时刷新剩余缓冲字符、停止定时器，并调用 `/api/ai/sessions` 同步元数据
 7. 每次更新自动滚动到底部
+
+**组件初始化流程（onMounted）：**
+1. 从 localStorage 加载当前用户的会话列表（`loadSessionList`）
+2. 调用 `syncSessionsFromBackend()` 从 MySQL 拉取该用户的会话及历史遗留匿名会话，与 localStorage 合并去重
+3. 恢复上次选中的会话或选择第一条会话
+4. 调用 `/api/ai/history` 加载该会话的历史消息
 
 **会话切换流程：**
 1. 停止当前打字机（如有）
@@ -192,6 +195,10 @@ const getSessionId = (): string => {
 5. 侧边栏高亮切换至新会话
 
 **说明：** 会话 ID 对用户完全隐藏，不再显示在页面头部，用户只看到预览文本和消息数量。
+
+**侧边栏折叠设计：** 折叠按钮（`.sidebar-toggle`）位于侧边栏外部、主聊天区域左侧，作为 28px 宽的独立竖条。折叠时侧边栏宽度变为 0 并隐藏内容，但折叠按钮始终可见，点击即可再次展开。
+
+**MySQL 历史会话同步（`syncSessionsFromBackend`）：** 组件挂载时自动调用 `GET /api/ai/sessions`，将后端返回的会话与 localStorage 合并：新会话直接插入列表，已存在的会话更新消息数和预览。合并后按 `lastActiveAt` 降序排列并写回 localStorage。
 
 **打字机效果实现：**
 ```typescript

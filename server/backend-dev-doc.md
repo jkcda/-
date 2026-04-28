@@ -421,11 +421,11 @@ GET /api/ai/history?session_id=session_1700000000_abc123&user_id=1
 **数据查询逻辑：**
 ```sql
 SELECT * FROM chat_history 
-WHERE session_id = ? AND user_id = ?
+WHERE session_id = ? AND (user_id = ? OR user_id IS NULL)
 ORDER BY created_at ASC
 ```
 
-**说明：** 同时匹配 session_id 和 user_id，确保用户只能看到自己的对话
+**说明：** 同时匹配 session_id 和 user_id，同时兼容历史遗留的匿名会话（user_id IS NULL），确保登录用户可访问自己的对话及未绑定用户的旧数据
 
 ---
 
@@ -479,7 +479,7 @@ GET /api/ai/sessions?userId=1
 }
 ```
 
-**查询逻辑：**
+**查询逻辑（已登录用户）：**
 ```sql
 SELECT session_id,
   MIN(created_at) AS created_at,
@@ -489,12 +489,18 @@ SELECT session_id,
    WHERE c2.session_id = ch.session_id AND c2.role = 'user'
    ORDER BY c2.created_at ASC LIMIT 1) AS first_message
 FROM chat_history ch
-WHERE user_id = ?
+WHERE user_id = ? OR user_id IS NULL
 GROUP BY session_id
 ORDER BY last_active_at DESC
 ```
 
-**用途:** 前端根据此接口实现多会话切换功能，每个会话显示首条用户消息预览和消息数量。
+**查询逻辑（未登录用户）：**
+```sql
+-- 同上，但 WHERE 条件仅匹配 user_id IS NULL
+WHERE user_id IS NULL
+```
+
+**说明：** 已登录用户可同时看到自己绑定的会话和历史遗留的匿名会话（user_id IS NULL）；未登录用户只能看到匿名会话。前端在组件挂载时调用此接口，将返回的会话与 localStorage 合并去重。
 
 ---
 
@@ -932,7 +938,8 @@ interface ChatHistory {
 | 方法名 | 参数 | 返回值 | 说明 |
 |-------|------|--------|------|
 | `create(sessionId, userId, role, content)` | 会话ID, 用户ID, 角色, 内容 | Promise\<number\> | 保存单条消息 |
-| `getBySessionIdAndUserId(sessionId, userId)` | 会话ID, 用户ID | Promise\<ChatHistory[]\> | 获取会话历史（同时匹配两个条件） |
+| `getBySessionIdAndUserId(sessionId, userId)` | 会话ID, 用户ID | Promise\<ChatHistory[]\> | 获取会话历史（匹配 session_id，同时兼容 user_id IS NULL 遗留数据） |
+| `getSessionsByUserId(userId)` | 用户ID | Promise\<any[]\> | 获取用户会话列表（含首条消息预览和消息数；已登录用户同时包含匿名遗留会话） |
 | `deleteBySessionId(sessionId)` | 会话ID | Promise\<number\> | 删除指定会话的所有记录 |
 | `deleteByUserId(userId)` | 用户ID | Promise\<number\> | 删除指定用户的所有记录 |
 | `deleteBySessionIdAndUserId(sessionId, userId)` | 会话ID, 用户ID | Promise\<number\> | 删除指定用户的指定会话 |
@@ -964,6 +971,8 @@ SELECT * FROM chat_history WHERE user_id = ? ORDER BY created_at ASC
 - 支持未登录用户（user_id 可为 NULL）
 - 按时间升序排列（created_at ASC）
 - 支持多维度删除操作
+- 登录用户可读取历史遗留的匿名会话（查询条件：`user_id = ? OR user_id IS NULL`）
+- 组件挂载时前端自动调用 `/api/ai/sessions` 同步 MySQL 历史会话到侧边栏
 
 ---
 

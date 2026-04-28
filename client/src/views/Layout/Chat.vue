@@ -33,9 +33,11 @@
           暂无对话记录
         </div>
       </div>
-      <div class="sidebar-toggle" @click="sidebarCollapsed = !sidebarCollapsed">
-        <el-icon :class="{ rotated: sidebarCollapsed }"><Fold /></el-icon>
-      </div>
+    </div>
+
+    <!-- 侧边栏折叠按钮 -->
+    <div class="sidebar-toggle" @click="sidebarCollapsed = !sidebarCollapsed">
+      <el-icon :class="{ rotated: sidebarCollapsed }"><Fold /></el-icon>
     </div>
 
     <!-- 主聊天区域 -->
@@ -181,9 +183,44 @@ const getPreview = (content: string) => {
   return content.length > 30 ? content.slice(0, 30) + '...' : content
 }
 
+// --- 从后端同步 MySQL 中的历史会话 ---
+const syncSessionsFromBackend = async () => {
+  try {
+    const userInfo = userStore.getUserInfo()
+    const userId = userInfo?.id || null
+    if (!userId) return
+    const res = await getSessions(userId)
+    if (res.data.success && res.data.result.sessions) {
+      const backendSessions: any[] = res.data.result.sessions
+      for (const bs of backendSessions) {
+        const existing = sessionList.value.find(s => s.id === bs.session_id)
+        if (!existing) {
+          sessionList.value.push({
+            id: bs.session_id,
+            preview: getPreview(bs.first_message || ''),
+            messageCount: bs.message_count || 0,
+            lastActiveAt: bs.last_active_at || bs.created_at
+          })
+        } else {
+          existing.messageCount = bs.message_count || 0
+          existing.preview = getPreview(bs.first_message || existing.preview)
+          existing.lastActiveAt = bs.last_active_at || existing.lastActiveAt
+        }
+      }
+      sessionList.value.sort((a, b) =>
+        new Date(b.lastActiveAt).getTime() - new Date(a.lastActiveAt).getTime()
+      )
+      saveSessionList()
+    }
+  } catch {
+    // 静默失败，不影响本地使用
+  }
+}
+
 // --- 初始化 ---
 const initCurrentSession = async () => {
   loadSessionList()
+  await syncSessionsFromBackend()
   const saved = localStorage.getItem(getCurrentKey())
 
   if (saved && sessionList.value.some(s => s.id === saved)) {
@@ -553,16 +590,22 @@ onMounted(() => {
 }
 
 .sidebar-toggle {
-  padding: 8px;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  background: #fff;
   color: #909399;
   cursor: pointer;
-  border-top: 1px solid #e4e7ed;
+  flex-shrink: 0;
   font-size: 16px;
+  transition: color 0.2s, background 0.2s;
+  border-right: 1px solid #e4e7ed;
 }
 
 .sidebar-toggle:hover {
   color: #409EFF;
+  background: #f5f7fa;
 }
 
 .rotated {

@@ -23,15 +23,15 @@ export class ChatHistoryModel {
   static async getBySessionIdAndUserId(sessionId: string, userId: number | null) {
     let query = 'SELECT * FROM chat_history WHERE session_id = ?'
     let params: any[] = [sessionId]
-    
-    // 如果有用户 ID，则同时匹配 user_id
+
     if (userId !== null) {
-      query += ' AND user_id = ?'
+      // 匹配该用户的会话 + 历史遗留的匿名会话
+      query += ' AND (user_id = ? OR user_id IS NULL)'
       params.push(userId)
     }
-    
+
     query += ' ORDER BY created_at ASC'
-    
+
     const [rows] = await pool.execute(query, params)
     return rows as ChatHistory[]
   }
@@ -95,6 +95,7 @@ export class ChatHistoryModel {
   // 获取用户的所有会话列表（含预览信息）
   static async getSessionsByUserId(userId: number | null) {
     if (userId !== null) {
+      // 查询该用户的会话 + 历史遗留的匿名会话（user_id IS NULL）
       const [rows] = await pool.execute(`
         SELECT
           ch.session_id,
@@ -105,14 +106,28 @@ export class ChatHistoryModel {
            WHERE c2.session_id = ch.session_id AND c2.role = 'user'
            ORDER BY c2.created_at ASC LIMIT 1) AS first_message
         FROM chat_history ch
-        WHERE ch.user_id = ?
+        WHERE ch.user_id = ? OR ch.user_id IS NULL
         GROUP BY ch.session_id
         ORDER BY last_active_at DESC
       `, [userId])
       return rows
     } else {
-      // 未登录用户：通过传入的 session_id 列表查询
-      return []
+      // 未登录用户：返回匿名会话
+      const [rows] = await pool.execute(`
+        SELECT
+          ch.session_id,
+          MIN(ch.created_at) AS created_at,
+          MAX(ch.created_at) AS last_active_at,
+          COUNT(*) AS message_count,
+          (SELECT c2.content FROM chat_history c2
+           WHERE c2.session_id = ch.session_id AND c2.role = 'user'
+           ORDER BY c2.created_at ASC LIMIT 1) AS first_message
+        FROM chat_history ch
+        WHERE ch.user_id IS NULL
+        GROUP BY ch.session_id
+        ORDER BY last_active_at DESC
+      `)
+      return rows
     }
   }
 }
