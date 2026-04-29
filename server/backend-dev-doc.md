@@ -389,9 +389,21 @@ function buildContext(messages, maxChars = 2000) {
 - 服务: [services/ai.ts - chatWithAIStream()](src/services/ai.ts#L70-L145)
 - 上传: [routes/upload.ts](src/routes/upload.ts)
 
-**多模态说明：** 支持图片和文档上传。图片以 base64 格式通过 Anthropic content-block 发送；txt/md 直接读取文本内容，PDF 通过 pdf-parse 提取文字，doc/docx 附文件名作为上下文提示。所有文档提取后拼接至消息上下文。
+**多模态说明：** 支持图片和文档上传。不同文件类型处理策略：
 
-> **pdf-parse 版本说明：** 使用 v1.1.1（CJS 模块），通过 `createRequire` 加载。v2.4.5+ 的 ESM 版本仅导出 `PDFParse` 类且 API 复杂不稳定，故降级使用 v1 简洁的函数式 API（`pdfParse(buffer) → { text }`）。
+| 文件类型 | 解析方式 | 说明 |
+|---------|---------|------|
+| 图片 (JPEG/PNG/GIF/WebP) | base64 编码 | 通过 Anthropic content-block 发送 |
+| TXT / MD / JSON | `fs.readFileSync` | 直接读取文本内容 |
+| PDF | `pdf-parse` v1.1.1 | CJS 模块，通过 `createRequire` 加载 |
+| DOCX | `mammoth` | 提取 Word 文档文本 |
+| DOC | — | 旧版二进制格式不支持，提示用户另存为 DOCX |
+
+所有提取后的文本拼接至消息上下文。图片以独立 content-block 发送。
+
+> **历史 Bug 记录：**
+> - **PDF 解析失败**（已修复）：最初使用 `pdf-parse` v2.4.5 ESM 版本，该版本仅导出 `PDFParse` 类，直接调用 `load()` 报错 `getDocument - no url parameter`，无法正常工作。解决：降级至 v1.1.1（CJS），通过 `createRequire` 加载，使用简洁的 `pdfParse(buffer) → { text }` API。
+> - **DOCX/DOC 无法解析**（已修复）：初始实现只返回占位文本 `[文档: 文件已上传，请根据文件名进行回答]`，未真正提取文件内容，导致 AI 回复"无法直接解析二进制内容"。解决：DOCX 引入 `mammoth` 库解析 Word 文档 XML 结构提取文本；DOC 为旧版 .doc 二进制格式，JS 生态无可靠解析器，前端返回明确提示引导用户另存为 DOCX。
 
 ---
 
@@ -516,7 +528,7 @@ WHERE user_id IS NULL
 
 ### 3. 文件上传模块 (`/api`)
 
-#### 4.0 上传文件
+#### 3.0 上传文件
 
 **接口地址:** `POST /api/upload`
 
@@ -550,6 +562,15 @@ WHERE user_id IS NULL
 - 500: 服务器内部错误
 
 **实现代码位置:** [routes/upload.ts](src/routes/upload.ts)
+
+**技术选型 — 为什么使用 multer：**
+- Express 生态最成熟的文件上传中间件，社区活跃、文档完善
+- 内置 `diskStorage` / `memoryStorage` 两种存储策略，支持自定义文件名生成
+- 支持文件大小限制（`limits.fileSize`）、类型过滤（`fileFilter`）
+- 底层解析 multipart/form-data，与 Express 集成无需额外配置
+- 备选方案对比：`formidable`（API 偏底层）、`express-fileupload`（功能较少）、`busboy`（需手动处理流）
+
+**中文文件名编码处理：** multer 底层 busboy 默认按 latin1（ISO-8859-1）解析 multipart 头中的文件名，导致中文变成乱码。解决方案：上传和返回时对 `file.originalname` 执行 `Buffer.from(name, 'latin1').toString('utf8')` 转码。
 
 ---
 

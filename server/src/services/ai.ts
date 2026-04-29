@@ -83,9 +83,17 @@ async function extractDocumentText(filePath: string, mimetype: string): Promise<
         return '[PDF 解析失败]'
       }
 
-    case 'application/msword':
     case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
-      return '[文档: 文件已上传，请根据文件名进行回答]'
+      try {
+        const mammoth = (await import('mammoth')).default
+        const result = await mammoth.extractRawText({ path: absolutePath })
+        return result.value
+      } catch {
+        return '[DOCX 解析失败]'
+      }
+
+    case 'application/msword':
+      return '[DOC 为旧版二进制格式，无法直接解析。请将文件另存为 DOCX 格式后重新上传]'
 
     default:
       return '[不支持预览的文档类型]'

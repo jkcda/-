@@ -14,13 +14,19 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true })
 }
 
+// multer 底层 busboy 按 latin1 解析文件名，中文会乱码，需转回 UTF-8
+function decodeFileName(originalname: string): string {
+  return Buffer.from(originalname, 'latin1').toString('utf8')
+}
+
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => {
     cb(null, uploadsDir)
   },
   filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname)
-    const baseName = path.basename(file.originalname, ext)
+    const originalName = decodeFileName(file.originalname)
+    const ext = path.extname(originalName)
+    const baseName = path.basename(originalName, ext)
     const timestamp = Date.now()
     const safeName = `${baseName}_${timestamp}${ext}`
     cb(null, safeName)
@@ -56,7 +62,7 @@ router.post('/upload', upload.single('file'), (req, res) => {
     const url = `/uploads/${file.filename}`
 
     ApiResponse.success(res, {
-      name: file.originalname,
+      name: decodeFileName(file.originalname),
       url,
       type: file.mimetype,
       size: file.size
