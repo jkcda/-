@@ -1,5 +1,12 @@
 import request from '@/utils/http'
 
+interface UploadResult {
+  name: string
+  url: string
+  type: string
+  size: number
+}
+
 // 获取对话历史接口
 export const getChatHistory = (sessionId: string, userId?: number | null) => {
   const params = new URLSearchParams({ sessionId })
@@ -14,6 +21,7 @@ export const chatWithAI = (data: {
   message: string
   sessionId: string
   userId?: number | null
+  files?: UploadResult[]
 }) => {
   return request.post('/ai/chat', data)
 }
@@ -34,4 +42,20 @@ export const deleteChatHistory = (sessionId: string, userId?: number | null) => 
     params.append('userId', userId.toString())
   }
   return request.delete(`/ai/history?${params.toString()}`)
+}
+
+// 上传文件
+export const uploadFile = async (file: File): Promise<UploadResult> => {
+  const formData = new FormData()
+  formData.append('file', file)
+  const baseURL = (import.meta.env as any).VITE_BASE_URL || ''
+  const response = await fetch(`${baseURL}/api/upload`, {
+    method: 'POST',
+    body: formData
+  })
+  const data = await response.json()
+  if (!data.success) {
+    throw new Error(data.message || '上传失败')
+  }
+  return data.result
 }

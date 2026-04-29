@@ -6,15 +6,16 @@ interface ChatHistory {
   user_id: number | null
   role: 'user' | 'assistant'
   content: string
+  files?: string | null
   created_at: Date
 }
 
 export class ChatHistoryModel {
   // 保存对话历史
-  static async create(sessionId: string, userId: number | null, role: 'user' | 'assistant', content: string) {
+  static async create(sessionId: string, userId: number | null, role: 'user' | 'assistant', content: string, files?: string) {
     const [result] = await pool.execute(
-      'INSERT INTO chat_history (session_id, user_id, role, content) VALUES (?, ?, ?, ?)',
-      [sessionId, userId, role, content]
+      'INSERT INTO chat_history (session_id, user_id, role, content, files) VALUES (?, ?, ?, ?, ?)',
+      [sessionId, userId, role, content, files || null]
     )
     return (result as any).insertId
   }

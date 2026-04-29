@@ -23,11 +23,15 @@ CREATE TABLE IF NOT EXISTS `chat_history` (
   `user_id` INT NULL COMMENT '用户 ID（可为空，表示未登录用户）',
   `role` ENUM('user', 'assistant') NOT NULL COMMENT '角色：user 用户，assistant 助手',
   `content` TEXT NOT NULL COMMENT '对话内容',
+  `files` JSON NULL COMMENT '附件列表 [{name, url, type}]',
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   INDEX `idx_session_id` (`session_id`),
   INDEX `idx_user_id` (`user_id`),
   FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='对话历史表';
+
+-- 如果表已存在，执行以下语句添加 files 列
+-- ALTER TABLE chat_history ADD COLUMN `files` JSON NULL COMMENT '附件列表' AFTER `content`;
 
 -- 示例数据（可选，用于测试）
 -- INSERT INTO users (username, email, password, role) VALUES 

@@ -144,6 +144,7 @@ DASHSCOPE_API_KEY=your-api-key
 | user_id | INT | NULL, FOREIGN KEY | 用户 ID（可为空） |
 | role | ENUM('user','assistant') | NOT NULL | 角色 |
 | content | TEXT | NOT NULL | 对话内容 |
+| files | JSON | NULL | 附件列表 `[{name, url, type}]` |
 | created_at | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP | 创建时间 |
 
 **索引：**
@@ -338,15 +339,19 @@ Authorization: Bearer <token>
 ```json
 {
   "message": "你好，请介绍一下自己",
-  "session_id": "session_1700000000_abc123",
-  "user_id": 1
+  "sessionId": "session_1700000000_abc123",
+  "userId": 1,
+  "files": [
+    { "name": "photo.jpg", "url": "/uploads/photo_17000000.jpg", "type": "image/jpeg" }
+  ]
 }
 ```
 
 **参数说明：**
-- `message`: 必填，用户消息内容
-- `session_id`: 必填，会话标识符
-- `user_id`: 可选，用户 ID（已登录用户）
+- `message`: 必填（有文件时可为空字符串），用户消息内容
+- `sessionId`: 必填，会话标识符
+- `userId`: 可选，用户 ID（已登录用户）
+- `files`: 可选，上传的附件列表（先调用 `/api/upload` 上传后获得 URL）
 
 **SSE 响应格式：**
 ```
@@ -381,7 +386,10 @@ function buildContext(messages, maxChars = 2000) {
 
 **实现代码位置:** 
 - 路由: [routes/ai.ts](src/routes/ai.ts#L10-L60)
-- 服务: [services/ai.ts - chatWithAIStream()](src/services/ai.ts#L70-L102)
+- 服务: [services/ai.ts - chatWithAIStream()](src/services/ai.ts#L70-L145)
+- 上传: [routes/upload.ts](src/routes/upload.ts)
+
+**多模态说明：** 支持图片和文档上传。图片以 base64 格式通过 Anthropic content-block 发送；文档（txt/md/pdf/json）提取文本拼接至消息上下文。
 
 ---
 
@@ -504,11 +512,50 @@ WHERE user_id IS NULL
 
 ---
 
-### 3. 管理员模块 (`/api/admin`)
+### 3. 文件上传模块 (`/api`)
+
+#### 4.0 上传文件
+
+**接口地址:** `POST /api/upload`
+
+**Content-Type:** `multipart/form-data`
+
+**请求参数：**
+- `file`: 必填，文件（表单字段名）
+
+**支持的文件类型：**
+- 图片: JPEG, PNG, GIF, WebP（最大 10MB）
+- 文档: TXT, Markdown, PDF, JSON（最大 20MB）
+
+**成功响应 (200):**
+```json
+{
+  "success": true,
+  "message": "上传成功",
+  "result": {
+    "name": "photo.jpg",
+    "url": "/uploads/photo_1700000000.jpg",
+    "type": "image/jpeg",
+    "size": 102400
+  }
+}
+```
+
+**错误情况：**
+- 400: 未选择文件
+- 400: 文件大小超出限制
+- 400: 不支持的文件类型
+- 500: 服务器内部错误
+
+**实现代码位置:** [routes/upload.ts](src/routes/upload.ts)
+
+---
+
+### 4. 管理员模块 (`/api/admin`)
 
 > ⚠️ **注意:** 所有管理员接口需要双重认证：`authMiddleware` + `adminMiddleware`
 
-#### 3.1 后台首页
+#### 4.1 后台首页
 
 **接口地址:** `GET /api/admin/dashboard`
 
@@ -531,7 +578,7 @@ WHERE user_id IS NULL
 
 ---
 
-#### 3.2 获取用户列表
+#### 4.2 获取用户列表
 
 **接口地址:** `GET /api/admin/users`
 
@@ -558,7 +605,7 @@ WHERE user_id IS NULL
 
 ---
 
-#### 3.3 创建用户
+#### 4.3 创建用户
 
 **接口地址:** `POST /api/admin/users`
 
@@ -606,7 +653,7 @@ WHERE user_id IS NULL
 
 ---
 
-#### 3.4 更新用户
+#### 4.4 更新用户
 
 **接口地址:** `PUT /api/admin/users/:id`
 
@@ -646,7 +693,7 @@ WHERE user_id IS NULL
 
 ---
 
-#### 3.5 删除用户
+#### 4.5 删除用户
 
 **接口地址:** `DELETE /api/admin/users/:id`
 
@@ -671,7 +718,7 @@ WHERE user_id IS NULL
 
 ---
 
-#### 3.6 获取用户对话统计
+#### 4.6 获取用户对话统计
 
 **接口地址:** `GET /api/admin/chat-stats`
 
@@ -717,7 +764,7 @@ ORDER BY last_active_at DESC
 
 ---
 
-#### 3.7 获取指定用户对话历史
+#### 4.7 获取指定用户对话历史
 
 **接口地址:** `GET /api/admin/chat-history/:userId`
 
@@ -1779,4 +1826,4 @@ hotfix/xxx (紧急修复)
 
 ---
 
-*本文档最后更新于 2026-04-28 | 由后端开发团队维护*
+*本文档最后更新于 2026-04-29 | 由后端开发团队维护*

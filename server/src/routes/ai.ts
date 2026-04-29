@@ -5,13 +5,13 @@ import { ApiResponse } from '../utils/response.js'
 
 const router = express.Router()
 
-// POST /api/ai/chat - AI对话（流式输出）
+// POST /api/ai/chat - AI对话（流式输出，支持多模态文件）
 router.post('/chat', async (req, res) => {
   try {
-    const { message, sessionId, userId } = req.body
+    const { message, sessionId, userId, files } = req.body
 
-    if (!message) {
-      return ApiResponse.badRequest(res, '请输入消息内容')
+    if (!message && (!files || files.length === 0)) {
+      return ApiResponse.badRequest(res, '请输入消息内容或上传文件')
     }
 
     if (!sessionId) {
@@ -25,7 +25,10 @@ router.post('/chat', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*')
 
     try {
-      const { stream, sessionId: returnedSessionId } = await chatWithAIStream(message, sessionId, userId)
+      const { stream, sessionId: returnedSessionId } = await chatWithAIStream(
+        message || '', sessionId, userId,
+        files && files.length > 0 ? files : undefined
+      )
 
       let assistantContent = ''
 
@@ -86,7 +89,8 @@ router.get('/history', async (req, res) => {
     
     const messages = history.map(item => ({
       role: item.role,
-      content: item.content
+      content: item.content,
+      files: item.files ? (typeof item.files === 'string' ? JSON.parse(item.files) : item.files) : undefined
     }))
 
     ApiResponse.success(res, { messages }, '获取对话历史成功')

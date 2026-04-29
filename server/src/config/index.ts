@@ -37,6 +37,14 @@ const config = {
   // 上下文配置
   context: {
     maxChars: 10000 // 上下文最大字符数
+  },
+
+  // 文件上传配置
+  upload: {
+    maxImageSize: 10 * 1024 * 1024,   // 图片最大 10MB
+    maxDocSize: 20 * 1024 * 1024,     // 文档最大 20MB
+    allowedImages: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
+    allowedDocs: ['text/plain', 'text/markdown', 'application/pdf', 'application/json']
   }
 }
 

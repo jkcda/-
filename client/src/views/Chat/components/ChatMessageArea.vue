@@ -1,0 +1,466 @@
+<template>
+  <div class="chat-main">
+    <div class="chat-header">
+      <h2>AI 智能对话</h2>
+      <el-button
+        v-if="currentSessionId"
+        type="warning"
+        size="small"
+        @click="$emit('clearHistory')"
+      >
+        清空当前对话
+      </el-button>
+    </div>
+
+    <div class="chat-messages" ref="messagesContainer">
+      <div v-if="loadingHistory" class="loading-history">
+        加载历史对话中...
+      </div>
+      <div
+        v-for="(msg, index) in messages"
+        :key="index"
+        :class="['message', msg.role]"
+      >
+        <div class="message-content">
+          <div v-html="renderMarkdown(msg.content)"></div>
+          <div v-if="msg.files && msg.files.length > 0" class="message-files">
+            <div
+              v-for="(file, fi) in msg.files"
+              :key="fi"
+              class="message-file-item"
+            >
+              <img v-if="file.type.startsWith('image/')" :src="file.url" class="msg-image" />
+              <a v-else :href="file.url" target="_blank" class="msg-doc">
+                <el-icon><Document /></el-icon>
+                {{ file.name }}
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div v-if="isLoading && typingMessageIndex === -1" class="message assistant">
+        <div class="message-content typing-indicator">
+          <span class="dot"></span>
+          <span class="dot"></span>
+          <span class="dot"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 已选文件预览 -->
+    <div v-if="selectedFiles.length > 0" class="file-preview-bar">
+      <div
+        v-for="(file, index) in selectedFiles"
+        :key="index"
+        class="file-preview-item"
+      >
+        <img v-if="file.type.startsWith('image/')" :src="file.previewUrl" class="file-thumb" />
+        <el-icon v-else class="file-icon"><Document /></el-icon>
+        <span class="file-name">{{ file.name }}</span>
+        <el-button class="file-remove" size="small" text type="danger" @click="removeFile(index)">
+          <el-icon><Close /></el-icon>
+        </el-button>
+      </div>
+    </div>
+
+    <div class="chat-input">
+      <div class="input-row">
+        <div class="upload-btns">
+          <input
+            ref="imageInputRef"
+            type="file"
+            accept="image/*"
+            multiple
+            hidden
+            @change="onFilesSelected($event, 'image')"
+          />
+          <el-tooltip content="上传图片">
+            <el-button size="small" circle @click="imageInputRef?.click()">
+              <el-icon><PictureFilled /></el-icon>
+            </el-button>
+          </el-tooltip>
+
+          <input
+            ref="docInputRef"
+            type="file"
+            accept=".txt,.md,.pdf,.json"
+            multiple
+            hidden
+            @change="onFilesSelected($event, 'doc')"
+          />
+          <el-tooltip content="上传文档">
+            <el-button size="small" circle @click="docInputRef?.click()">
+              <el-icon><FolderOpened /></el-icon>
+            </el-button>
+          </el-tooltip>
+        </div>
+
+        <el-input
+          v-model="inputMessage"
+          type="textarea"
+          :rows="3"
+          placeholder="请输入您的问题... (Enter 发送)"
+          @keydown.enter.exact.prevent="handleSend"
+          class="text-input"
+        />
+      </div>
+
+      <el-button
+        type="primary"
+        @click="handleSend"
+        :loading="isLoading"
+        :disabled="!currentSessionId"
+        style="margin-top: 10px;"
+      >
+        发送
+      </el-button>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, nextTick } from 'vue'
+import { ElMessage } from 'element-plus'
+import { PictureFilled, FolderOpened, Document, Close } from '@element-plus/icons-vue'
+import { marked } from 'marked'
+
+marked.setOptions({
+  breaks: true,
+  gfm: true
+})
+
+interface FileAttachment {
+  name: string
+  url: string
+  type: string
+}
+
+interface Message {
+  role: 'user' | 'assistant'
+  content: string
+  files?: FileAttachment[]
+}
+
+const props = defineProps<{
+  messages: Message[]
+  isLoading: boolean
+  loadingHistory: boolean
+  typingMessageIndex: number
+  currentSessionId: string
+}>()
+
+const emit = defineEmits<{
+  send: [payload: { content: string; files: File[] }]
+  clearHistory: []
+}>()
+
+const inputMessage = ref('')
+const messagesContainer = ref<HTMLElement>()
+const imageInputRef = ref<HTMLInputElement>()
+const docInputRef = ref<HTMLInputElement>()
+
+interface SelectedFile {
+  file: File
+  name: string
+  type: string
+  previewUrl: string
+}
+
+const selectedFiles = ref<SelectedFile[]>([])
+
+function renderMarkdown(content: string): string {
+  if (!content) return ''
+  return marked.parse(content) as string
+}
+
+function onFilesSelected(event: Event, _source: 'image' | 'doc') {
+  const input = event.target as HTMLInputElement
+  const files = input.files
+  if (!files) return
+
+  for (const file of files) {
+    const previewUrl = file.type.startsWith('image/')
+      ? URL.createObjectURL(file)
+      : ''
+
+    selectedFiles.value.push({
+      file,
+      name: file.name,
+      type: file.type,
+      previewUrl
+    })
+  }
+
+  // Reset input so same file can be selected again
+  input.value = ''
+}
+
+function removeFile(index: number) {
+  const removed = selectedFiles.value.splice(index, 1)[0]
+  if (removed?.previewUrl) {
+    URL.revokeObjectURL(removed.previewUrl)
+  }
+}
+
+function handleSend() {
+  const content = inputMessage.value.trim()
+  const files = selectedFiles.value.map(f => f.file)
+
+  if (!content && files.length === 0) return
+
+  emit('send', { content, files })
+  inputMessage.value = ''
+
+  // Clear selected files
+  for (const f of selectedFiles.value) {
+    if (f.previewUrl) URL.revokeObjectURL(f.previewUrl)
+  }
+  selectedFiles.value = []
+}
+
+async function scrollToBottom() {
+  await nextTick()
+  if (messagesContainer.value) {
+    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+  }
+}
+
+defineExpose({ scrollToBottom })
+</script>
+
+<style scoped>
+.chat-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: #f5f5f5;
+}
+
+.chat-header {
+  background: #409EFF;
+  color: white;
+  padding: 0 24px;
+  height: 52px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.chat-header h2 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.loading-history {
+  text-align: center;
+  padding: 20px;
+  color: #999;
+  font-style: italic;
+}
+
+.message {
+  margin-bottom: 15px;
+  display: flex;
+}
+
+.message.user {
+  justify-content: flex-end;
+}
+
+.message.assistant {
+  justify-content: flex-start;
+}
+
+.message-content {
+  max-width: 75%;
+  padding: 10px 14px;
+  border-radius: 8px;
+  word-wrap: break-word;
+  line-height: 1.5;
+}
+
+.message-content :deep(*) { margin: 0; }
+.message-content :deep(* + *) { margin-top: 6px; }
+.message-content :deep(h1), .message-content :deep(h2),
+.message-content :deep(h3), .message-content :deep(h4) { font-weight: 600; }
+.message-content :deep(h1) { font-size: 1.2em; }
+.message-content :deep(h2) { font-size: 1.15em; }
+.message-content :deep(h3) { font-size: 1.1em; }
+.message-content :deep(h4) { font-size: 1.05em; }
+.message-content :deep(ul), .message-content :deep(ol) { padding-left: 20px; }
+.message-content :deep(li) { margin-top: 2px; }
+.message-content :deep(code) {
+  background: #f0f0f0; padding: 1px 5px; border-radius: 4px; font-size: 0.88em;
+}
+.message-content :deep(pre) {
+  background: #f5f5f5; padding: 10px 12px; border-radius: 6px; overflow-x: auto; white-space: pre;
+}
+.message-content :deep(pre code) { background: none; padding: 0; }
+.message-content :deep(blockquote) {
+  border-left: 3px solid #409EFF; padding-left: 10px; color: #666;
+}
+.message-content :deep(a) { color: #409EFF; text-decoration: none; }
+.message-content :deep(hr) { border: none; border-top: 1px solid #e0e0e0; margin: 8px 0; }
+
+.message.user .message-content {
+  background: #409EFF;
+  color: white;
+}
+
+.message.assistant .message-content {
+  background: white;
+  color: #333;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.message-files {
+  margin-top: 8px;
+  border-top: 1px solid rgba(255,255,255,0.3);
+  padding-top: 8px;
+}
+
+.message.user .message-files {
+  border-top-color: rgba(255,255,255,0.3);
+}
+
+.message.assistant .message-files {
+  border-top-color: #e0e0e0;
+}
+
+.message-file-item {
+  margin-top: 4px;
+}
+
+.msg-image {
+  max-width: 200px;
+  max-height: 200px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.msg-doc {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: inherit;
+  text-decoration: none;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.message.user .msg-doc {
+  color: rgba(255,255,255,0.9);
+}
+
+.message.assistant .msg-doc {
+  color: #409EFF;
+}
+
+.msg-doc:hover {
+  text-decoration: underline;
+}
+
+/* 文件预览条 */
+.file-preview-bar {
+  display: flex;
+  gap: 8px;
+  padding: 8px 24px;
+  background: #fff;
+  border-top: 1px solid #f0f0f0;
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+
+.file-preview-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: #f5f7fa;
+  border-radius: 6px;
+  flex-shrink: 0;
+  font-size: 13px;
+}
+
+.file-thumb {
+  width: 32px;
+  height: 32px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.file-icon {
+  font-size: 20px;
+  color: #909399;
+}
+
+.file-name {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #606266;
+}
+
+.file-remove {
+  padding: 2px;
+  font-size: 12px;
+}
+
+.chat-input {
+  padding: 16px 24px;
+  border-top: 1px solid #e0e0e0;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.input-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.upload-btns {
+  display: flex;
+  gap: 4px;
+  padding-top: 4px;
+  flex-shrink: 0;
+}
+
+.text-input {
+  flex: 1;
+}
+
+.typing-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 16px !important;
+}
+
+.typing-indicator .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #909399;
+  animation: typingBounce 1.4s ease-in-out infinite both;
+}
+
+.typing-indicator .dot:nth-child(1) { animation-delay: 0s; }
+.typing-indicator .dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-indicator .dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes typingBounce {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+  40% { transform: scale(1); opacity: 1; }
+}
+</style>

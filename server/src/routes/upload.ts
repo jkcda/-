@@ -1,0 +1,83 @@
+import express from 'express'
+import multer from 'multer'
+import path from 'path'
+import fs from 'fs'
+import config from '../config/index.js'
+import { ApiResponse } from '../utils/response.js'
+
+const router = express.Router()
+
+const uploadsDir = path.join(process.cwd(), 'uploads')
+
+// 确保上传目录存在
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true })
+}
+
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    cb(null, uploadsDir)
+  },
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname)
+    const baseName = path.basename(file.originalname, ext)
+    const timestamp = Date.now()
+    const safeName = `${baseName}_${timestamp}${ext}`
+    cb(null, safeName)
+  }
+})
+
+function fileFilter(_req: express.Request, file: Express.Multer.File, cb: multer.FileFilterCallback) {
+  const isImage = config.upload.allowedImages.includes(file.mimetype)
+  const isDoc = config.upload.allowedDocs.includes(file.mimetype)
+  if (isImage || isDoc) {
+    cb(null, true)
+  } else {
+    cb(new Error(`不支持的文件类型: ${file.mimetype}`))
+  }
+}
+
+const upload = multer({
+  storage,
+  fileFilter,
+  limits: {
+    fileSize: Math.max(config.upload.maxImageSize, config.upload.maxDocSize)
+  }
+})
+
+// POST /api/upload - 上传文件
+router.post('/upload', upload.single('file'), (req, res) => {
+  try {
+    if (!req.file) {
+      return ApiResponse.badRequest(res, '请选择要上传的文件')
+    }
+
+    const file = req.file
+    const url = `/uploads/${file.filename}`
+
+    ApiResponse.success(res, {
+      name: file.originalname,
+      url,
+      type: file.mimetype,
+      size: file.size
+    }, '上传成功')
+  } catch (error: any) {
+    ApiResponse.internalServerError(res, '上传失败', error.message)
+  }
+})
+
+// multer 错误处理
+router.use((err: any, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return ApiResponse.badRequest(res, '文件大小超出限制')
+    }
+    return ApiResponse.badRequest(res, err.message)
+  }
+  if (err) {
+    return ApiResponse.badRequest(res, err.message)
+  }
+  next()
+})
+
+export default router
