@@ -33,3 +33,5 @@ yarn-debug.log*
 *.docx
 *.txt
 *.md
+backend-dev-doc.md
+frontend-dev-doc.md
