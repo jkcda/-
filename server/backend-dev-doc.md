@@ -389,7 +389,9 @@ function buildContext(messages, maxChars = 2000) {
 - 服务: [services/ai.ts - chatWithAIStream()](src/services/ai.ts#L70-L145)
 - 上传: [routes/upload.ts](src/routes/upload.ts)
 
-**多模态说明：** 支持图片和文档上传。图片以 base64 格式通过 Anthropic content-block 发送；文档（txt/md/pdf/json）提取文本拼接至消息上下文。
+**多模态说明：** 支持图片和文档上传。图片以 base64 格式通过 Anthropic content-block 发送；txt/md 直接读取文本内容，PDF 通过 pdf-parse 提取文字，doc/docx 附文件名作为上下文提示。所有文档提取后拼接至消息上下文。
+
+> **pdf-parse 版本说明：** 使用 v1.1.1（CJS 模块），通过 `createRequire` 加载。v2.4.5+ 的 ESM 版本仅导出 `PDFParse` 类且 API 复杂不稳定，故降级使用 v1 简洁的函数式 API（`pdfParse(buffer) → { text }`）。
 
 ---
 
@@ -525,7 +527,7 @@ WHERE user_id IS NULL
 
 **支持的文件类型：**
 - 图片: JPEG, PNG, GIF, WebP（最大 10MB）
-- 文档: TXT, Markdown, PDF, JSON（最大 20MB）
+- 文档: TXT, MD, PDF, DOC, DOCX（最大 20MB）
 
 **成功响应 (200):**
 ```json

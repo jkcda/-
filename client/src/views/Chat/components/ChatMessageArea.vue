@@ -83,7 +83,7 @@
           <input
             ref="docInputRef"
             type="file"
-            accept=".txt,.md,.pdf,.json"
+            accept=".txt,.pdf,.doc,.docx,.md"
             multiple
             hidden
             @change="onFilesSelected($event, 'doc')"

@@ -243,10 +243,10 @@ const startTypewriter = (msgIndex: number) => {
 
 **多模态文件上传：**
 - 输入区左侧提供图片上传和文档上传两个按钮
-- 图片支持 JPEG/PNG/GIF/WebP，文档支持 TXT/MD/PDF/JSON
+- 图片支持 JPEG/PNG/GIF/WebP，文档支持 TXT/MD/PDF/DOC/DOCX
 - 已选文件在上方预览条中展示（图片显示缩略图，文档显示文件名）
 - 发送前自动上传文件到 `/api/upload`，获得 URL 后与消息一起提交
-- 后端将图片转为 base64 发送给 AI，文档提取文本后拼入上下文
+- 后端将图片转为 base64 发送给 AI，文档提取文本后拼入上下文（PDF 通过 pdf-parse 解析，DOC/DOCX 附文件名提示，TXT/MD 直接读取）
 - 历史消息中的附件在气泡内展示（图片直接显示，文档提供下载链接）
 
 **上传流程：**

@@ -3,6 +3,10 @@ import { ChatHistoryModel } from '../models/chatHistory.js'
 import config from '../config/index.js'
 import fs from 'fs'
 import path from 'path'
+import { createRequire } from 'module'
+
+const require = createRequire(import.meta.url)
+const pdfParse: (buf: Buffer) => Promise<{ text: string }> = require('pdf-parse')
 
 const client = new Anthropic({
   apiKey: config.ai.apiKey,
@@ -71,7 +75,17 @@ async function extractDocumentText(filePath: string, mimetype: string): Promise<
       return fs.readFileSync(absolutePath, 'utf-8')
 
     case 'application/pdf':
-      return '[PDF 文档: 文件已上传，请根据文件名进行回答]'
+      try {
+        const dataBuffer = fs.readFileSync(absolutePath)
+        const data = await pdfParse(dataBuffer)
+        return data.text
+      } catch {
+        return '[PDF 解析失败]'
+      }
+
+    case 'application/msword':
+    case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+      return '[文档: 文件已上传，请根据文件名进行回答]'
 
     default:
       return '[不支持预览的文档类型]'
@@ -88,7 +102,7 @@ async function buildMultimodalContent(
   // 先添加文档文本
   let documentContext = ''
   for (const file of files) {
-    if (file.type.startsWith('text/') || file.type === 'application/pdf' || file.type === 'application/json') {
+    if (file.type.startsWith('text/') || file.type === 'application/pdf' || file.type === 'application/msword' || file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
       const docText = await extractDocumentText(file.url, file.type)
       documentContext += `\n\n--- 文件: ${file.name} ---\n${docText}\n--- 文件结束 ---\n`
     }

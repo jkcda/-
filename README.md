@@ -144,7 +144,7 @@ npm run dev
 1. 在输入区左侧点击 📷 上传图片或 📁 上传文档
 2. 已选文件在上方预览条展示
 3. 输入问题后发送，AI 将分析文件内容并回复
-4. 支持格式：图片（JPEG/PNG/GIF/WebP）、文档（TXT/MD/PDF/JSON）
+4. 支持格式：图片（JPEG/PNG/GIF/WebP）、文档（TXT/MD/PDF/DOC/DOCX）
 
 ## 数据库表结构
 

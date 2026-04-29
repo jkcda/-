@@ -44,7 +44,13 @@ const config = {
     maxImageSize: 10 * 1024 * 1024,   // 图片最大 10MB
     maxDocSize: 20 * 1024 * 1024,     // 文档最大 20MB
     allowedImages: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
-    allowedDocs: ['text/plain', 'text/markdown', 'application/pdf', 'application/json']
+    allowedDocs: [
+      'text/plain',
+      'text/markdown',
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    ]
   }
 }
 
