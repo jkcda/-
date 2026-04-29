@@ -23,6 +23,18 @@
       >
         <div class="message-content">
           <div v-html="renderMarkdown(msg.content)"></div>
+          <div v-if="(msg as any).retrievedChunks && (msg as any).retrievedChunks.length > 0 && msg.role === 'assistant'" class="retrieved-sources">
+            <div class="sources-header" @click="(msg as any)._showSources = !(msg as any)._showSources">
+              <span>参考来源 ({{ (msg as any).retrievedChunks.length }})</span>
+              <el-icon :class="{ rotated: (msg as any)._showSources }"><ArrowDown /></el-icon>
+            </div>
+            <div v-show="(msg as any)._showSources" class="sources-list">
+              <div v-for="(chunk, ci) in (msg as any).retrievedChunks" :key="ci" class="source-item">
+                <span class="source-name">{{ chunk.source }}</span>
+                <span class="source-score">相关度 {{ (chunk.score * 100).toFixed(0) }}%</span>
+              </div>
+            </div>
+          </div>
           <div v-if="msg.files && msg.files.length > 0" class="message-files">
             <div
               v-for="(file, fi) in msg.files"
@@ -64,6 +76,24 @@
     </div>
 
     <div class="chat-input">
+      <div class="kb-selector-row" v-if="kbList.length > 0">
+        <span class="kb-selector-label">知识库：</span>
+        <el-select
+          :model-value="selectedKbId"
+          placeholder="选择知识库（可选）"
+          clearable
+          size="small"
+          style="width: 220px"
+          @update:model-value="$emit('update:selectedKbId', $event ?? null)"
+        >
+          <el-option
+            v-for="kb in kbList"
+            :key="kb.id"
+            :label="kb.name"
+            :value="kb.id"
+          />
+        </el-select>
+      </div>
       <div class="input-row">
         <div class="upload-btns">
           <input
@@ -121,7 +151,7 @@
 <script setup lang="ts">
 import { ref, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
-import { PictureFilled, FolderOpened, Document, Close } from '@element-plus/icons-vue'
+import { PictureFilled, FolderOpened, Document, Close, ArrowDown } from '@element-plus/icons-vue'
 import { marked } from 'marked'
 
 marked.setOptions({
@@ -135,10 +165,21 @@ interface FileAttachment {
   type: string
 }
 
+interface RetrievedChunk {
+  source: string
+  score: number
+}
+
 interface Message {
   role: 'user' | 'assistant'
   content: string
   files?: FileAttachment[]
+  retrievedChunks?: RetrievedChunk[]
+}
+
+interface KbItem {
+  id: number
+  name: string
 }
 
 const props = defineProps<{
@@ -147,11 +188,14 @@ const props = defineProps<{
   loadingHistory: boolean
   typingMessageIndex: number
   currentSessionId: string
+  kbList: KbItem[]
+  selectedKbId: number | null
 }>()
 
 const emit = defineEmits<{
   send: [payload: { content: string; files: File[] }]
   clearHistory: []
+  'update:selectedKbId': [value: number | null]
 }>()
 
 const inputMessage = ref('')
@@ -421,6 +465,63 @@ defineExpose({ scrollToBottom })
   border-top: 1px solid #e0e0e0;
   background: #fff;
   flex-shrink: 0;
+}
+
+.kb-selector-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.kb-selector-label {
+  font-size: 13px;
+  color: #606266;
+  white-space: nowrap;
+}
+
+.retrieved-sources {
+  margin-top: 8px;
+  border-top: 1px solid #e1f3d8;
+  padding-top: 8px;
+}
+
+.sources-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #67c23a;
+  cursor: pointer;
+  user-select: none;
+}
+
+.sources-header .rotated {
+  transform: rotate(180deg);
+}
+
+.sources-list {
+  margin-top: 6px;
+}
+
+.source-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 8px;
+  font-size: 12px;
+  background: #f0f9eb;
+  border-radius: 4px;
+  margin-bottom: 3px;
+}
+
+.source-name {
+  color: #606266;
+  font-weight: 500;
+}
+
+.source-score {
+  color: #909399;
 }
 
 .input-row {

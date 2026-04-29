@@ -1,0 +1,64 @@
+import request from '@/utils/http'
+
+export interface KnowledgeBase {
+  id: number
+  user_id: number
+  name: string
+  description: string | null
+  document_count: number
+  chunk_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface KbDocument {
+  id: number
+  kb_id: number
+  filename: string
+  file_type: string
+  file_size: number
+  chunk_count: number
+  status: 'pending' | 'processing' | 'completed' | 'failed'
+  error_message: string | null
+  created_at: string
+}
+
+export interface SearchChunk {
+  content: string
+  source: string
+  score: number
+}
+
+export const createKnowledgeBase = (data: { name: string; description?: string }) =>
+  request.post('/kb', data)
+
+export const getKnowledgeBases = () =>
+  request.get('/kb')
+
+export const getKnowledgeBase = (kbId: number) =>
+  request.get(`/kb/${kbId}`)
+
+export const deleteKnowledgeBase = (kbId: number) =>
+  request.delete(`/kb/${kbId}`)
+
+export const uploadDocumentsToKB = (kbId: number, files: File[]) => {
+  const formData = new FormData()
+  files.forEach(f => formData.append('files', f))
+  const baseURL = (import.meta.env as any).VITE_BASE_URL || ''
+  return fetch(`${baseURL}/api/kb/${kbId}/documents`, {
+    method: 'POST',
+    body: formData,
+    headers: {
+      Authorization: `Bearer ${localStorage.getItem('token')}`
+    }
+  }).then(r => r.json())
+}
+
+export const getKBDocuments = (kbId: number) =>
+  request.get(`/kb/${kbId}/documents`)
+
+export const deleteKBDocument = (kbId: number, docId: number) =>
+  request.delete(`/kb/${kbId}/documents/${docId}`)
+
+export const searchKB = (kbId: number, query: string) =>
+  request.post(`/kb/${kbId}/search`, { query })

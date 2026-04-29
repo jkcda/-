@@ -6,7 +6,9 @@ import userRouter from './routes/user.js'
 import adminRouter from './routes/admin.js'
 import aiRouter from './routes/ai.js'
 import uploadRouter from './routes/upload.js'
+import knowledgeBaseRouter from './routes/knowledgeBase.js'
 import config from './config/index.js'
+import fs from 'fs'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -20,10 +22,17 @@ app.use(express.json({ limit: '50mb' }))
 // 静态文件服务 — 上传文件访问
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')))
 
+// 确保 LanceDB 数据目录存在
+const lancedbDir = path.resolve(config.lancedb.dataDir)
+if (!fs.existsSync(lancedbDir)) {
+  fs.mkdirSync(lancedbDir, { recursive: true })
+}
+
 // 路由
 app.use('/api/user', userRouter)
 app.use('/api/admin', adminRouter)
 app.use('/api/ai', aiRouter)
+app.use('/api/kb', knowledgeBaseRouter)
 app.use('/api', uploadRouter)
 
 // 启动

@@ -1,17 +1,18 @@
 # AI 智能对话系统
 
-基于大模型接口实现的智能对话系统，支持用户注册登录、AI 对话（含多模态文件上传）、会话管理、后台管理等完整功能。
+基于大模型接口实现的智能对话系统，支持用户注册登录、AI 对话（含多模态文件上传与 RAG 知识库检索增强）、知识库管理、会话管理、后台管理等完整功能。
 
 ## 项目简介
 
-全栈 AI 对话系统，前端 Vue 3 + Element Plus，后端 Node.js + Express + TypeScript，数据库 MySQL。集成 Anthropic SDK 实现 AI 流式对话，支持打字机效果输出、多会话管理、图片/文档上传分析。
+全栈 AI 对话系统，前端 Vue 3 + Element Plus，后端 Node.js + Express + TypeScript，数据库 MySQL。集成 Anthropic SDK 实现 AI 流式对话，通过 **LangChain.js + LanceDB** 实现 RAG（检索增强生成）架构，支持打字机效果输出、多会话管理、图片/文档上传分析、知识库管理。
 
 ## 功能特性
 
 - 用户注册与登录
 - JWT 身份认证 + 管理员权限控制
 - AI 智能对话（SSE 流式输出 + 打字机效果）
-- **多模态支持**：图片上传（base64 发送给 AI 分析）、文档上传（txt/md/pdf 文本提取）
+- **RAG 知识库**：创建知识库、上传文档、自动分块向量化、语义检索增强生成
+- **多模态支持**：图片上传（base64 发送给 AI 分析）、文档上传（txt/md/pdf/docx 文本提取）
 - 多会话管理（新建、切换、删除历史会话）
 - 对话历史持久化（MySQL 存储，用户隔离）
 - 管理员后台（用户管理 CRUD、对话统计可视化）
@@ -20,6 +21,7 @@
 ## 技术栈
 
 ### 前端
+
 - Vue 3 + TypeScript (Composition API)
 - Element Plus UI 组件库
 - Vue Router 路由管理
@@ -28,12 +30,17 @@
 - Marked（Markdown 渲染）
 
 ### 后端
+
 - Node.js + Express + TypeScript (ESM)
 - MySQL 数据库（mysql2）
 - JWT 认证（jsonwebtoken）
 - bcryptjs 密码加密
 - Anthropic AI SDK（通过 ModelScope 代理）
+- **LangChain.js**（文本分块、Embedding 封装）
+- **LanceDB**（嵌入式向量数据库）
+- **DashScope Embedding**（text-embedding-v3，1024 维）
 - Multer（文件上传）
+- pdf-parse / mammoth（文档解析）
 
 ## 项目结构
 
@@ -52,6 +59,11 @@ aiconnent/
 │   │       │   └── components/
 │   │       │       ├── ChatSidebar.vue
 │   │       │       └── ChatMessageArea.vue
+│   │       ├── KnowledgeBase/ # 知识库管理页面
+│   │       │   ├── index.vue
+│   │       │   └── components/
+│   │       │       ├── KBList.vue
+│   │       │       └── KBDocumentList.vue
 │   │       ├── Layout/        # 前台布局（Header + Content）
 │   │       ├── Home/          # 首页
 │   │       ├── Login/         # 登录页
@@ -64,12 +76,13 @@ aiconnent/
 │   │   ├── config/            # 配置文件
 │   │   ├── controllers/       # 控制器
 │   │   ├── middleware/        # 中间件（auth, admin）
-│   │   ├── models/            # 数据模型
-│   │   ├── routes/            # 路由（user, ai, admin, upload）
-│   │   ├── services/          # AI 服务层（含多模态）
+│   │   ├── models/            # 数据模型（user, chatHistory, knowledgeBase, kbDocument, kbChunk）
+│   │   ├── routes/            # 路由（user, ai, admin, upload, knowledgeBase）
+│   │   ├── services/          # 服务层（ai+RAG, embedding, vectorStore, documentPipeline, ragChain）
 │   │   ├── types/             # 类型定义
 │   │   ├── utils/             # 工具函数（DB 连接池、响应封装）
 │   │   └── app.ts             # 应用入口
+│   ├── data/lancedb/          # LanceDB 向量数据存储
 │   ├── uploads/               # 上传文件存储目录
 │   ├── database.sql           # 数据库建表脚本
 │   └── package.json
@@ -131,16 +144,19 @@ npm run dev
 ## 使用说明
 
 ### 用户注册登录
+
 1. 访问 `http://localhost:5173/register` 注册账号
 2. 访问 `http://localhost:5173/login` 登录
 
 ### AI 对话
+
 1. 登录后访问 `http://localhost:5173/front/chat`
 2. 输入问题，按 Enter 或点击发送
 3. AI 以打字机流式效果回复
 4. 左侧侧边栏可新建、切换、删除对话
 
 ### 多模态上传
+
 1. 在输入区左侧点击 📷 上传图片或 📁 上传文档
 2. 已选文件在上方预览条展示
 3. 输入问题后发送，AI 将分析文件内容并回复
@@ -150,46 +166,88 @@ npm run dev
 
 ### users 表（用户表）
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | INT | 用户 ID（主键）|
-| username | VARCHAR(50) | 用户名（唯一）|
-| email | VARCHAR(100) | 邮箱（唯一）|
-| password | VARCHAR(255) | 密码（bcrypt 加密）|
-| role | ENUM | 角色（admin/user）|
-| created_at | TIMESTAMP | 创建时间 |
-| updated_at | TIMESTAMP | 更新时间 |
+| 字段          | 类型           | 说明             |
+| ----------- | ------------ | -------------- |
+| id          | INT          | 用户 ID（主键）      |
+| username    | VARCHAR(50)  | 用户名（唯一）        |
+| email       | VARCHAR(100) | 邮箱（唯一）         |
+| password    | VARCHAR(255) | 密码（bcrypt 加密）  |
+| role        | ENUM         | 角色（admin/user） |
+| created\_at | TIMESTAMP    | 创建时间           |
+| updated\_at | TIMESTAMP    | 更新时间           |
 
-### chat_history 表（对话历史表）
+### chat\_history 表（对话历史表）
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | INT | 记录 ID（主键）|
-| session_id | VARCHAR(100) | 会话 ID |
-| user_id | INT | 用户 ID（可为空）|
-| role | ENUM | 角色（user/assistant）|
-| content | TEXT | 对话内容 |
-| files | JSON | 附件列表 `[{name, url, type}]` |
-| created_at | TIMESTAMP | 创建时间 |
+| 字段                | 类型           | 说明                         |
+| ----------------- | ------------ | -------------------------- |
+| id                | INT          | 记录 ID（主键）                  |
+| session\_id       | VARCHAR(100) | 会话 ID                      |
+| user\_id          | INT          | 用户 ID（可为空）                 |
+| role              | ENUM         | 角色（user/assistant）         |
+| content           | TEXT         | 对话内容                       |
+| files             | JSON         | 附件列表 `[{name, url, type}]` |
+| kb\_id            | INT          | 关联知识库 ID（RAG）              |
+| retrieved\_chunks | JSON         | 检索分块摘要                     |
+| created\_at       | TIMESTAMP    | 创建时间                       |
+
+### knowledge\_bases 表（知识库表）
+
+| 字段                   | 类型           | 说明         |
+| -------------------- | ------------ | ---------- |
+| id                   | INT          | 知识库 ID（主键） |
+| user\_id             | INT          | 所属用户 ID    |
+| name                 | VARCHAR(200) | 知识库名称      |
+| description          | TEXT         | 知识库描述      |
+| lancedb\_table\_name | VARCHAR(100) | LanceDB 表名 |
+| document\_count      | INT          | 文档数量       |
+| chunk\_count         | INT          | 分块总数       |
+
+### kb\_documents 表（知识库文档表）
+
+| 字段           | 类型           | 说明                                        |
+| ------------ | ------------ | ----------------------------------------- |
+| id           | INT          | 文档 ID（主键）                                 |
+| kb\_id       | INT          | 所属知识库 ID                                  |
+| filename     | VARCHAR(500) | 原始文件名                                     |
+| file\_type   | VARCHAR(100) | MIME 类型                                   |
+| status       | ENUM         | 处理状态（pending/processing/completed/failed） |
+| chunk\_count | INT          | 分块数量                                      |
+
+> 向量嵌入数据存储在 LanceDB 嵌入式数据库中（`server/data/lancedb/`），MySQL 仅存储元数据索引。
 
 ## API 接口
 
 ### 用户模块
+
 - `POST /api/user/register` — 注册
 - `POST /api/user/login` — 登录
 - `GET /api/user/info` — 获取用户信息
 - `POST /api/user/logout` — 退出登录
 
 ### AI 对话模块
+
 - `POST /api/ai/chat` — AI 对话（SSE 流式输出，支持多模态 files 参数）
 - `GET /api/ai/history` — 获取对话历史
 - `DELETE /api/ai/history` — 删除对话历史
 - `GET /api/ai/sessions` — 获取会话列表
 
 ### 文件上传
+
 - `POST /api/upload` — 上传文件（图片/文档）
 
+### 知识库模块（RAG）
+
+- `POST /api/kb` — 创建知识库
+- `GET /api/kb` — 获取知识库列表
+- `GET /api/kb/:kbId` — 获取知识库详情
+- `DELETE /api/kb/:kbId` — 删除知识库
+- `POST /api/kb/:kbId/documents` — 上传文档（自动解析分块向量化）
+- `GET /api/kb/:kbId/documents` — 获取知识库文档列表
+- `DELETE /api/kb/:kbId/documents/:docId` — 删除知识库文档
+- `POST /api/kb/:kbId/search` — 在知识库中检索
+
 ### 管理员模块
+
 - `GET /api/admin/dashboard` — 后台首页
 - `GET /api/admin/users` — 用户列表
 - `POST /api/admin/users` — 创建用户
@@ -201,21 +259,26 @@ npm run dev
 ## 开发文档
 
 详细开发文档：
+
 - [前端开发文档](client/frontend-dev-doc.md)
 - [后端开发文档](server/backend-dev-doc.md)
 
 ## 常见问题
 
 ### 图片在前端不显示？
+
 Vite 开发服务器需代理 `/uploads` 到后端 `localhost:3000`，已在 `vite.config.ts` 中配置。
 
 ### 数据库 migrate？
-若 chat_history 表已存在，需手动执行：
+
+若 chat\_history 表已存在，需手动执行：
+
 ```sql
 ALTER TABLE chat_history ADD COLUMN files JSON NULL COMMENT '附件列表' AFTER content;
 ```
 
 ### 如何修改 AI 模型？
+
 在 `server/src/config/index.ts` 中修改 `ai.model` 和 `ai.baseURL` 配置项。
 
 ## 许可证

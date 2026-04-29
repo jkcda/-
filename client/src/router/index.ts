@@ -5,6 +5,7 @@ import Login from '@/views/Login/login.vue'
 import Register from '@/views/Register/Register.vue'
 import Home from '@/views/Home/home.vue'
 import Chat from '@/views/Chat/index.vue'
+import KnowledgeBase from '@/views/KnowledgeBase/index.vue'
 import AdminLayout from '@/views/Admin/AdminLayout.vue'
 import AdminDashboard from '@/views/Admin/AdminDashboard.vue'
 import AdminUsers from '@/views/Admin/AdminUsers.vue'
@@ -30,6 +31,11 @@ const router = createRouter({
           path: 'chat',
           component: Chat,
           meta: { title: 'AI对话' }
+        },
+        {
+          path: 'knowledge-base',
+          component: KnowledgeBase,
+          meta: { title: '知识库' }
         }
       ]
     },

@@ -5,10 +5,10 @@ import { ApiResponse } from '../utils/response.js'
 
 const router = express.Router()
 
-// POST /api/ai/chat - AI对话（流式输出，支持多模态文件）
+// POST /api/ai/chat - AI对话（流式输出，支持多模态文件 + RAG 知识库）
 router.post('/chat', async (req, res) => {
   try {
-    const { message, sessionId, userId, files } = req.body
+    const { message, sessionId, userId, files, kbId } = req.body
 
     if (!message && (!files || files.length === 0)) {
       return ApiResponse.badRequest(res, '请输入消息内容或上传文件')
@@ -25,10 +25,20 @@ router.post('/chat', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*')
 
     try {
-      const { stream, sessionId: returnedSessionId } = await chatWithAIStream(
-        message || '', sessionId, userId,
-        files && files.length > 0 ? files : undefined
+      const { stream, sessionId: returnedSessionId, retrievedChunks } = await chatWithAIStream(
+        message || '',
+        sessionId,
+        userId,
+        files && files.length > 0 ? files : undefined,
+        kbId || undefined
       )
+
+      // 发送检索状态提示
+      if (retrievedChunks && retrievedChunks.length > 0) {
+        res.write(`data: ${JSON.stringify({ type: 'retrieval', chunks: retrievedChunks })}
+
+`)
+      }
 
       let assistantContent = ''
 
@@ -39,14 +49,26 @@ router.post('/chat', async (req, res) => {
           if (content) {
             assistantContent += content
             res.write(`data: ${JSON.stringify({ content })}
-\n`)
+
+`)
           }
         }
       }
 
-      // 保存助手消息
+      // 保存助手消息（含检索来源）
       if (assistantContent) {
-        await ChatHistoryModel.create(returnedSessionId, userId || null, 'assistant', assistantContent)
+        const retrievedJson = retrievedChunks && retrievedChunks.length > 0
+          ? JSON.stringify(retrievedChunks)
+          : undefined
+        await ChatHistoryModel.create(
+          returnedSessionId,
+          userId || null,
+          'assistant',
+          assistantContent,
+          undefined,
+          kbId || undefined,
+          retrievedJson
+        )
       }
 
       res.write('data: [DONE]\n\n')
@@ -81,16 +103,18 @@ router.get('/history', async (req, res) => {
       return ApiResponse.badRequest(res, '请提供会话ID')
     }
 
-    // 使用新的查询方法，同时匹配 session_id 和 user_id
     const history = await ChatHistoryModel.getBySessionIdAndUserId(
       sessionId as string,
       userId ? Number(userId) : null
     )
-    
+
     const messages = history.map(item => ({
       role: item.role,
       content: item.content,
-      files: item.files ? (typeof item.files === 'string' ? JSON.parse(item.files) : item.files) : undefined
+      files: item.files ? (typeof item.files === 'string' ? JSON.parse(item.files) : item.files) : undefined,
+      retrievedChunks: (item as any).retrieved_chunks
+        ? (typeof (item as any).retrieved_chunks === 'string' ? JSON.parse((item as any).retrieved_chunks) : (item as any).retrieved_chunks)
+        : undefined
     }))
 
     ApiResponse.success(res, { messages }, '获取对话历史成功')
@@ -108,7 +132,6 @@ router.delete('/history', async (req, res) => {
       return ApiResponse.badRequest(res, '请提供会话ID')
     }
 
-    // 删除数据库中的对话历史
     await ChatHistoryModel.deleteBySessionId(sessionId as string)
 
     ApiResponse.success(res, null, '对话历史已清空')

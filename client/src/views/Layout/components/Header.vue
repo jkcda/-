@@ -9,6 +9,7 @@
     <div class="header-nav">
       <router-link to="/front/home">首页</router-link>
       <router-link to="/front/chat">AI对话</router-link>
+      <router-link to="/front/knowledge-base">知识库</router-link>
       <router-link v-if="isAdmin" to="/admin/dashboard" class="admin-link">后台管理</router-link>
     </div>
     

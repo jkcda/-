@@ -2,7 +2,7 @@
 
 ## 📋 项目概述
 
-本项目是基于 **Node.js + Express + TypeScript** 构建的 AI 智能对话系统后端服务。采用 RESTful API 设计，提供用户认证、AI 对话（流式输出）、对话历史管理等核心功能。集成 Anthropic Claude API 实现智能对话能力。
+本项目是基于 **Node.js + Express + TypeScript** 构建的 AI 智能对话系统后端服务。采用 RESTful API 设计，提供用户认证、AI 对话（流式输出）、对话历史管理、知识库 RAG 检索增强生成等核心功能。集成 Anthropic Claude API 实现智能对话能力，通过 LangChain.js + LanceDB 实现文档向量检索增强。
 
 ### 技术栈
 
@@ -13,6 +13,11 @@
 - **认证**: JWT (jsonwebtoken)
 - **密码加密**: bcryptjs
 - **AI 服务**: Anthropic SDK (@anthropic-ai/sdk)
+- **RAG 框架**: LangChain.js (文本分块、Embedding 封装)
+- **向量数据库**: LanceDB (嵌入式向量存储，文件持久化)
+- **Embedding**: DashScope text-embedding-v3 (1024 维)
+- **文档处理**: pdf-parse、mammoth
+- **缓存**: Redis (ioredis)，Embedding 向量缓存 + 知识库列表缓存 + RAG 检索结果缓存
 - **环境配置**: dotenv
 - **跨域支持**: cors
 - **开发工具**: nodemon + tsx
@@ -35,19 +40,36 @@ server/
 │   │   └── index.ts                # 中间件导出
 │   ├── models/
 │   │   ├── user.ts                 # 用户数据模型
-│   │   └── chatHistory.ts          # 对话历史数据模型
+│   │   ├── chatHistory.ts          # 对话历史数据模型
+│   │   ├── knowledgeBase.ts        # 知识库数据模型
+│   │   ├── kbDocument.ts           # 知识库文档数据模型
+│   │   └── kbChunk.ts              # 分块元数据模型
 │   ├── routes/
 │   │   ├── user.ts                 # 用户路由
 │   │   ├── admin.ts                # 管理员路由
-│   │   └── ai.ts                   # AI 对话路由
+│   │   ├── ai.ts                   # AI 对话路由
+│   │   ├── upload.ts               # 文件上传路由
+│   │   └── knowledgeBase.ts        # 知识库路由
 │   ├── services/
-│   │   └── ai.ts                   # AI 服务层
+│   │   ├── ai.ts                   # AI 服务层（含 RAG 集成）
+│   │   ├── embedding.ts            # Embedding 向量化服务
+│   │   ├── vectorStore.ts          # LanceDB 向量存储服务
+│   │   ├── documentPipeline.ts     # 文档摄入管道（解析→分块→嵌入）
+│   │   ├── knowledgeBase.ts        # 知识库业务逻辑
+│   │   └── ragChain.ts             # RAG 检索编排
 │   ├── types/
 │   │   └── globel.d.ts             # 全局类型定义
 │   └── utils/
 │       ├── db.ts                   # 数据库连接池
 │       ├── index.ts                # 工具函数导出
 │       └── response.ts             # 统一响应工具类
+├── data/
+│   └── lancedb/                    # LanceDB 向量数据存储目录
+├── .env.example                    # 环境变量示例
+├── database.sql                    # 数据库建表脚本
+├── package.json                    # 项目依赖配置
+├── tsconfig.json                   # TypeScript 配置
+└── README.md                       # 项目说明
 ├── .env.example                    # 环境变量示例
 ├── database.sql                    # 数据库建表脚本
 ├── package.json                    # 项目依赖配置
@@ -93,6 +115,33 @@ const config = {
   // 上下文配置
   context: {
     maxChars: 10000  // 上下文最大字符数
+  },
+
+  // RAG 配置
+  rag: {
+    chunkSize: 1000,        // 文档分块大小（字符数）
+    chunkOverlap: 200,      // 分块重叠字符数
+    topK: 5,                // 检索返回的最相关分块数
+    similarityThreshold: 0.5 // 相似度阈值
+  },
+
+  // Embedding 模型配置
+  embeddings: {
+    modelName: 'text-embedding-v3',
+    batchSize: 100          // 批量嵌入大小
+  },
+
+  // LanceDB 配置
+  lancedb: {
+    dataDir: './data/lancedb' // LanceDB 数据存储目录
+  },
+
+  // 文件上传配置
+  upload: {
+    maxImageSize: 10 * 1024 * 1024,
+    maxDocSize: 20 * 1024 * 1024,
+    allowedImages: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
+    allowedDocs: ['text/plain', 'text/markdown', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
   }
 }
 ```
@@ -151,6 +200,52 @@ DASHSCOPE_API_KEY=your-api-key
 - `idx_session_id`: 会话 ID 索引
 - `idx_user_id`: 用户 ID 索引
 - 外键约束：`user_id` → `users(id)` ON DELETE CASCADE
+
+**RAG 扩展字段**（对于已存在的表，执行 ALTER TABLE 新增）：
+- `kb_id`: INT NULL — 关联的知识库 ID
+- `retrieved_chunks`: JSON NULL — 本次检索到的分块摘要 `[{source, score}]`
+
+#### 知识库表 (knowledge_bases)
+
+| 字段名 | 类型 | 约束 | 说明 |
+|-------|------|------|------|
+| id | INT | PRIMARY KEY, AUTO_INCREMENT | 知识库 ID |
+| user_id | INT | NOT NULL, FOREIGN KEY | 所属用户 ID |
+| name | VARCHAR(200) | NOT NULL | 知识库名称 |
+| description | TEXT | NULL | 知识库描述 |
+| lancedb_table_name | VARCHAR(100) | NOT NULL | LanceDB 表名（内部标识） |
+| document_count | INT | DEFAULT 0 | 文档数量 |
+| chunk_count | INT | DEFAULT 0 | 分块总数 |
+| created_at | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP | 创建时间 |
+| updated_at | TIMESTAMP | ON UPDATE CURRENT_TIMESTAMP | 更新时间 |
+
+#### 知识库文档表 (kb_documents)
+
+| 字段名 | 类型 | 约束 | 说明 |
+|-------|------|------|------|
+| id | INT | PRIMARY KEY, AUTO_INCREMENT | 文档 ID |
+| kb_id | INT | NOT NULL, FOREIGN KEY | 所属知识库 ID |
+| filename | VARCHAR(500) | NOT NULL | 原始文件名 |
+| file_path | VARCHAR(1000) | NOT NULL | 文件存储路径 |
+| file_type | VARCHAR(100) | NOT NULL | MIME 类型 |
+| file_size | INT | NOT NULL | 文件大小（字节） |
+| chunk_count | INT | DEFAULT 0 | 分块数量 |
+| status | ENUM('pending','processing','completed','failed') | DEFAULT 'pending' | 处理状态 |
+| error_message | TEXT | NULL | 错误信息 |
+| created_at | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP | 创建时间 |
+
+#### 知识库分块表 (kb_chunks)
+
+| 字段名 | 类型 | 约束 | 说明 |
+|-------|------|------|------|
+| id | INT | PRIMARY KEY, AUTO_INCREMENT | 分块 ID |
+| doc_id | INT | NOT NULL, FOREIGN KEY | 所属文档 ID |
+| kb_id | INT | NOT NULL, FOREIGN KEY | 所属知识库 ID |
+| chunk_index | INT | NOT NULL | 分块序号 |
+| content_preview | VARCHAR(500) | NULL | 分块内容预览（前500字符） |
+| created_at | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP | 创建时间 |
+
+> **注意**：向量嵌入数据存储在 LanceDB 中，MySQL `kb_chunks` 表仅存储分块元数据索引。
 
 ---
 
@@ -352,6 +447,12 @@ Authorization: Bearer <token>
 - `sessionId`: 必填，会话标识符
 - `userId`: 可选，用户 ID（已登录用户）
 - `files`: 可选，上传的附件列表（先调用 `/api/upload` 上传后获得 URL）
+- `kbId`: 可选，知识库 ID（启用 RAG 检索增强，从指定知识库中检索相关分块注入 prompt）
+
+**RAG 检索提示：** 当启用知识库时，SSE 首先返回一条 `type: "retrieval"` 事件，告知前端检索到的分块来源：
+```
+data: {"type":"retrieval","chunks":[{"source":"report.pdf","score":0.92}]}
+```
 
 **SSE 响应格式：**
 ```
@@ -574,7 +675,219 @@ WHERE user_id IS NULL
 
 ---
 
-### 4. 管理员模块 (`/api/admin`)
+### 4. 知识库模块 (`/api/kb`)
+
+> **认证要求:** 所有知识库接口需要 `authMiddleware` 认证（Bearer Token）
+
+#### 4.0 知识库架构说明
+
+**RAG (Retrieval-Augmented Generation) 流程：**
+
+```
+文档上传 → 解析文本 → RecursiveCharacterTextSplitter 分块 → DashScope Embedding → LanceDB 向量存储
+                                                                                        ↓
+用户提问 → Embedding 向量化 → LanceDB 相似度检索 top-K → 拼接 [检索分块 + 对话历史 + 用户问题] → LLM 流式回复
+```
+
+**存储分工**：
+- **MySQL**：知识库元数据、文档记录、分块索引（方便管理和回溯）
+- **LanceDB**：向量嵌入 + 分块全文（嵌入式运行，文件持久化于 `server/data/lancedb/`）
+
+#### 4.1 创建知识库
+
+**接口地址:** `POST /api/kb`
+
+**请求参数：**
+```json
+{
+  "name": "我的知识库",
+  "description": "可选描述"
+}
+```
+
+**成功响应 (201):**
+```json
+{
+  "success": true,
+  "message": "知识库创建成功",
+  "result": {
+    "id": 1,
+    "lancedbTableName": "kb_1_1700000000"
+  }
+}
+```
+
+---
+
+#### 4.2 获取知识库列表
+
+**接口地址:** `GET /api/kb`
+
+**成功响应 (200):**
+```json
+{
+  "success": true,
+  "message": "获取知识库列表成功",
+  "result": {
+    "knowledgeBases": [
+      {
+        "id": 1,
+        "user_id": 1,
+        "name": "我的知识库",
+        "description": null,
+        "document_count": 3,
+        "chunk_count": 45,
+        "created_at": "2026-04-29T10:00:00.000Z",
+        "updated_at": "2026-04-29T12:00:00.000Z"
+      }
+    ]
+  }
+}
+```
+
+---
+
+#### 4.3 获取知识库详情
+
+**接口地址:** `GET /api/kb/:kbId`
+
+**权限：** 只能查看自己创建的知识库
+
+**成功响应 (200):**
+```json
+{
+  "success": true,
+  "result": {
+    "knowledgeBase": { ... }
+  }
+}
+```
+
+---
+
+#### 4.4 删除知识库
+
+**接口地址:** `DELETE /api/kb/:kbId`
+
+**说明：** 级联删除 MySQL 中所有关联记录 + LanceDB 向量表，不可恢复。
+
+**成功响应 (200):**
+```json
+{
+  "success": true,
+  "message": "知识库已删除",
+  "result": null
+}
+```
+
+---
+
+#### 4.5 上传文档到知识库
+
+**接口地址:** `POST /api/kb/:kbId/documents`
+
+**Content-Type:** `multipart/form-data`
+
+**请求参数：**
+- `files`: 必填，多文件上传（字段名 `files`，最多 10 个）
+
+**处理流程：**
+1. 文件保存到 `server/uploads/kb/`
+2. 后台异步解析文本（PDF/DOCX/TXT/MD）
+3. `RecursiveCharacterTextSplitter` 分块（chunkSize: 1000, overlap: 200）
+4. DashScope Embedding 生成 1024 维向量
+5. 存入 LanceDB 对应知识库表
+6. MySQL 记录文档元数据和分块索引
+
+**成功响应 (201):**
+```json
+{
+  "success": true,
+  "message": "成功上传 1 个文档",
+  "result": {
+    "documents": [
+      { "id": 1, "filename": "report.pdf", "chunkCount": 12 }
+    ]
+  }
+}
+```
+
+---
+
+#### 4.6 获取知识库文档列表
+
+**接口地址:** `GET /api/kb/:kbId/documents`
+
+**成功响应 (200):**
+```json
+{
+  "success": true,
+  "result": {
+    "documents": [
+      {
+        "id": 1,
+        "kb_id": 1,
+        "filename": "report.pdf",
+        "file_type": "application/pdf",
+        "file_size": 102400,
+        "chunk_count": 12,
+        "status": "completed",
+        "created_at": "2026-04-29T10:00:00.000Z"
+      }
+    ]
+  }
+}
+```
+
+**文档状态说明：**
+- `pending`: 等待处理
+- `processing`: 正在解析分块
+- `completed`: 处理完成
+- `failed`: 处理失败（查看 `error_message` 字段）
+
+---
+
+#### 4.7 删除知识库文档
+
+**接口地址:** `DELETE /api/kb/:kbId/documents/:docId`
+
+**说明：** 同时删除 MySQL 记录和 LanceDB 中对应向量数据。
+
+---
+
+#### 4.8 检索知识库
+
+**接口地址:** `POST /api/kb/:kbId/search`
+
+**请求参数：**
+```json
+{
+  "query": "什么是 RAG"
+}
+```
+
+**成功响应 (200):**
+```json
+{
+  "success": true,
+  "message": "检索完成",
+  "result": {
+    "chunks": [
+      {
+        "content": "RAG（检索增强生成）是一种...",
+        "source": "report.pdf",
+        "score": 0.92
+      }
+    ]
+  }
+}
+```
+
+**说明：** `score` 为余弦相似度（0-1），越高表示越相关。
+
+---
+
+### 5. 管理员模块 (`/api/admin`)
 
 > ⚠️ **注意:** 所有管理员接口需要双重认证：`authMiddleware` + `adminMiddleware`
 
@@ -1250,26 +1563,108 @@ Express App (app.ts)
 │  /api/user → userRouter             │
 │  /api/admin → adminRouter           │
 │  /api/ai → aiRouter                 │
+│  /api/kb → knowledgeBaseRouter      │
+│  /api → uploadRouter                │
 └─────────────────────────────────────┘
     ↓
 ┌─────────────────────────────────────┐
 │         控制器层                     │
 │  • UserController                   │
 │  • AI Controller (内联在路由中)      │
+│  • KB Controller (内联在路由中)      │
 └─────────────────────────────────────┘
     ↓
 ┌─────────────────────────────────────┐
 │         服务层 / 模型层              │
-│  • AIService (Anthropic SDK)        │
-│  • UserModel (MySQL)               │
-│  • ChatHistoryModel (MySQL)         │
+│  • AIService (Anthropic SDK + RAG)  │
+│  • EmbeddingService (DashScope)     │
+│  • VectorStore (LanceDB)            │
+│  • DocumentPipeline (Parse→Chunk)   │
+│  • RAGChain (Retrieve→Prompt)       │
+│  • UserModel / ChatHistoryModel     │
+│  • KnowledgeBase / KbDoc / KbChunk  │
 └─────────────────────────────────────┘
     ↓
 ┌─────────────────────────────────────┐
 │         外部服务                     │
 │  • MySQL Database                   │
-│  • Anthropic API (Claude)          │
+│  • Anthropic API (via ModelScope)   │
+│  • DashScope Embedding API          │
+│  • LanceDB (嵌入式向量数据库)        │
 └─────────────────────────────────────┘
+```
+
+### RAG 服务层详解
+
+**1. Embedding 服务 (`services/embedding.ts`)**
+- 封装 `@langchain/community` 的 `AlibabaTongyiEmbeddings`
+- 单例模式，复用 Embedding 客户端实例
+- 模型：`text-embedding-v3`，1024 维向量输出
+- 批量大小：100 条/次
+
+**2. 向量存储服务 (`services/vectorStore.ts`)**
+- 封装 LanceDB 嵌入式向量数据库
+- 每个知识库对应一个 LanceDB 表（命名规则：`kb_{userId}_{timestamp}`）
+- 支持操作：创建表、添加向量文档、相似度搜索、按文档 ID 删除、删除整表
+- 数据持久化于 `server/data/lancedb/` 目录
+
+**3. 文档管道服务 (`services/documentPipeline.ts`)**
+- `parseDocument()`: 解析各类文档为纯文本（PDF/pdf-parse、DOCX/mammoth、TXT/MD 直接读取）
+- `chunkDocument()`: 知识库文档分块（`RecursiveCharacterTextSplitter`，中英文感知分隔符）
+- `chunkFileForChat()`: 聊天附件文档分块（轻量版，不关联知识库）
+
+**4. RAG 编排服务 (`services/ragChain.ts`)**
+- `retrieveFromKB()`: 从知识库检索 → Embedding 查询向量 → LanceDB 相似度搜索 → 返回 top-K 分块
+- `retrieveFromFileChunks()`: 从聊天附件分块中检索（关键词匹配，无需额外 Embedding 开销）
+- `formatChunksForPrompt()`: 将检索分块格式化为 LLM prompt 中的参考资料段落
+
+**5. RAG 增强的 AI 对话 (`services/ai.ts` 修改)**
+- `chatWithAIStream()` 新增 `kbId` 和 `files` 参数支持
+- RAG 检索资料优先于对话历史注入 prompt
+- 多模态文件（图片）仍走 content-block 格式
+- 文档附件先分块再检索，取代原有的全量文本拼接
+
+### Redis 缓存层 (`services/cache.ts`)
+
+**设计原则**：优雅降级 — Redis 不可用时系统正常运行，缓存静默失效，不影响业务。
+
+**连接管理**：
+- 单例模式，自动重连（200ms 递增，最大 5s 间隔）
+- 启动时连接，`lazyConnect: false`
+- 连接成功/错误日志输出
+
+**缓存策略表**：
+
+| 缓存项 | Key 格式 | TTL | 说明 |
+|--------|---------|-----|------|
+| 查询向量 | `emb:query:{hash}` | 1 小时 | 相同问题避免重复调用 Embedding API |
+| 文档向量 | `emb:doc:{hash}` | 24 小时 | 相同内容文档避免重复嵌入 |
+| 知识库列表 | `kb:list:{userId}` | 5 分钟 | 减少 MySQL 查询 |
+| 知识库文档列表 | `kb:docs:{kbId}` | 5 分钟 | 减少 MySQL 查询 |
+| RAG 检索结果 | `rag:{kbId}:{queryHash}` | 10 分钟 | 热门问题直接返回检索结果 |
+
+**缓存失效**：增删知识库/文档时自动清除对应缓存（`cacheDel(pattern)`）。
+
+**集成点**：
+- `embedding.ts`：`embedQuery()` 和 `embedDocuments()` 读写缓存
+- `knowledgeBase.ts`：列表查询读缓存，增删操作 invalidate
+- `ragChain.ts`：`retrieveFromKB()` 读缓存
+
+**配置**（`config/index.ts` → `redis`）：
+```typescript
+redis: {
+  host: process.env.REDIS_HOST || 'localhost',
+  port: Number(process.env.REDIS_PORT) || 6379,
+  password: process.env.REDIS_PASSWORD || '',
+  db: Number(process.env.REDIS_DB) || 0,
+  ttl: {
+    embeddingQuery: 3600,     // 查询向量 1 小时
+    embeddingDoc: 86400,      // 文档向量 24 小时
+    kbList: 300,              // KB 列表 5 分钟
+    kbDocs: 300,              // KB 文档 5 分钟
+    ragResult: 600            // RAG 检索结果 10 分钟
+  }
+}
 ```
 
 ---
@@ -1785,7 +2180,15 @@ hotfix/xxx (紧急修复)
 
 ## 📋 TODO & 未来规划
 
+### 已完成功能
+- [x] LangChain + LanceDB RAG 架构迁移
+- [x] 知识库 CRUD（创建、文档管理、向量检索）
+- [x] 对话中集成知识库检索增强生成
+- [x] 文档分块管道（pdf-parse、mammoth、RecursiveCharacterTextSplitter）
+- [x] DashScope Embedding 集成（text-embedding-v3）
+
 ### 功能增强
+- [ ] 知识库权限共享（多用户协作）
 - [ ] 用户头像上传
 - [ ] 对话导出功能（PDF/Markdown）
 - [ ] 多轮对话上下文管理优化
@@ -1849,4 +2252,4 @@ hotfix/xxx (紧急修复)
 
 ---
 
-*本文档最后更新于 2026-04-29 | 由后端开发团队维护*
+*本文档最后更新于 2026-04-29 | 由后端开发团队维护 | RAG 架构 v2.0*

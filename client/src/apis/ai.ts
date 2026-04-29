@@ -22,6 +22,7 @@ export const chatWithAI = (data: {
   sessionId: string
   userId?: number | null
   files?: UploadResult[]
+  kbId?: number
 }) => {
   return request.post('/ai/chat', data)
 }

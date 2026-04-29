@@ -20,8 +20,11 @@
       :loadingHistory="loadingHistory"
       :typingMessageIndex="typingMessageIndex"
       :currentSessionId="currentSessionId"
+      :kbList="kbList"
+      :selectedKbId="selectedKbId"
       @send="sendMessage"
       @clearHistory="clearHistory"
+      @update:selectedKbId="selectedKbId = $event"
     />
   </div>
 </template>
@@ -31,6 +34,7 @@ import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Fold } from '@element-plus/icons-vue'
 import { getChatHistory, deleteChatHistory, getSessions, uploadFile } from '@/apis/ai'
+import { getKnowledgeBases, type KnowledgeBase } from '@/apis/knowledgeBase'
 import { handleSSE } from '@/utils/sse'
 import { useUserStore } from '@/stores/userStore'
 import ChatSidebar from './components/ChatSidebar.vue'
@@ -61,6 +65,8 @@ const loadingHistory = ref(false)
 const sidebarCollapsed = ref(false)
 const currentSessionId = ref<string>('')
 const sessionList = ref<SessionItem[]>([])
+const kbList = ref<KnowledgeBase[]>([])
+const selectedKbId = ref<number | null>(null)
 
 let typewriterTimer: ReturnType<typeof setInterval> | null = null
 const typingMessageIndex = ref(-1)
@@ -137,6 +143,19 @@ const syncSessionsFromBackend = async () => {
         new Date(b.lastActiveAt).getTime() - new Date(a.lastActiveAt).getTime()
       )
       saveSessionList()
+    }
+  } catch {
+    // 静默失败
+  }
+}
+
+const loadKBList = async () => {
+  try {
+    const userInfo = userStore.getUserInfo()
+    if (!userInfo?.id) return
+    const res = await getKnowledgeBases()
+    if (res.data.success) {
+      kbList.value = res.data.result.knowledgeBases || []
     }
   } catch {
     // 静默失败
@@ -349,7 +368,8 @@ const sendMessage = async (payload: { content: string; files: File[] }) => {
         message: content,
         sessionId: currentSessionId.value,
         userId,
-        files: uploadedFiles.length > 0 ? uploadedFiles : undefined
+        files: uploadedFiles.length > 0 ? uploadedFiles : undefined,
+        kbId: selectedKbId.value || undefined
       })
     })
 
@@ -413,6 +433,7 @@ const clearHistory = async () => {
 
 onMounted(() => {
   initCurrentSession()
+  loadKBList()
 })
 </script>
 

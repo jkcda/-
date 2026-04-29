@@ -39,6 +39,40 @@ const config = {
     maxChars: 10000 // 上下文最大字符数
   },
 
+  // RAG 配置
+  rag: {
+    chunkSize: 1000,        // 文档分块大小（字符数）
+    chunkOverlap: 200,      // 分块重叠字符数
+    topK: 5,                // 检索返回的最相关分块数
+    similarityThreshold: 0.5 // 相似度阈值
+  },
+
+  // Embedding 模型配置
+  embeddings: {
+    modelName: 'text-embedding-v3',
+    batchSize: 100          // 批量嵌入大小
+  },
+
+  // LanceDB 配置
+  lancedb: {
+    dataDir: './data/lancedb' // LanceDB 数据存储目录
+  },
+
+  // Redis 缓存配置
+  redis: {
+    host: process.env.REDIS_HOST || 'localhost',
+    port: Number(process.env.REDIS_PORT) || 6379,
+    password: process.env.REDIS_PASSWORD || '',
+    db: Number(process.env.REDIS_DB) || 0,
+    ttl: {
+      embeddingQuery: 3600,     // 查询向量缓存 1 小时
+      embeddingDoc: 86400,      // 文档向量缓存 24 小时
+      kbList: 300,              // KB 列表缓存 5 分钟
+      kbDocs: 300,              // KB 文档列表缓存 5 分钟
+      ragResult: 600            // RAG 检索结果缓存 10 分钟
+    }
+  },
+
   // 文件上传配置
   upload: {
     maxImageSize: 10 * 1024 * 1024,   // 图片最大 10MB
