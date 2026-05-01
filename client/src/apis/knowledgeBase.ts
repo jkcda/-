@@ -41,17 +41,29 @@ export const getKnowledgeBase = (kbId: number) =>
 export const deleteKnowledgeBase = (kbId: number) =>
   request.delete(`/kb/${kbId}`)
 
-export const uploadDocumentsToKB = (kbId: number, files: File[]) => {
+export const uploadDocumentsToKB = async (kbId: number, files: File[]) => {
   const formData = new FormData()
   files.forEach(f => formData.append('files', f))
   const baseURL = (import.meta.env as any).VITE_BASE_URL || ''
-  return fetch(`${baseURL}/api/kb/${kbId}/documents`, {
+  const response = await fetch(`${baseURL}/api/kb/${kbId}/documents`, {
     method: 'POST',
     body: formData,
     headers: {
       Authorization: `Bearer ${localStorage.getItem('token')}`
     }
-  }).then(r => r.json())
+  })
+
+  if (!response.ok) {
+    let message = `服务器错误 (${response.status})`
+    try {
+      const body = await response.json()
+      if (body.message) message = body.message
+      if (body.error) message += ` — ${body.error}`
+    } catch {}
+    throw new Error(message)
+  }
+
+  return response.json()
 }
 
 export const getKBDocuments = (kbId: number) =>

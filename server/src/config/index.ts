@@ -30,7 +30,7 @@ const config = {
   ai: {
     apiKey: process.env.DASHSCOPE_API_KEY || '',
     model: 'Qwen/Qwen3.5-35B-A3B',
-    maxTokens: 1024,
+    maxTokens: 8192,
     baseURL: 'https://api-inference.modelscope.cn'
   },
   
@@ -47,10 +47,10 @@ const config = {
     similarityThreshold: 0.5 // 相似度阈值
   },
 
-  // Embedding 模型配置
+  // Embedding 模型配置（ModelScope API-Inference）
   embeddings: {
-    modelName: 'text-embedding-v3',
-    batchSize: 100          // 批量嵌入大小
+    modelName: 'qwen/Qwen3-Embedding-0.6B',  // 1024 维，32K 上下文
+    batchSize: 100
   },
 
   // LanceDB 配置

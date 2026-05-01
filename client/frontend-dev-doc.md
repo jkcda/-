@@ -2,7 +2,7 @@
 
 ## 📋 项目概述
 
-本项目是一个基于 **Vue 3 + TypeScript + Vite** 构建的 AI 智能对话系统前端应用。采用前后端分离架构，提供用户注册、登录、AI 对话（含 RAG 知识库检索增强）、知识库管理等核心功能。
+本项目是一个基于 **Vue 3 + TypeScript + Vite** 构建的 AI 智能对话系统前端应用。采用前后端分离架构，提供用户注册、登录、AI 对话（含 RAG 知识库检索增强）、知识库管理等核心功能。**全面支持移动端适配**，在手机、平板、桌面设备上均可正常使用。
 
 ### 技术栈
 
@@ -213,7 +213,7 @@ const getCurrentKey = () => {
 
 **说明：** 会话 ID 对用户完全隐藏，不再显示在页面头部，用户只看到预览文本和消息数量。
 
-**侧边栏折叠设计：** 折叠按钮（`.sidebar-toggle`）位于侧边栏外部、主聊天区域左侧，作为 28px 宽的独立竖条。折叠时侧边栏宽度变为 0 并隐藏内容，但折叠按钮始终可见，点击即可再次展开。
+**侧边栏折叠设计：** 桌面端折叠按钮（`.sidebar-toggle`）位于侧边栏外部、主聊天区域左侧，作为 28px 宽的独立竖条。折叠时侧边栏宽度变为 0 并隐藏内容，但折叠按钮始终可见。移动端（<768px）侧边栏变为 `position: fixed` 左侧覆盖抽屉（260px 宽），通过 `mobileOpen` prop + `mobile-sidebar-overlay` 遮罩控制显隐，桌面端折叠状态与移动端覆盖状态相互独立。
 
 **MySQL 历史会话同步（`syncSessionsFromBackend`）：** 组件挂载时自动调用 `GET /api/ai/sessions`，将后端返回的会话与 localStorage 合并：新会话直接插入列表，已存在的会话更新消息数和预览。合并后按 `lastActiveAt` 降序排列并写回 localStorage。
 
@@ -277,8 +277,8 @@ const startTypewriter = (msgIndex: number) => {
 - **处理状态显示**：文档上传后实时显示处理进度（等待→处理中→完成/失败）
 
 **双面板布局：**
-- 左侧：知识库列表侧边栏（`KBList.vue`），含新建/删除按钮
-- 右侧：选中知识库的文档列表（`KBDocumentList.vue`），含上传按钮和检索框
+- 左侧：知识库列表侧边栏（`KBList.vue`），含新建/删除按钮。移动端（<768px）变为 `position: fixed` 左侧覆盖抽屉
+- 右侧：选中知识库的文档列表（`KBDocumentList.vue`），含上传按钮和检索框。移动端顶部显示知识库选择器入口
 
 **文档检索功能：**
 - 输入框输入查询内容 → 调用 `/api/kb/:id/search` → 展示相关分块及其相关度评分
@@ -326,6 +326,78 @@ const startTypewriter = (msgIndex: number) => {
 #### 内容区域 ([Content.vue](src/views/Layout/components/Content.vue))
 - 使用 `<router-view>` 显示子路由内容
 - 动态高度计算（视口高度 - 头部高度）
+
+---
+
+## 📱 移动端适配
+
+### 侧边栏覆盖模式（Chat / KnowledgeBase）
+
+桌面端侧边栏为固定宽度（260px），通过折叠按钮隐藏（`width: 0`）。移动端（<768px）采用不同的交互模式：
+
+- **Chat 侧边栏**（[ChatSidebar.vue](src/views/Chat/components/ChatSidebar.vue)）：移动端变为 `position: fixed` 左侧抽屉，通过 `mobileOpen` prop 控制滑入/滑出，`mobile-sidebar-overlay` 半透明遮罩点击关闭
+- **KnowledgeBase 侧边栏**（[KBList.vue](src/views/KnowledgeBase/components/KBList.vue)）：同上，额外在文档区域顶部显示知识库选择器入口
+
+```
+桌面端: [侧边栏 | 折叠按钮 | 主内容区]    折叠 → width: 0
+移动端: [主内容区全宽]  点击菜单 → [覆盖抽屉 ← 主内容区]
+```
+
+### 头部导航适配（Header.vue）
+
+- 768px 以下：隐藏桌面导航和用户区，显示汉堡菜单按钮
+- 点击汉堡菜单 → 右侧滑入导航面板（260px 宽）+ 半透明遮罩
+- 导航面板内含所有路由链接 + 移动端专属用户操作区（登录/注册/退出）
+- 使用 `Menu` / `Close` 图标切换（@element-plus/icons-vue）
+
+### 后台管理适配（AdminLayout.vue）
+
+- 768px 以下：侧边栏初始折叠（`isCollapsed = true`），通过 `mobileSidebarOpen` 控制覆盖显示
+- 顶栏自适应换行：面包屑 + 操作按钮在窄屏下 `flex-wrap`
+- 用户名在移动端隐藏（`display: none`），节省空间
+- 统计卡片（UserChatStats.vue）：
+  - 768px 以下：2 列排列（`flex: 0 0 50%`）
+  - 480px 以下：1 列堆叠（`flex: 0 0 100%`）
+- 表格在移动端通过 Element Plus 原生横滚支持，字体缩小至 12px
+- 对话框（AdminUsers）宽度 `90%`，抽屉（UserChatStats）宽度 `85%`
+
+### 消息区域适配（ChatMessageArea.vue）
+
+- 消息气泡 `max-width` 从 75% 放宽至 90%，充分利用窄屏空间
+- 输入区：upload 按钮、textarea、发送按钮在 768px 以下自动换行
+- 头部新增移动端菜单按钮（`mobile-menu-btn`），桌面端隐藏
+- 图片预览 `max-width/max-height` 缩小至 140px
+- 文件预览条 padding 减半
+
+### 设备检测机制
+
+不使用 CSS `@media` 查询（样式层面），同时在 JS 层面通过 `window.innerWidth < 768` 判断：
+
+```typescript
+// 设备检测（Chat/index.vue, AdminLayout.vue）
+const isMobile = ref(window.innerWidth < 768)
+
+const handleResize = () => {
+  isMobile.value = window.innerWidth < 768
+  if (!isMobile.value) {
+    mobileSidebarOpen.value = false  // 切换回桌面端时关闭移动菜单
+  }
+}
+
+onMounted(() => window.addEventListener('resize', handleResize))
+onBeforeUnmount(() => window.removeEventListener('resize', handleResize))
+```
+
+### 移动端组件交互速览
+
+| 组件 | 新增 Prop/Event | 用途 |
+|------|----------------|------|
+| ChatSidebar | `mobileOpen?: boolean` | 控制移动端覆盖抽屉显隐 |
+| ChatMessageArea | `@toggleSidebar` | 移动端头部菜单按钮点击 |
+| KBList | `mobileOpen?: boolean` | 控制移动端覆盖抽屉显隐 |
+| KnowledgeBase/index | `mobileSidebarOpen` 状态 | 管理侧边栏 + 遮罩 |
+| AdminLayout | `mobileSidebarOpen` 状态 | 侧边栏覆盖 + 顶栏汉堡按钮 |
+| Header | `mobileMenuOpen` 状态 | 右侧导航面板 + 遮罩 |
 
 ---
 
@@ -524,7 +596,7 @@ router.beforeEach((to, from, next) => {
 |---------|------|------|------|------|
 | `getSessions` | GET | `/ai/sessions` | `userId?` | 获取用户会话列表 |
 | `getChatHistory` | GET | `/ai/history` | `sessionId, userId?` | 获取对话历史 |
-| `chatWithAI` | POST | `/ai/chat` | `{message, sessionId, userId?, files?}` | AI 对话（流式，支持多模态） |
+| `chatWithAI` | POST | `/ai/chat` | `{message, sessionId, userId?, files?, kbId?}` | AI 对话（流式，支持多模态 + RAG） |
 | `uploadFile` | POST | `/upload` | `FormData (file)` | 上传文件（图片/文档） |
 | `deleteChatHistory` | DELETE | `/ai/history` | `sessionId, userId?` | 删除对话历史 |
 
@@ -536,7 +608,7 @@ router.beforeEach((to, from, next) => {
 | `getKnowledgeBases` | GET | `/kb` | - | 获取用户知识库列表 |
 | `getKnowledgeBase` | GET | `/kb/:kbId` | `kbId` | 获取知识库详情 |
 | `deleteKnowledgeBase` | DELETE | `/kb/:kbId` | `kbId` | 删除知识库 |
-| `uploadDocumentsToKB` | POST | `/kb/:kbId/documents` | `kbId, FormData(files)` | 上传文档到知识库 |
+| `uploadDocumentsToKB` | POST | `/kb/:kbId/documents` | `kbId, FormData(files)` | 上传文档到知识库（含 HTTP 状态校验，非 2xx 自动提取 `message` 抛出） |
 | `getKBDocuments` | GET | `/kb/:kbId/documents` | `kbId` | 获取知识库文档列表 |
 | `deleteKBDocument` | DELETE | `/kb/:kbId/documents/:docId` | `kbId, docId` | 删除知识库文档 |
 | `searchKB` | POST | `/kb/:kbId/search` | `kbId, {query}` | 在知识库中检索 |
@@ -550,6 +622,22 @@ router.beforeEach((to, from, next) => {
 ### 全局样式
 - [main.css](src/assets/main.css): Element Plus 基础样式重置
 - [common.scss](src/styles/common.scss): 公共 SCSS 变量和混合器
+
+### 响应式设计
+
+项目采用**桌面优先（Desktop First）**策略，通过 `@media (max-width: ...)` 断点向下适配移动端。
+
+| 断点 | 适用设备 | 主要变化 |
+|------|---------|---------|
+| `768px` | 平板 / 手机 | 侧边栏→覆盖抽屉、Header 汉堡菜单、消息气泡加宽、表格横滚、统计卡片 2 列 |
+| `480px` | 小屏手机 | 统计卡片 1 列、Hero 区域缩小、表单全宽 |
+
+核心响应式规则：
+- `body` 最小宽度 `320px`（原 `1240px` 已移除）
+- `.container` 使用 `max-width: 1240px` + `width: 100%` + `padding: 0 15px`
+- 所有固定宽度侧边栏（260px / 220px）在 768px 以下变为 `position: fixed` 覆盖抽屉
+- 桌面端侧边栏折叠行为保留，移动端改为独立的 `mobileOpen` 覆盖模式（互不干扰）
+- 通过 `window.innerWidth < 768` 运行时判断设备类型
 
 ### 样式规范
 - 使用 scoped 样式避免冲突
@@ -668,12 +756,12 @@ UI Re-render
 | [App.vue](src/App.vue) | 根组件 | ⭐⭐⭐⭐⭐ |
 | [router/index.ts](src/router/index.ts) | 路由配置与守卫 | ⭐⭐⭐⭐⭐ |
 | [stores/userStore.ts](src/stores/userStore.ts) | 用户状态管理 | ⭐⭐⭐⭐⭐ |
-| [views/Chat/index.vue](src/views/Chat/index.vue) | AI 对话核心页面（会话管理、SSE、打字机效果） | ⭐⭐⭐⭐⭐ |
-| [views/Chat/components/ChatSidebar.vue](src/views/Chat/components/ChatSidebar.vue) | 会话列表侧边栏组件 | ⭐⭐⭐ |
-| [views/Chat/components/ChatMessageArea.vue](src/views/Chat/components/ChatMessageArea.vue) | 消息展示与输入区组件（Markdown 渲染、KB 选择器） | ⭐⭐⭐ |
-| [views/KnowledgeBase/index.vue](src/views/KnowledgeBase/index.vue) | 知识库管理页面主入口 | ⭐⭐⭐⭐ |
-| [views/KnowledgeBase/components/KBList.vue](src/views/KnowledgeBase/components/KBList.vue) | 知识库侧边栏列表 | ⭐⭐⭐ |
-| [views/KnowledgeBase/components/KBDocumentList.vue](src/views/KnowledgeBase/components/KBDocumentList.vue) | 文档列表 + 上传 + 检索 | ⭐⭐⭐ |
+| [views/Chat/index.vue](src/views/Chat/index.vue) | AI 对话核心页面（会话管理、SSE、打字机效果、移动端覆盖侧边栏） | ⭐⭐⭐⭐⭐ |
+| [views/Chat/components/ChatSidebar.vue](src/views/Chat/components/ChatSidebar.vue) | 会话列表侧边栏（桌面折叠 + 移动端抽屉覆盖） | ⭐⭐⭐ |
+| [views/Chat/components/ChatMessageArea.vue](src/views/Chat/components/ChatMessageArea.vue) | 消息展示与输入区（Markdown 渲染、KB 选择器、移动端菜单按钮） | ⭐⭐⭐ |
+| [views/KnowledgeBase/index.vue](src/views/KnowledgeBase/index.vue) | 知识库管理页面主入口（移动端覆盖侧边栏） | ⭐⭐⭐⭐ |
+| [views/KnowledgeBase/components/KBList.vue](src/views/KnowledgeBase/components/KBList.vue) | 知识库侧边栏列表（桌面固定 + 移动端抽屉覆盖） | ⭐⭐⭐ |
+| [views/KnowledgeBase/components/KBDocumentList.vue](src/views/KnowledgeBase/components/KBDocumentList.vue) | 文档列表 + 上传 + 检索（移动端适配） | ⭐⭐⭐ |
 | [apis/knowledgeBase.ts](src/apis/knowledgeBase.ts) | 知识库 API 封装 | ⭐⭐⭐⭐ |
 | [views/Login/login.vue](src/views/Login/login.vue) | 登录页面 | ⭐⭐⭐⭐ |
 | [views/Register/Register.vue](src/views/Register/Register.vue) | 注册页面 | ⭐⭐⭐⭐ |
@@ -682,11 +770,11 @@ UI Re-render
 | [apis/admin.ts](src/apis/admin.ts) | 管理员 API 接口 | ⭐⭐⭐⭐ |
 | [apis/user.ts](src/apis/user.ts) | 用户 API 接口 | ⭐⭐⭐⭐ |
 | [apis/ai.ts](src/apis/ai.ts) | AI API 接口 | ⭐⭐⭐⭐ |
-| [views/Admin/AdminLayout.vue](src/views/Admin/AdminLayout.vue) | 后台管理布局（侧边栏+顶栏） | ⭐⭐⭐⭐⭐ |
-| [views/Admin/AdminDashboard.vue](src/views/Admin/AdminDashboard.vue) | 后台仪表盘 | ⭐⭐⭐⭐⭐ |
-| [views/Admin/AdminUsers.vue](src/views/Admin/AdminUsers.vue) | 用户管理（增删改查） | ⭐⭐⭐⭐⭐ |
-| [views/Admin/components/UserChatStats.vue](src/views/Admin/components/UserChatStats.vue) | 用户对话统计可视化组件 | ⭐⭐⭐⭐⭐ |
-| [views/Layout/components/Header.vue](src/views/Layout/components/Header.vue) | 头部导航（管理员入口） | ⭐⭐⭐⭐ |
+| [views/Admin/AdminLayout.vue](src/views/Admin/AdminLayout.vue) | 后台管理布局（侧边栏+顶栏、移动端自动折叠+覆盖抽屉） | ⭐⭐⭐⭐⭐ |
+| [views/Admin/AdminDashboard.vue](src/views/Admin/AdminDashboard.vue) | 后台仪表盘（移动端垂直布局） | ⭐⭐⭐⭐⭐ |
+| [views/Admin/AdminUsers.vue](src/views/Admin/AdminUsers.vue) | 用户管理（增删改查、移动端表格横滚） | ⭐⭐⭐⭐⭐ |
+| [views/Admin/components/UserChatStats.vue](src/views/Admin/components/UserChatStats.vue) | 用户对话统计可视化组件（卡片响应式 4→2→1 列） | ⭐⭐⭐⭐⭐ |
+| [views/Layout/components/Header.vue](src/views/Layout/components/Header.vue) | 头部导航（管理员入口、移动端汉堡菜单+侧滑面板） | ⭐⭐⭐⭐ |
 
 ---
 
@@ -747,12 +835,20 @@ A: 清除浏览器 localStorage 中的 token，重新登录
 **Q: SSE 流式输出不工作？**
 A: 检查网络连接，确认后端 `/api/ai/chat` 接口正常返回流式数据
 
+**Q: 弹窗（MessageBox）出现在左上角且看不清？**
+A: 检查父容器是否设置了 `overflow: hidden`。该属性会裁剪 Element Plus 弹窗的遮罩层和对话框，导致定位异常。`.kb-wrapper` 和 `.chat-wrapper` 不应使用 `overflow: hidden`。
+
+**Q: 知识库上传文档后瞬间弹窗消失，文档未出现？**
+A: 两种可能原因：
+1. 后端 `routes/knowledgeBase.ts` 中 `addDocumentToKB` 传递的是 URL 路径（`/uploads/kb/...`）而非真实文件路径。`documentPipeline.ts` 调用 `path.resolve()` 后在 Windows 上解析为 `C:\uploads\kb\...`，实际文件在项目子目录。应使用 multer 提供的 `file.path`。
+2. 后端缺少 multer 错误处理中间件，文件类型被 `fileFilter` 拒绝时返回 HTML 错误页面而非 JSON，前端 `r.json()` 解析失败。应在 `app.ts` 中添加 Express 错误处理中间件。
+
 ---
 
 ## 📅 版本信息
 
-- **当前版本**: 0.1.0 (RAG 知识库)
-- **最后更新**: 2026-04-29
+- **当前版本**: 0.2.0 (RAG 长期记忆 + 短期优化)
+- **最后更新**: 2026-05-01
 - **维护团队**: AI 对话系统开发组
 
 ---

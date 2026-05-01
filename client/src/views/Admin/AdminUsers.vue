@@ -289,4 +289,26 @@ onMounted(() => {
   align-items: center;
   gap: 6px;
 }
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .header-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  :deep(.el-table) {
+    font-size: 12px;
+  }
+
+  :deep(.el-dialog) {
+    width: 90% !important;
+  }
+}
 </style>

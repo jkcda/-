@@ -1,6 +1,7 @@
 import express from 'express'
 import { chatWithAIStream } from '../services/ai.js'
 import { ChatHistoryModel } from '../models/chatHistory.js'
+import { commitMemoryPair } from '../services/memoryService.js'
 import { ApiResponse } from '../utils/response.js'
 
 const router = express.Router()
@@ -69,6 +70,11 @@ router.post('/chat', async (req, res) => {
           kbId || undefined,
           retrievedJson
         )
+
+        // 与暂存的用户消息配对写入记忆库
+        if (userId) {
+          commitMemoryPair(userId, returnedSessionId, assistantContent).catch(() => {})
+        }
       }
 
       res.write('data: [DONE]\n\n')

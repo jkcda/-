@@ -342,4 +342,42 @@ onMounted(() => {
   font-size: 14px;
   color: #909399;
 }
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .stats-cards :deep(.el-col) {
+    flex: 0 0 50%;
+    max-width: 50%;
+    margin-bottom: 12px;
+  }
+
+  .stat-value {
+    font-size: 24px;
+  }
+
+  .stat-label {
+    font-size: 12px;
+  }
+
+  .card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  :deep(.el-drawer) {
+    width: 85% !important;
+  }
+
+  :deep(.el-table) {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .stats-cards :deep(.el-col) {
+    flex: 0 0 100%;
+    max-width: 100%;
+  }
+}
 </style>

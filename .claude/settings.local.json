@@ -8,7 +8,9 @@
       "Bash(npx tsc *)",
       "Bash(node -e ' *)",
       "Bash(node -e \"console.log\\(require\\('./node_modules/pdf-parse/package.json'\\).version\\)\")",
-      "Bash(npx tsx -e ' *)"
+      "Bash(npx tsx -e ' *)",
+      "Bash(curl -s -o /dev/null -w '%{http_code}' -X POST https://api-inference.modelscope.cn/v1/embeddings -H 'Authorization: Bearer ms-262aa7ba-8d83-4f7d-8890-1c655a17adb2' -H 'Content-Type: application/json' -d '{\"model\":\"__TRACKED_VAR__\",\"input\":[\"test\"]}')",
+      "Bash(curl -s -w '\\\\nHTTP %{http_code}' -X POST https://api-inference.modelscope.cn/v1/embeddings -H 'Authorization: Bearer ms-262aa7ba-8d83-4f7d-8890-1c655a17adb2' -H 'Content-Type: application/json' -d '{\"model\":\"qwen/Qwen3-Embedding-0.6B\",\"input\":[\"你好世界\"],\"encoding_format\":\"float\"}')"
     ]
   }
 }

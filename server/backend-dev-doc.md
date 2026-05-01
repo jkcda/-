@@ -2,7 +2,7 @@
 
 ## 📋 项目概述
 
-本项目是基于 **Node.js + Express + TypeScript** 构建的 AI 智能对话系统后端服务。采用 RESTful API 设计，提供用户认证、AI 对话（流式输出）、对话历史管理、知识库 RAG 检索增强生成等核心功能。集成 Anthropic Claude API 实现智能对话能力，通过 LangChain.js + LanceDB 实现文档向量检索增强。
+本项目是基于 **Node.js + Express + TypeScript** 构建的 AI 智能对话系统后端服务。采用 RESTful API 设计，提供用户认证、AI 对话（流式输出）、对话历史管理、知识库 RAG 检索增强生成、**RAG 增强长期记忆**等核心功能。通过 Anthropic Claude API（ModelScope 代理）实现智能对话能力，LangChain.js + LanceDB 实现文档向量检索，自研 MemoryService 实现跨会话语义记忆。
 
 ### 技术栈
 
@@ -51,11 +51,12 @@ server/
 │   │   ├── upload.ts               # 文件上传路由
 │   │   └── knowledgeBase.ts        # 知识库路由
 │   ├── services/
-│   │   ├── ai.ts                   # AI 服务层（含 RAG 集成）
-│   │   ├── embedding.ts            # Embedding 向量化服务
+│   │   ├── ai.ts                   # AI 服务层（含 RAG 集成 + 记忆注入）
+│   │   ├── embedding.ts            # Embedding 向量化服务（openai SDK → ModelScope）
 │   │   ├── vectorStore.ts          # LanceDB 向量存储服务
 │   │   ├── documentPipeline.ts     # 文档摄入管道（解析→分块→嵌入）
 │   │   ├── knowledgeBase.ts        # 知识库业务逻辑
+│   │   ├── memoryService.ts        # RAG 长期记忆服务（Q&A配对/衰减/去重/时间戳）
 │   │   └── ragChain.ts             # RAG 检索编排
 │   ├── types/
 │   │   └── globel.d.ts             # 全局类型定义
@@ -108,7 +109,7 @@ const config = {
   ai: {
     apiKey: process.env.DASHSCOPE_API_KEY || '',
     model: 'Qwen/Qwen3.5-35B-A3B',
-    maxTokens: 1024,
+    maxTokens: 8192,  // 约支持 5000-5500 中文字输出
     baseURL: 'https://api-inference.modelscope.cn'
   },
   
@@ -164,6 +165,12 @@ JWT_SECRET=your-super-secret-key
 
 # AI API 密钥
 DASHSCOPE_API_KEY=your-api-key
+
+# Redis 缓存配置（可选，不配置则缓存自动失效）
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=
+REDIS_DB=0
 ```
 
 ---
@@ -673,6 +680,23 @@ WHERE user_id IS NULL
 
 **中文文件名编码处理：** multer 底层 busboy 默认按 latin1（ISO-8859-1）解析 multipart 头中的文件名，导致中文变成乱码。解决方案：上传和返回时对 `file.originalname` 执行 `Buffer.from(name, 'latin1').toString('utf8')` 转码。
 
+**Multer 错误处理中间件（app.ts）：** multer 的 `fileFilter` 拒绝或 `LIMIT_FILE_SIZE` 超限时，错误不会进入路由 handler 的 `try/catch`，必须通过 Express 全局错误中间件捕获并返回 JSON（而非默认 HTML 错误页面）：
+
+```typescript
+app.use((err, _req, res, next) => {
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(400).json({ success: false, message: '文件大小超出限制（最大 20MB）' })
+  }
+  if (err.message === '不支持的文件类型') {
+    return res.status(400).json({ success: false, message: '不支持的文件类型...' })
+  }
+  if (err.name === 'MulterError') {
+    return res.status(400).json({ success: false, message: `...` })
+  }
+  res.status(500).json({ success: false, message: '服务器内部错误' })
+})
+```
+
 ---
 
 ### 4. 知识库模块 (`/api/kb`)
@@ -792,12 +816,13 @@ WHERE user_id IS NULL
 - `files`: 必填，多文件上传（字段名 `files`，最多 10 个）
 
 **处理流程：**
-1. 文件保存到 `server/uploads/kb/`
-2. 后台异步解析文本（PDF/DOCX/TXT/MD）
-3. `RecursiveCharacterTextSplitter` 分块（chunkSize: 1000, overlap: 200）
-4. DashScope Embedding 生成 1024 维向量
-5. 存入 LanceDB 对应知识库表
-6. MySQL 记录文档元数据和分块索引
+1. multer 保存文件到 `server/uploads/kb/`，返回 `file.path`（真实文件系统路径）
+2. **注意：** 传给 `addDocumentToKB` 的必须是 `file.path`（如 `C:\...\uploads\kb\xxx.txt`），不能是 URL 路径（如 `/uploads/kb/xxx.txt`）。`documentPipeline.ts` 的 `parseDocument` 内部调用 `path.resolve()`，URL 路径在 Windows 上会被解析为 `C:\uploads\...`，导致 `ENOENT` 错误
+3. 后台解析文本（PDF/DOCX/TXT/MD）
+4. `RecursiveCharacterTextSplitter` 分块（chunkSize: 1000, overlap: 200）
+5. DashScope Embedding 生成 1024 维向量
+6. 存入 LanceDB 对应知识库表
+7. MySQL 记录文档元数据和分块索引
 
 **成功响应 (201):**
 ```json
@@ -1597,10 +1622,11 @@ Express App (app.ts)
 ### RAG 服务层详解
 
 **1. Embedding 服务 (`services/embedding.ts`)**
-- 封装 `@langchain/community` 的 `AlibabaTongyiEmbeddings`
-- 单例模式，复用 Embedding 客户端实例
-- 模型：`text-embedding-v3`，1024 维向量输出
-- 批量大小：100 条/次
+- 使用原生 `openai` SDK 指向 ModelScope API（`api-inference.modelscope.cn/v1`）
+- 模型：`qwen/Qwen3-Embedding-0.6B`，1024 维向量输出
+- 提供 `embedQuery(text)` 单文本向量化 和 `embedDocuments(texts)` 批量向量化
+- `getEmbeddings()` 返回 `{ embedQuery, embedDocuments }` 兼容 LanceDB 接口
+- 批量大小：100 条/次，Redis 缓存命中率高
 
 **2. 向量存储服务 (`services/vectorStore.ts`)**
 - 封装 LanceDB 嵌入式向量数据库
@@ -1610,17 +1636,24 @@ Express App (app.ts)
 
 **3. 文档管道服务 (`services/documentPipeline.ts`)**
 - `parseDocument()`: 解析各类文档为纯文本（PDF/pdf-parse、DOCX/mammoth、TXT/MD 直接读取）
-- `chunkDocument()`: 知识库文档分块（`RecursiveCharacterTextSplitter`，中英文感知分隔符）
+- `chunkDocument()`: 知识库文档分块（`RecursiveCharacterTextSplitter`，蛇形命名统一化）
 - `chunkFileForChat()`: 聊天附件文档分块（轻量版，不关联知识库）
 
 **4. RAG 编排服务 (`services/ragChain.ts`)**
 - `retrieveFromKB()`: 从知识库检索 → Embedding 查询向量 → LanceDB 相似度搜索 → 返回 top-K 分块
 - `retrieveFromFileChunks()`: 从聊天附件分块中检索（关键词匹配，无需额外 Embedding 开销）
-- `formatChunksForPrompt()`: 将检索分块格式化为 LLM prompt 中的参考资料段落
 
-**5. RAG 增强的 AI 对话 (`services/ai.ts` 修改)**
-- `chatWithAIStream()` 新增 `kbId` 和 `files` 参数支持
-- RAG 检索资料优先于对话历史注入 prompt
+**5. RAG 长期记忆服务 (`services/memoryService.ts`)**
+- `holdUserMessage()` + `commitMemoryPair()`: Q&A 成对暂存→配对写出
+- `recallMemory()`: 语义检索 Top5×2 候选 → 时间衰减重排 → 截断 Top5
+- 每用户一张表 `kb_memory_{userId}`，自动建表
+- 去重：cosine > 0.95 跳过写入
+- 时间戳格式化：`[3小时前]` `[2天前]`
+- 记忆写入异步、失败不阻塞对话
+
+**6. RAG 增强的 AI 对话 (`services/ai.ts`)**
+- `chatWithAIStream()` 支持 `kbId`、`files`、记忆注入
+- Prompt 拼接顺序：记忆 → 知识库 → 当前对话窗口
 - 多模态文件（图片）仍走 content-block 格式
 - 文档附件先分块再检索，取代原有的全量文本拼接
 
@@ -2241,6 +2274,210 @@ hotfix/xxx (紧急修复)
 
 ---
 
+## 🐛 知识库上传 — 完整排障记录 (2026-05-01)
+
+### 问题链路
+
+用户选择 `.txt` 文件上传到知识库，前端弹窗一闪而过，文档未入库。历经 7 轮排查修复：
+
+| 轮次 | 错误信息 | 根因 | 修复 |
+|------|---------|------|------|
+| 1 | `ENOENT: no such file or directory, open 'C:\uploads\kb\...'` | 路由传 `fileUrl` 给 `addDocumentToKB → parseDocument → path.resolve()`，Windows 上将 `/uploads/kb/...` 解析为 `C:\uploads\kb\...` | `knowledgeBase.ts:112`：改用 `file.path`（multer 提供的真实路径） |
+| 2 | (前端无具体信息) | `app.ts` 无 multer 错误处理中间件；前端 `uploadDocumentsToKB` 用 raw `fetch` 无状态码检查 | `app.ts`：加 Express 全局错误中间件；`knowledgeBase.ts`：加 `response.ok` 检查 + `body.error` 透传 |
+| 3 | `InvalidApiKey: Invalid API-key provided.` | `AlibabaTongyiEmbeddings` 直连 DashScope API，要求 `sk-...` 格式 Key；用户 `.env` 中是 ModelScope 格式 `ms-...` | `embedding.ts`：切为 `openai` SDK 直调 ModelScope `/v1/embeddings` |
+| 4 | `400 status code (no body)` | 模型名 `text-embedding-v3` 不在 ModelScope API-Inference 支持列表中 | 逐一 curl 探测 12 个候选模型名，最终确定 `qwen/Qwen3-Embedding-0.6B` |
+| 5 | `Found field not in schema: docId at row 0` | metadata 驼峰命名 (`docId`, `kbId`) 与 LanceDB schema 蛇形命名 (`doc_id`, `kb_id`) 不一致 | `documentPipeline.ts`：转换命名 + 删除多余 `source` 字段 |
+| 6 | `Found field not in schema: loc.lines.from at row 0` | LangChain `RecursiveCharacterTextSplitter` 自动注入 `loc` 元数据到每块 | `documentPipeline.ts`：`delete doc.metadata.loc` |
+| 7 | 中文文件名乱码 | multer 底层 busboy 按 latin1 解析 multipart 文件名 | `knowledgeBase.ts`：`Buffer.from(name, 'latin1').toString('utf8')` 转码 |
+
+### 架构影响
+
+| 组件 | 变更前 | 变更后 |
+|------|--------|--------|
+| Embedding 引擎 | `@langchain/community` AlibabaTongyiEmbeddings → DashScope | `openai` SDK → ModelScope `/v1/embeddings` |
+| Embedding 模型 | `text-embedding-v3` | `qwen/Qwen3-Embedding-0.6B`（1024 维） |
+| Embedding 实现 | LangChain 封装（getEmbeddings 单例） | 原生 `openai` SDK + `getEmbeddings()` 适配器 |
+| 依赖 | `@langchain/community` 内置 | 新增 `@langchain/openai`（后弃用，改用 `openai` 原生） |
+
+### 关键教训
+
+1. **Windows 路径陷阱**：`path.resolve('/uploads/kb/...')` 在 Windows 上解析为 `C:\uploads\kb\...`，应始终使用 multer 的 `file.path`
+2. **ModelScope ≠ DashScope**：API Key 格式不同（`ms-` vs `sk-`），模型命名规则不同（Hub 路径 vs API 名），且模型名大小写敏感
+3. **LanceDB schema 严格**：写入字段必须与建表 schema 完全匹配，LangChain splitter 注入的 `loc` 元数据需显式清理
+4. **multer 中文编码**：`knowledgeBase.ts` 未同步 `upload.ts` 已有的 `decodeFileName` 逻辑
+
+---
+
+## 🧠 RAG 增强记忆系统
+
+### 问题
+
+原记忆机制为**滑动窗口**：从 MySQL 取出当前会话全量消息，倒序拼接直到超出 10000 字符。超出部分直接丢弃，跨会话完全无记忆。
+
+```
+原来: MySQL → 全量取出 → 截断10000字符 → 拼进prompt
+现在: MySQL → 截断窗口 ───────────┐
+      LanceDB记忆库 → 语义检索 ───┤→ 拼进prompt
+```
+
+### 架构
+
+```
+每次对话
+  ├── 用户消息 → MySQL (不动) → LanceDB 记忆库 (新增)
+  ├── AI 回复   → MySQL (不动) → LanceDB 记忆库 (新增)
+  └── 下次提问 → 语义检索记忆库 Top5 → 注入 prompt
+```
+
+### 实现文件
+
+**`services/memoryService.ts`**（新增，含 4 项短期优化）
+
+| 函数 | 作用 |
+|------|------|
+| `holdUserMessage(userId, sessionId, content)` | 暂存用户消息到内存 Map，等待 AI 回复 |
+| `commitMemoryPair(userId, sessionId, assistantContent)` | 取出暂存的用户消息，与 AI 回复配对后向量化写入 |
+| `recallMemory(userId, query, topK)` | 当前问题转向量，LanceDB 搜 Top5×2 候选 → 时间衰减重排 → 截断 |
+| `ensureTable(userId)` | 自动建表（1024 维），schema: `vector / text / session_id / created_at` |
+
+**集成点：**
+
+| 文件 | 改动 |
+|------|------|
+| `services/ai.ts` | 用户消息保存后调用 `holdUserMessage`（暂存）；prompt 前调用 `recallMemory` |
+| `routes/ai.ts` | AI 回复保存后调用 `commitMemoryPair`（配对写入） |
+
+### 四项短期优化
+
+| 优化 | 实现 | 效果 |
+|------|------|------|
+| Q&A 成对存储 | `holdUserMessage` + `commitMemoryPair`，Map 暂存 `userId_sessionId` 键 | 记忆包含完整问答上下文，不再碎片化 |
+| 时间衰减 | `decayFactor = max(0.3, 1 - 天数/30)`，检索后重排 | 近一周记忆权重高，一月外衰减至 30% |
+| 去重 | 写入前搜 Top1，cosine > 0.95 跳过 | 避免同义反复对话重复占位 |
+| 时间戳 | `formatRelativeTime` → `[3小时前]` `[2天前]` 等 | AI 能感知记忆的时效性 |
+
+### Prompt 拼接顺序
+
+```
+[相关历史记忆 + 时间戳]     ← RAG 记忆（优化后，含时效信息）
+[RAG 知识库资料]            ← 知识库增强（原有）
+[当前对话滑动窗口]          ← MySQL 近期历史（原有）
+[用户当前问题]              ← 本次消息
+```
+
+### 设计决策
+
+| 决策 | 理由 |
+|------|------|
+| 记忆写入异步、不阻塞 | `.catch(() => {})` 确保记忆失败不影响对话 |
+| Map 暂存配对 | 用户消息在 `ai.ts`，回复在 `routes/ai.ts`，通过 `userId_sessionId` 关联 |
+| 去重用 cosine > 0.95 | 高阈值确保只过滤几乎相同的内容，不误伤相似主题 |
+| 衰减下限 0.3 | 避免极旧记忆彻底消失，保留最低召回能力 |
+
+---
+
+## 📋 知识库 RAG 可行性方案
+
+### 架构总览
+
+```
+┌─────────────┐     ┌─────────────┐     ┌──────────────┐
+│  前端上传    │ →   │  Express     │ →   │  multer      │
+│  .txt/.md    │     │  /api/kb     │     │  保存到磁盘   │
+│  .pdf/.docx  │     └─────────────┘     └──────────────┘
+└─────────────┘                              ↓
+                                    ┌──────────────┐
+                                    │  document    │
+                                    │  Pipeline.ts │
+                                    │  解析→分块    │
+                                    └──────┬───────┘
+                                           ↓
+┌─────────────┐     ┌─────────────┐     ┌──────────────┐
+│  前端展示    │ ←   │  MySQL       │ ←   │  Embedding   │
+│  检索结果    │     │  (元数据)     │     │  Qwen3-0.6B  │
+│  来源引用    │     └─────────────┘     │  → 1024 维    │
+└─────────────┘                         └──────┬───────┘
+                                               ↓
+┌─────────────┐     ┌─────────────┐     ┌──────────────┐
+│  对话 RAG    │ →   │  Redis       │ ←   │  LanceDB     │
+│  增强生成    │     │  缓存向量     │     │  向量检索     │
+└─────────────┘     └─────────────┘     └──────────────┘
+```
+
+### 技术选型评估
+
+| 维度 | 选择 | 理由 | 成熟度 |
+|------|------|------|--------|
+| 向量数据库 | LanceDB (嵌入式) | 零运维、文件持久化、与 LangChain 深度集成 | ⭐⭐⭐⭐ |
+| Embedding | qwen/Qwen3-Embedding-0.6B | 1024 维、100+ 语言、ModelScope 免费额度 | ⭐⭐⭐⭐ |
+| 文本分块 | RecursiveCharacterTextSplitter | 递归分割、中文友好分隔符 | ⭐⭐⭐⭐⭐ |
+| 文档解析 | pdf-parse / mammoth | 覆盖 PDF + DOCX，TXT/MD 原生支持 | ⭐⭐⭐ |
+| 缓存层 | Redis | Embedding 缓存命中率高，大幅降低 API 调用 | ⭐⭐⭐⭐⭐ |
+| 元数据 | MySQL | 与现有用户体系统一，便于关联查询 | ⭐⭐⭐⭐⭐ |
+
+### 当前能力矩阵
+
+| 功能 | 状态 | 说明 |
+|------|------|------|
+| 知识库 CRUD | ✅ | 创建/列表/删除 |
+| 文档上传 | ✅ | TXT/MD/PDF/DOCX，multer multipart |
+| 文档解析 | ✅ | pdf-parse (PDF)、mammoth (DOCX)、原生 (TXT/MD) |
+| 文本分块 | ✅ | 1000 字符/块，200 字符重叠 |
+| 向量化 | ✅ | Qwen3-Embedding-0.6B → 1024 维 |
+| 向量存储 | ✅ | LanceDB 嵌入式，按知识库分表 |
+| 语义检索 | ✅ | cosine 相似度，TopK=5，阈值 0.5 |
+| RAG 增强对话 | ✅ | 检索结果注入 LLM 上下文 |
+| 来源引用 | ✅ | 分块来源文档名 + 相关度评分 |
+| 文档删除 | ✅ | 级联删除向量 + 元数据 |
+| 中文支持 | ✅ | 文件名 latin1→utf8 转码 |
+| 缓存加速 | ✅ | Redis 三级缓存（向量/列表/结果） |
+
+### 待扩展能力
+
+| 功能 | 优先级 | 说明 |
+|------|--------|------|
+| 文档状态轮询 | 高 | 当前上传后同步处理，大文档需异步 + 前端轮询 |
+| 文档重新处理 | 中 | 支持对已上传文档重新分块/向量化 |
+| 混合检索 (Hybrid) | 中 | BM25 关键词 + 语义检索融合 |
+| 重排序 (Rerank) | 中 | Qwen3-Reranker 对检索结果二次排序 |
+| 更大 Embedding 模型 | 低 | Qwen3-Embedding-4B (2560维) 或 8B (4096维) |
+| DOC 格式支持 | 低 | 旧版 .doc 二进制无 JS 可靠解析器 |
+| 图片/表格内容提取 | 低 | PDF/DOCX 中的非文本内容 |
+
+### Embedding 模型对比
+
+| 模型 | 维度 | 上下文 | 可用性 | 推荐场景 |
+|------|------|--------|--------|---------|
+| `qwen/Qwen3-Embedding-0.6B` | 1024 | 32K | ✅ 已验证 | **当前使用**，轻量高效 |
+| `BAAI/bge-large-zh-v1.5` | 1024 | 512 | ✅ 可用 | 中文专项场景 |
+| `maidalun1020/bce-embedding-base_v1` | 768 | 512 | ✅ 可用 | 需改 schema 维度 |
+| Qwen3-Embedding-4B | 2560 | 32K | ⚠️ 需申请 | 更高精度需求 |
+| Qwen3-Embedding-8B | 4096 | 32K | ⚠️ 需申请 | SOTA 多语言评测第一 |
+
+### 性能基准（当前配置）
+
+| 指标 | 数值 | 测量条件 |
+|------|------|---------|
+| 分块速度 | ~50 块/秒 | 单文档，含 Embedding API 调用 |
+| 检索延迟 | < 200ms | TopK=5，LanceDB 本地 |
+| Embedding API | 2,000 次/天 | ModelScope 免费额度 |
+| Redis 缓存命中率 | 70-85% | 相似查询/重复文档场景 |
+| 单文档最大 | 20MB | multer limits |
+| 单次上传 | 最多 10 文件 | multer upload.array(10) |
+
+### 成本估算
+
+| 项目 | 免费额度 | 日消耗 (100 次查询) | 日消耗 (1000 次查询) |
+|------|---------|---------------------|-----------------------|
+| ModelScope Embedding | 2,000 次/天 | 100 次 | ~500 次 |
+| LanceDB | 本地 | 0 | 0 |
+| Redis | 本地/Docker | 0 | 0 |
+| MySQL | 本地 | 0 | 0 |
+
+> 结论：日查询 < 500 次时可完全免费运行。超出后需购买 ModelScope 付费额度或切换开源本地 Embedding。
+
+---
+
 ## 🙏 致谢
 
 感谢以下开源项目和社区：
@@ -2252,4 +2489,4 @@ hotfix/xxx (紧急修复)
 
 ---
 
-*本文档最后更新于 2026-04-29 | 由后端开发团队维护 | RAG 架构 v2.0*
+*本文档最后更新于 2026-05-01 | 由后端开发团队维护 | RAG 架构 v2.4（短期优化完成）*

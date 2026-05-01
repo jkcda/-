@@ -13,7 +13,14 @@
 <style scoped>
 .layout-content {
   padding: 20px;
-  min-height: calc(100vh - 70px); /* 减去头部高度 */
+  min-height: calc(100vh - 70px);
   background-color: #f5f5f5;
+}
+
+@media (max-width: 768px) {
+  .layout-content {
+    padding: 10px;
+    min-height: calc(100vh - 52px);
+  }
 }
 </style>

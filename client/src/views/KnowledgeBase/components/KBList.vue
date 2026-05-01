@@ -1,5 +1,5 @@
 <template>
-  <div class="kb-sidebar">
+  <div class="kb-sidebar" :class="{ 'mobile-open': mobileOpen }">
     <div class="kb-sidebar-header">
       <h3>知识库</h3>
       <el-button size="small" type="primary" @click="$emit('create')">新建</el-button>
@@ -44,6 +44,7 @@ defineProps<{
   kbList: KnowledgeBase[]
   selectedKbId: number | null
   loading: boolean
+  mobileOpen?: boolean
 }>()
 
 defineEmits<{
@@ -131,5 +132,23 @@ defineEmits<{
 
 .kb-item:hover .kb-delete-btn {
   opacity: 1;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .kb-sidebar {
+    position: fixed;
+    top: 0;
+    left: -280px;
+    width: 260px;
+    height: 100vh;
+    z-index: 60;
+    transition: left 0.3s ease;
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
+  }
+
+  .kb-sidebar.mobile-open {
+    left: 0;
+  }
 }
 </style>

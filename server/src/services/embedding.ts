@@ -1,21 +1,25 @@
-import { AlibabaTongyiEmbeddings } from '@langchain/community/embeddings/alibaba_tongyi'
+import { OpenAI } from 'openai'
 import config from '../config/index.js'
 import { cacheGet, cacheSet, hashKey } from './cache.js'
 
-let _embeddings: AlibabaTongyiEmbeddings | null = null
+const client = new OpenAI({
+  apiKey: config.ai.apiKey,
+  baseURL: config.ai.baseURL + '/v1'
+})
 
-export function getEmbeddings(): AlibabaTongyiEmbeddings {
-  if (!_embeddings) {
-    _embeddings = new AlibabaTongyiEmbeddings({
-      apiKey: config.ai.apiKey,
-      modelName: config.embeddings.modelName as 'text-embedding-v3',
-      batchSize: config.embeddings.batchSize,
-      parameters: {
-        text_type: 'document'
-      }
-    })
-  }
-  return _embeddings
+// LanceDB 兼容的 embeddings 实例（含 embedQuery / embedDocuments）
+export function getEmbeddings() {
+  return { embedQuery, embedDocuments }
+}
+
+async function callEmbedding(texts: string[]): Promise<number[][]> {
+  const response = await client.embeddings.create({
+    model: config.embeddings.modelName,
+    input: texts
+  })
+  return response.data
+    .sort((a, b) => a.index - b.index)
+    .map(d => d.embedding)
 }
 
 export async function embedQuery(text: string): Promise<number[]> {
@@ -23,7 +27,8 @@ export async function embedQuery(text: string): Promise<number[]> {
   const cached = await cacheGet<number[]>(key)
   if (cached) return cached
 
-  const vector = await getEmbeddings().embedQuery(text)
+  const vectors = await callEmbedding([text])
+  const vector = vectors[0]
   await cacheSet(key, vector, config.redis.ttl.embeddingQuery)
   return vector
 }
@@ -45,11 +50,15 @@ export async function embedDocuments(texts: string[]): Promise<number[][]> {
   }
 
   if (uncached.length > 0) {
-    const vectors = await getEmbeddings().embedDocuments(uncached.map(t => t.text))
-    for (let j = 0; j < vectors.length; j++) {
-      const { index, text } = uncached[j]
-      results[index] = vectors[j]
-      await cacheSet(`emb:doc:${hashKey(text)}`, vectors[j], config.redis.ttl.embeddingDoc)
+    const batchSize = config.embeddings.batchSize
+    for (let i = 0; i < uncached.length; i += batchSize) {
+      const batch = uncached.slice(i, i + batchSize)
+      const vectors = await callEmbedding(batch.map(t => t.text))
+      for (let j = 0; j < vectors.length; j++) {
+        const { index, text } = batch[j]
+        results[index] = vectors[j]
+        await cacheSet(`emb:doc:${hashKey(text)}`, vectors[j], config.redis.ttl.embeddingDoc)
+      }
     }
   }
 

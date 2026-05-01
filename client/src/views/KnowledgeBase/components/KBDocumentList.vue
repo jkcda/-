@@ -159,8 +159,9 @@ const handleFileChange = async (event: Event) => {
     } else {
       ElMessage.error(result.message || '上传失败')
     }
-  } catch {
-    ElMessage.error('上传文档失败')
+  } catch (err: any) {
+    console.error('文档上传失败:', err)
+    ElMessage.error(err.message || '上传文档失败，请检查网络连接')
   } finally {
     uploading.value = false
     input.value = ''
@@ -372,5 +373,39 @@ onMounted(() => {
 .upload-hint {
   font-size: 12px;
   color: #909399 !important;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .kb-docs-header {
+    padding: 12px 16px;
+  }
+
+  .kb-docs-header h3 {
+    font-size: 14px;
+  }
+
+  .search-bar {
+    padding: 10px 16px;
+  }
+
+  .doc-list {
+    padding: 12px 16px;
+  }
+
+  .doc-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .doc-meta {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .search-results {
+    padding: 10px 16px;
+  }
 }
 </style>

@@ -1,7 +1,17 @@
 <template>
   <div class="chat-main">
     <div class="chat-header">
-      <h2>AI 智能对话</h2>
+      <div class="chat-header-left">
+        <el-button
+          class="mobile-menu-btn"
+          size="small"
+          text
+          @click="$emit('toggleSidebar')"
+        >
+          <el-icon :size="18"><Menu /></el-icon>
+        </el-button>
+        <h2>AI 智能对话</h2>
+      </div>
       <el-button
         v-if="currentSessionId"
         type="warning"
@@ -151,7 +161,7 @@
 <script setup lang="ts">
 import { ref, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
-import { PictureFilled, FolderOpened, Document, Close, ArrowDown } from '@element-plus/icons-vue'
+import { PictureFilled, FolderOpened, Document, Close, ArrowDown, Menu } from '@element-plus/icons-vue'
 import { marked } from 'marked'
 
 marked.setOptions({
@@ -195,6 +205,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   send: [payload: { content: string; files: File[] }]
   clearHistory: []
+  toggleSidebar: []
   'update:selectedKbId': [value: number | null]
 }>()
 
@@ -329,6 +340,7 @@ defineExpose({ scrollToBottom })
   border-radius: 8px;
   word-wrap: break-word;
   line-height: 1.5;
+  user-select: text;
 }
 
 .message-content :deep(*) { margin: 0; }
@@ -563,5 +575,71 @@ defineExpose({ scrollToBottom })
 @keyframes typingBounce {
   0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
   40% { transform: scale(1); opacity: 1; }
+}
+
+/* 移动端菜单按钮 */
+.mobile-menu-btn {
+  display: none;
+}
+
+.chat-header-left {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .mobile-menu-btn {
+    display: inline-flex;
+    color: #fff;
+  }
+
+  .chat-header {
+    padding: 0 12px;
+    height: 44px;
+  }
+
+  .chat-header h2 {
+    font-size: 15px;
+  }
+
+  .chat-messages {
+    padding: 12px;
+  }
+
+  .message-content {
+    max-width: 90%;
+    padding: 8px 12px;
+  }
+
+  .chat-input {
+    padding: 10px 12px;
+  }
+
+  .kb-selector-row {
+    flex-wrap: wrap;
+  }
+
+  .input-row {
+    flex-wrap: wrap;
+  }
+
+  .upload-btns {
+    padding-top: 0;
+  }
+
+  .text-input {
+    min-width: 100%;
+  }
+
+  .file-preview-bar {
+    padding: 6px 12px;
+  }
+
+  .msg-image {
+    max-width: 140px;
+    max-height: 140px;
+  }
 }
 </style>

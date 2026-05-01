@@ -1,14 +1,24 @@
 <template>
   <div class="kb-wrapper">
+    <!-- 移动端遮罩 -->
+    <div v-if="mobileSidebarOpen" class="mobile-sidebar-overlay" @click="mobileSidebarOpen = false"></div>
+
     <KBList
       :kbList="kbList"
       :selectedKbId="selectedKbId"
       :loading="loadingList"
-      @select="selectKB"
+      :mobile-open="mobileSidebarOpen"
+      @select="selectKBAndClose"
       @create="showCreateDialog = true"
       @delete="handleDeleteKB"
     />
     <div class="kb-main">
+      <div class="kb-main-header-mobile" v-if="kbList.length > 0">
+        <el-button size="small" text @click="mobileSidebarOpen = true">
+          <el-icon :size="18"><Menu /></el-icon>
+          <span>{{ selectedKB?.name || '知识库' }}</span>
+        </el-button>
+      </div>
       <KBDocumentList
         v-if="selectedKbId"
         :kbId="selectedKbId"
@@ -47,6 +57,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Menu } from '@element-plus/icons-vue'
 import { getKnowledgeBases, createKnowledgeBase, deleteKnowledgeBase, type KnowledgeBase } from '@/apis/knowledgeBase'
 import KBList from './components/KBList.vue'
 import KBDocumentList from './components/KBDocumentList.vue'
@@ -56,6 +67,7 @@ const selectedKbId = ref<number | null>(null)
 const loadingList = ref(false)
 const creating = ref(false)
 const showCreateDialog = ref(false)
+const mobileSidebarOpen = ref(false)
 
 const createForm = ref({ name: '', description: '' })
 
@@ -78,6 +90,11 @@ const loadKBList = async () => {
 const selectKB = (kb: KnowledgeBase) => {
   selectedKbId.value = kb.id
   selectedKB.value = kb
+}
+
+const selectKBAndClose = (kb: KnowledgeBase) => {
+  selectKB(kb)
+  mobileSidebarOpen.value = false
 }
 
 const handleCreate = async () => {
@@ -103,6 +120,7 @@ const handleCreate = async () => {
 }
 
 const handleDeleteKB = async (kb: KnowledgeBase) => {
+  mobileSidebarOpen.value = false
   try {
     await ElMessageBox.confirm(
       `确定要删除知识库「${kb.name}」吗？所有文档将被永久删除。`,
@@ -136,6 +154,7 @@ onMounted(() => {
   display: flex;
   height: calc(100vh - 60px);
   background: #f0f2f5;
+  position: relative;
 }
 
 .kb-main {
@@ -149,5 +168,44 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   height: 100%;
+}
+
+/* 移动端知识库选择器 */
+.kb-main-header-mobile {
+  display: none;
+}
+
+.mobile-sidebar-overlay {
+  display: none;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .kb-wrapper {
+    height: calc(100vh - 52px);
+  }
+
+  .mobile-sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 50;
+  }
+
+  .kb-main-header-mobile {
+    display: flex;
+    padding: 8px 12px;
+    background: #fff;
+    border-bottom: 1px solid #ebeef5;
+  }
+
+  .kb-main-header-mobile .el-button {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    color: #303133;
+  }
 }
 </style>

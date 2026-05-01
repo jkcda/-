@@ -53,4 +53,25 @@ const userInfo = ref<any>(userStore.getUserInfo())
   color: #409EFF;
   opacity: 0.6;
 }
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .welcome-card {
+    margin-bottom: 12px;
+  }
+
+  .welcome-content {
+    flex-direction: column;
+    text-align: center;
+    gap: 16px;
+  }
+
+  .welcome-text h2 {
+    font-size: 18px;
+  }
+
+  .welcome-icon {
+    font-size: 40px !important;
+  }
+}
 </style>

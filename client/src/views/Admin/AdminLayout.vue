@@ -1,7 +1,10 @@
 <template>
   <div class="admin-layout">
+    <!-- 移动端遮罩 -->
+    <div v-if="mobileSidebarOpen" class="mobile-sidebar-overlay" @click="mobileSidebarOpen = false"></div>
+
     <!-- 侧边栏 -->
-    <div class="admin-sidebar" :class="{ collapsed: isCollapsed }">
+    <div class="admin-sidebar" :class="{ collapsed: isCollapsed, 'mobile-open': mobileSidebarOpen }">
       <div class="sidebar-header">
         <h2>{{ isCollapsed ? '后台' : '后台管理系统' }}</h2>
       </div>
@@ -12,6 +15,7 @@
         text-color="#bfcbd9"
         active-text-color="#409EFF"
         router
+        @select="mobileSidebarOpen = false"
       >
         <el-menu-item index="/admin/dashboard">
           <el-icon><DataAnalysis /></el-icon>
@@ -22,8 +26,8 @@
           <span>用户管理</span>
         </el-menu-item>
       </el-menu>
-      <div class="sidebar-collapse" @click="isCollapsed = !isCollapsed">
-        <el-icon :class="{ rotated: isCollapsed }">
+      <div class="sidebar-collapse" @click="toggleSidebar">
+        <el-icon :class="{ rotated: isCollapsed && !isMobile }">
           <Fold />
         </el-icon>
       </div>
@@ -34,13 +38,16 @@
       <!-- 顶部导航 -->
       <div class="admin-header">
         <div class="header-left">
+          <el-button class="mobile-menu-btn" size="small" text @click="mobileSidebarOpen = true">
+            <el-icon :size="18"><Menu /></el-icon>
+          </el-button>
           <el-breadcrumb>
             <el-breadcrumb-item :to="{ path: '/admin/dashboard' }">后台管理</el-breadcrumb-item>
             <el-breadcrumb-item>{{ pageTitle }}</el-breadcrumb-item>
           </el-breadcrumb>
         </div>
         <div class="header-right">
-          <span class="admin-username">欢迎, {{ userInfo?.username }}</span>
+          <span class="admin-username">{{ userInfo?.username }}</span>
           <el-button size="small" @click="goToFront">返回前台</el-button>
           <el-button size="small" type="danger" @click="handleLogout">退出登录</el-button>
         </div>
@@ -55,10 +62,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { DataAnalysis, User, Fold } from '@element-plus/icons-vue'
+import { DataAnalysis, User, Fold, Menu } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/userStore'
 import { logout } from '@/apis/user'
 
@@ -66,8 +73,36 @@ const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
 
-const isCollapsed = ref(false)
+const isMobile = ref(window.innerWidth < 768)
+const isCollapsed = ref(isMobile.value)
+const mobileSidebarOpen = ref(false)
 const userInfo = ref<any>(userStore.getUserInfo())
+
+const toggleSidebar = () => {
+  if (isMobile.value) {
+    mobileSidebarOpen.value = !mobileSidebarOpen.value
+  } else {
+    isCollapsed.value = !isCollapsed.value
+  }
+}
+
+const handleResize = () => {
+  isMobile.value = window.innerWidth < 768
+  if (!isMobile.value) {
+    mobileSidebarOpen.value = false
+    isCollapsed.value = false
+  } else {
+    isCollapsed.value = true
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('resize', handleResize)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', handleResize)
+})
 
 const activeMenu = computed(() => route.path)
 
@@ -198,5 +233,83 @@ const handleLogout = async () => {
 .admin-content {
   padding: 24px;
   flex: 1;
+}
+
+/* 移动端菜单按钮 */
+.mobile-menu-btn {
+  display: none;
+  color: #606266;
+}
+
+.mobile-sidebar-overlay {
+  display: none;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .mobile-menu-btn {
+    display: inline-flex;
+    margin-right: 8px;
+  }
+
+  .mobile-sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 99;
+  }
+
+  .admin-sidebar {
+    left: -220px;
+    transition: left 0.3s ease;
+    z-index: 100;
+  }
+
+  .admin-sidebar.mobile-open {
+    left: 0;
+  }
+
+  .admin-sidebar.collapsed {
+    width: 220px;
+  }
+
+  .admin-main {
+    margin-left: 0 !important;
+  }
+
+  .admin-main.expanded {
+    margin-left: 0 !important;
+  }
+
+  .admin-header {
+    padding: 8px 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .header-left {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .header-right {
+    flex-wrap: wrap;
+    gap: 6px;
+    font-size: 12px;
+  }
+
+  .header-right .el-button {
+    font-size: 12px;
+    padding: 5px 10px;
+  }
+
+  .admin-content {
+    padding: 12px;
+  }
+
+  .admin-username {
+    display: none;
+  }
 }
 </style>

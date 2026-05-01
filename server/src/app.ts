@@ -35,6 +35,21 @@ app.use('/api/ai', aiRouter)
 app.use('/api/kb', knowledgeBaseRouter)
 app.use('/api', uploadRouter)
 
+// Multer 文件上传错误处理
+app.use((err: any, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(400).json({ success: false, message: '文件大小超出限制（最大 20MB）' })
+  }
+  if (err.message === '不支持的文件类型') {
+    return res.status(400).json({ success: false, message: '不支持的文件类型，仅支持 TXT/MD/PDF/DOC/DOCX' })
+  }
+  if (err.name === 'MulterError') {
+    return res.status(400).json({ success: false, message: `文件上传错误: ${err.message}` })
+  }
+  console.error('未捕获的错误:', err)
+  res.status(500).json({ success: false, message: '服务器内部错误' })
+})
+
 // 启动
 const PORT = config.server.port
 app.listen(PORT, () => {

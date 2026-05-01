@@ -1,16 +1,20 @@
 <template>
   <div class="chat-wrapper">
+    <!-- 移动端遮罩 -->
+    <div v-if="mobileSidebarOpen" class="mobile-sidebar-overlay" @click="mobileSidebarOpen = false"></div>
+
     <ChatSidebar
       :sessionList="sessionList"
       :currentSessionId="currentSessionId"
       :collapsed="sidebarCollapsed"
-      @createSession="createNewSession()"
-      @selectSession="switchSession($event)"
+      :mobile-open="mobileSidebarOpen"
+      @createSession="createNewSession(); mobileSidebarOpen = false"
+      @selectSession="switchSessionAndClose($event)"
       @deleteSession="deleteSession($event)"
     />
 
-    <div class="sidebar-toggle" @click="sidebarCollapsed = !sidebarCollapsed">
-      <el-icon :class="{ rotated: sidebarCollapsed }"><Fold /></el-icon>
+    <div class="sidebar-toggle" @click="toggleSidebar">
+      <el-icon :class="{ rotated: sidebarCollapsed && !isMobile }"><Fold /></el-icon>
     </div>
 
     <ChatMessageArea
@@ -25,12 +29,13 @@
       @send="sendMessage"
       @clearHistory="clearHistory"
       @update:selectedKbId="selectedKbId = $event"
+      @toggle-sidebar="toggleSidebar"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Fold } from '@element-plus/icons-vue'
 import { getChatHistory, deleteChatHistory, getSessions, uploadFile } from '@/apis/ai'
@@ -63,10 +68,26 @@ const messages = ref<Message[]>([])
 const isLoading = ref(false)
 const loadingHistory = ref(false)
 const sidebarCollapsed = ref(false)
+const mobileSidebarOpen = ref(false)
 const currentSessionId = ref<string>('')
 const sessionList = ref<SessionItem[]>([])
 const kbList = ref<KnowledgeBase[]>([])
 const selectedKbId = ref<number | null>(null)
+
+const isMobile = ref(window.innerWidth < 768)
+
+const toggleSidebar = () => {
+  if (isMobile.value) {
+    mobileSidebarOpen.value = !mobileSidebarOpen.value
+  } else {
+    sidebarCollapsed.value = !sidebarCollapsed.value
+  }
+}
+
+const switchSessionAndClose = (sessionId: string) => {
+  switchSession(sessionId)
+  mobileSidebarOpen.value = false
+}
 
 let typewriterTimer: ReturnType<typeof setInterval> | null = null
 const typingMessageIndex = ref(-1)
@@ -171,7 +192,7 @@ const initCurrentSession = async () => {
     currentSessionId.value = saved
     await loadHistory()
   } else if (sessionList.value.length > 0) {
-    currentSessionId.value = sessionList.value[0].id
+    currentSessionId.value = sessionList.value[0]!.id
     localStorage.setItem(getCurrentKey(), currentSessionId.value)
     await loadHistory()
   } else {
@@ -210,6 +231,7 @@ const switchSession = async (sessionId: string, saveCurrent = true) => {
 }
 
 const deleteSession = async (sessionId: string) => {
+  mobileSidebarOpen.value = false
   try {
     await ElMessageBox.confirm(
       '确定要删除此对话吗？',
@@ -233,7 +255,7 @@ const deleteSession = async (sessionId: string) => {
 
   if (sessionId === currentSessionId.value) {
     if (sessionList.value.length > 0) {
-      await switchSession(sessionList.value[0].id)
+      await switchSession(sessionList.value[0]!.id)
     } else {
       createNewSession()
     }
@@ -431,9 +453,21 @@ const clearHistory = async () => {
   }
 }
 
+const handleResize = () => {
+  isMobile.value = window.innerWidth < 768
+  if (!isMobile.value) {
+    mobileSidebarOpen.value = false
+  }
+}
+
 onMounted(() => {
   initCurrentSession()
   loadKBList()
+  window.addEventListener('resize', handleResize)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', handleResize)
 })
 </script>
 
@@ -442,6 +476,7 @@ onMounted(() => {
   display: flex;
   height: calc(100vh - 60px);
   background: #f0f2f5;
+  position: relative;
 }
 
 .sidebar-toggle {
@@ -456,6 +491,7 @@ onMounted(() => {
   font-size: 16px;
   transition: color 0.2s, background 0.2s;
   border-right: 1px solid #e4e7ed;
+  z-index: 10;
 }
 
 .sidebar-toggle:hover {
@@ -465,5 +501,37 @@ onMounted(() => {
 
 .rotated {
   transform: rotate(180deg);
+}
+
+/* 移动端遮罩 */
+.mobile-sidebar-overlay {
+  display: none;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .chat-wrapper {
+    height: calc(100vh - 52px);
+  }
+
+  .mobile-sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 50;
+  }
+
+  .sidebar-toggle {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 44px;
+    width: 36px;
+    border-right: 1px solid #e4e7ed;
+    border-bottom: 1px solid #e4e7ed;
+    border-radius: 0 0 6px 0;
+    z-index: 10;
+  }
 }
 </style>

@@ -68,7 +68,14 @@ export async function chunkDocument(
   )
 
   // 为每个分块添加 chunk_index
+  // 统一为蛇形命名，剔除多余字段，匹配 LanceDB 表 schema
   docs.forEach((doc, i) => {
+    doc.metadata.doc_id = doc.metadata.docId
+    doc.metadata.kb_id = doc.metadata.kbId
+    delete doc.metadata.docId
+    delete doc.metadata.kbId
+    delete doc.metadata.source
+    delete (doc.metadata as any).loc
     doc.metadata.chunk_index = i
   })
 

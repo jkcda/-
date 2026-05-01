@@ -1,5 +1,5 @@
 <template>
-  <div class="chat-sidebar" :class="{ collapsed }">
+  <div class="chat-sidebar" :class="{ collapsed, 'mobile-open': mobileOpen }">
     <div class="sidebar-header">
       <el-button type="primary" class="new-chat-btn" @click="$emit('createSession')">
         <el-icon><Plus /></el-icon>
@@ -48,6 +48,7 @@ defineProps<{
   sessionList: SessionItem[]
   currentSessionId: string
   collapsed: boolean
+  mobileOpen?: boolean
 }>()
 
 defineEmits<{
@@ -138,5 +139,29 @@ defineEmits<{
   padding: 30px 0;
   color: #c0c4cc;
   font-size: 14px;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .chat-sidebar {
+    position: fixed;
+    top: 0;
+    left: -280px;
+    width: 260px;
+    height: 100vh;
+    z-index: 60;
+    transition: left 0.3s ease;
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
+  }
+
+  .chat-sidebar.mobile-open {
+    left: 0;
+  }
+
+  .chat-sidebar.collapsed {
+    width: 260px;
+    overflow: visible;
+    border-right: 1px solid #e4e7ed;
+  }
 }
 </style>

@@ -322,30 +322,73 @@ const goToLogin = () => {
 
 /* 响应式设计 */
 @media (max-width: 768px) {
-  .hero-content h1 {
-    font-size: 2.5rem;
+  .hero-section {
+    padding: 60px 20px;
   }
-  
+
+  .hero-content h1 {
+    font-size: 2rem;
+  }
+
+  .hero-content p {
+    font-size: 1rem;
+  }
+
   .hero-buttons {
     flex-direction: column;
     align-items: center;
   }
-  
+
   .features-section,
   .advantages-section,
   .start-section {
-    padding: 60px 20px;
+    padding: 40px 16px;
   }
-  
+
   .features-section h2,
   .advantages-section h2,
   .start-section h2 {
-    font-size: 2rem;
+    font-size: 1.6rem;
+    margin-bottom: 30px;
   }
-  
+
   .advantage-item {
     flex-direction: column;
     text-align: center;
+  }
+
+  .features-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .feature-card {
+    padding: 24px 20px;
+  }
+
+  .start-steps {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
+  .step-item {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .hero-content h1 {
+    font-size: 1.6rem;
+  }
+
+  .hero-content p {
+    font-size: 0.9rem;
+  }
+
+  .hero-section {
+    padding: 40px 15px;
   }
 }
 </style>

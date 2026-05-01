@@ -107,11 +107,16 @@ router.post('/:kbId/documents', upload.array('files', 10), async (req: Request, 
 
     const results = []
     for (const file of files) {
+      // 修复 multer 中文文件名乱码：busboy 按 latin1 解析，需转回 utf8
+      let filename = file.originalname
+      if (/[\u0080-\u00ff]/.test(filename)) {
+        filename = Buffer.from(filename, 'latin1').toString('utf8')
+      }
       const fileUrl = `/uploads/kb/${file.filename}`
       const result = await kbService.addDocumentToKB(
-        kbId, fileUrl, file.originalname, file.mimetype, file.size
+        kbId, file.path, filename, file.mimetype, file.size
       )
-      results.push({ id: result.docId, filename: file.originalname, chunkCount: result.chunkCount })
+      results.push({ id: result.docId, filename, chunkCount: result.chunkCount })
     }
 
     return ApiResponse.created(res, { documents: results }, `成功上传 ${results.length} 个文档`)

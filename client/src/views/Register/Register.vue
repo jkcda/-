@@ -265,13 +265,28 @@ const goToLogin = () => {
 }
 
 // 响应式设计
-@media (max-width: 480px) {
+@media (max-width: 768px) {
+  .register-container {
+    padding: 16px;
+  }
+
   .register-form-wrapper {
     max-width: 100%;
   }
-  
+
   .register-title h2 {
     font-size: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .register-container {
+    align-items: flex-start;
+    padding: 40px 12px;
+  }
+
+  .register-form {
+    padding: 0 12px 12px;
   }
 }
 </style>

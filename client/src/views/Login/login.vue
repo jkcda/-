@@ -346,18 +346,38 @@ const handleLogin = async () => {
 }
 
 // 响应式设计
-@media (max-width: 480px) {
+@media (max-width: 768px) {
+  .login-container {
+    padding: 16px;
+  }
+
   .login-form-wrapper {
     max-width: 100%;
   }
-  
+
   .card-header {
     flex-direction: column;
     align-items: flex-start;
+    gap: 12px;
   }
-  
+
   .login-title h2 {
     font-size: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .login-container {
+    align-items: flex-start;
+    padding: 40px 12px;
+  }
+
+  .login-form {
+    padding: 0 12px 12px;
+  }
+
+  .admin-switch {
+    width: 100%;
   }
 }
 </style>

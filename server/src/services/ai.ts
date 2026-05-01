@@ -5,6 +5,7 @@ import fs from 'fs'
 import path from 'path'
 import { parseDocument } from './documentPipeline.js'
 import { retrieveFromKB, retrieveFromFileChunks } from './ragChain.js'
+import { recallMemory, holdUserMessage } from './memoryService.js'
 import type { RAGContext } from './ragChain.js'
 
 const client = new Anthropic({
@@ -143,16 +144,27 @@ export async function chatWithAIStream(
 
     // 构建上下文：RAG 资料优先，然后是对话历史
     const context = buildContext(historyMessages)
-    const ragPrefix = ragContext.promptAddition
-      ? ragContext.promptAddition + '\n\n--- 以下是对话历史 ---\n'
+    // RAG 记忆检索
+    let memoryContext = ''
+    if (userId) {
+      memoryContext = await recallMemory(userId, message)
+    }
+    const prefix = memoryContext + (ragContext.promptAddition || '')
+    const combinedPrefix = prefix
+      ? prefix + '\n--- 以下是当前对话 ---\n'
       : ''
-    const fullPrompt = `${ragPrefix}${context}用户: ${message}\n助手:`
+    const fullPrompt = `${combinedPrefix}${context}用户: ${message}\n助手:`
 
     const filesJson = files ? JSON.stringify(files) : undefined
     const retrievedJson = ragContext.chunks.length > 0
       ? JSON.stringify(ragContext.chunks.map(c => ({ source: c.source, score: c.score })))
       : undefined
     await ChatHistoryModel.create(sessionId, userId, 'user', message, filesJson)
+
+    // 暂存用户消息，等 AI 回复后成对写入记忆库
+    if (userId) {
+      holdUserMessage(userId, sessionId, message)
+    }
 
     let messages: Anthropic.MessageParam[]
 
@@ -166,8 +178,9 @@ export async function chatWithAIStream(
         contextText = `${role}: ${m.content}\n` + contextText
       }
 
-      const systemText = ragContext.promptAddition
-        ? `${ragContext.promptAddition}\n\n--- 以下是对话历史 ---\n${contextText}`
+      const multimodalPrefix = memoryContext + (ragContext.promptAddition || '')
+      const systemText = multimodalPrefix
+        ? `${multimodalPrefix}\n--- 以下是对话历史 ---\n${contextText}`
         : contextText
 
       if (systemText) {
