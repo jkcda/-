@@ -1,7 +1,7 @@
 import express from 'express'
 import { chatWithAIStream } from '../services/ai.js'
 import { ChatHistoryModel } from '../models/chatHistory.js'
-import { commitMemoryPair } from '../services/memoryService.js'
+import { commitMemoryPair, forgetSession } from '../services/memoryService.js'
 import { ApiResponse } from '../utils/response.js'
 
 const router = express.Router()
@@ -139,6 +139,11 @@ router.delete('/history', async (req, res) => {
     }
 
     await ChatHistoryModel.deleteBySessionId(sessionId as string)
+
+    // 同步清除 RAG 记忆
+    if (userId) {
+      forgetSession(Number(userId), sessionId as string).catch(() => {})
+    }
 
     ApiResponse.success(res, null, '对话历史已清空')
   } catch (error: any) {

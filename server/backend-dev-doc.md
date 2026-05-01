@@ -2335,19 +2335,21 @@ hotfix/xxx (紧急修复)
 
 | 函数 | 作用 |
 |------|------|
-| `holdUserMessage(userId, sessionId, content)` | 暂存用户消息到内存 Map，等待 AI 回复 |
-| `commitMemoryPair(userId, sessionId, assistantContent)` | 取出暂存的用户消息，与 AI 回复配对后向量化写入 |
-| `recallMemory(userId, query, topK)` | 当前问题转向量，LanceDB 搜 Top5×2 候选 → 时间衰减重排 → 截断 |
-| `ensureTable(userId)` | 自动建表（1024 维），schema: `vector / text / session_id / created_at` |
+| `holdUserMessage(userId, sessionId, content)` | 暂存用户消息到内存 Map |
+| `commitMemoryPair(userId, sessionId, assistantContent)` | 取出暂存配对写入，每 10 轮自动触发摘要生成 |
+| `recallMemory(userId, query, topK)` | 分级检索：候选×3 → 摘要 1.2x 加权 → 至少 1 条摘要 → 截断 |
+| `forgetSession(userId, sessionId)` | 删除指定会话的消息记忆 + 关联摘要 |
+| `forgetAllMemories(userId)` | 删除用户全部记忆表 |
+| `ensureTable(userId)` | 自动建表（1024 维） |
 
 **集成点：**
 
 | 文件 | 改动 |
 |------|------|
-| `services/ai.ts` | 用户消息保存后调用 `holdUserMessage`（暂存）；prompt 前调用 `recallMemory` |
-| `routes/ai.ts` | AI 回复保存后调用 `commitMemoryPair`（配对写入） |
+| `services/ai.ts` | `holdUserMessage` + `recallMemory` |
+| `routes/ai.ts` | `commitMemoryPair` + 清空历史时同步 `forgetSession` |
 
-### 四项短期优化
+### 短期优化（已完成）
 
 | 优化 | 实现 | 效果 |
 |------|------|------|
@@ -2355,6 +2357,14 @@ hotfix/xxx (紧急修复)
 | 时间衰减 | `decayFactor = max(0.3, 1 - 天数/30)`，检索后重排 | 近一周记忆权重高，一月外衰减至 30% |
 | 去重 | 写入前搜 Top1，cosine > 0.95 跳过 | 避免同义反复对话重复占位 |
 | 时间戳 | `formatRelativeTime` → `[3小时前]` `[2天前]` 等 | AI 能感知记忆的时效性 |
+
+### 中期优化（已完成）
+
+| 优化 | 实现 | 效果 |
+|------|------|------|
+| 会话摘要 | 每 10 轮自动调用 LLM 生成 1-2 句摘要，存入记忆库（`session_id = summary_{id}`） | 浓缩信息密度，减少碎片检索噪音 |
+| 分级检索 | `recallMemory` 取 TopK×3 候选 → 摘要 1.2x 加权 → 保证至少 1 条摘要 → 截断 | 优先展示信息密度高的摘要，再补原始对话 |
+| 遗忘机制 | `forgetSession(userId, sessionId)` 删除指定会话记忆；`forgetAllMemories(userId)` 删整表；清空对话时自动同步清除 | 与前端"清空当前对话"按钮兼容，MySQL 清空时同步删除 LanceDB 记忆 |
 
 ### Prompt 拼接顺序
 
@@ -2489,4 +2499,4 @@ hotfix/xxx (紧急修复)
 
 ---
 
-*本文档最后更新于 2026-05-01 | 由后端开发团队维护 | RAG 架构 v2.4（短期优化完成）*
+*本文档最后更新于 2026-05-01 | 由后端开发团队维护 | RAG 架构 v3.0（中期优化完成）*
