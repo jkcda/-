@@ -6,13 +6,14 @@ import { clearSessionCache } from '../services/ragChain.js'
 import { ApiResponse } from '../utils/response.js'
 import { authMiddleware } from '../middleware/auth.js'
 import { adminMiddleware } from '../middleware/admin.js'
+import config from '../config/index.js'
 
 const router = express.Router()
 
 // POST /api/ai/chat - AI对话（流式输出，支持多模态文件 + RAG 知识库）
 router.post('/chat', async (req, res) => {
   try {
-    const { message, sessionId, userId, files, kbId, webSearch, nexusMode } = req.body
+    const { message, sessionId, userId, files, kbId, webSearch, nexusMode, maxVideoFrames, model } = req.body
 
     if (!message && (!files || files.length === 0)) {
       return ApiResponse.badRequest(res, '请输入消息内容或上传文件')
@@ -36,7 +37,9 @@ router.post('/chat', async (req, res) => {
         files && files.length > 0 ? files : undefined,
         kbId || undefined,
         webSearch === true,
-        nexusMode !== false  // default true (Nexus mode)
+        nexusMode !== false,  // default true (Nexus mode)
+        maxVideoFrames || undefined,
+        model || undefined
       )
 
       // 发送联网搜索结果
@@ -177,6 +180,69 @@ router.delete('/memory', authMiddleware as any, adminMiddleware as any, async (r
     ApiResponse.success(res, null, `用户 ${userId} 的 RAG 记忆已全部清空`)
   } catch (error: any) {
     ApiResponse.internalServerError(res, '清空记忆失败', error.message)
+  }
+})
+
+// GET /api/ai/models - 获取可用模型列表
+router.get('/models', (_req, res) => {
+  ApiResponse.success(res, { models: config.ai.models }, '获取模型列表成功')
+})
+
+// POST /api/ai/image - 文生图（多供应商）
+router.post('/image', async (req, res) => {
+  try {
+    const { prompt, model } = req.body
+    if (!prompt) return ApiResponse.badRequest(res, '请提供图片描述')
+
+    const modelId = model || 'doubao-seedream-4-5-251128'
+    const modelCfg = config.ai.models.find(m => m.id === modelId)
+    const provider = modelCfg?.provider || 'volcengine'
+
+    console.log(`[ImageGen] 供应商: ${provider}, 模型: ${modelId}, prompt: "${prompt.slice(0, 80)}..."`)
+
+    if (provider === 'volcengine') {
+      // 火山引擎 ARK API
+      const resp = await fetch(
+        `${config.ai.volcengine.baseURL}/api/v3/images/generations`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${config.ai.volcengine.apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model: modelId,
+            prompt,
+            sequential_image_generation: 'disabled',
+            response_format: 'url',
+            size: '2K',
+            stream: false,
+            watermark: true
+          })
+        }
+      )
+
+      if (!resp.ok) {
+        const errText = await resp.text().catch(() => '')
+        console.error('[ImageGen] 火山引擎错误:', resp.status, errText)
+        return ApiResponse.internalServerError(res, `图片生成失败 (${resp.status})`)
+      }
+
+      const data = await resp.json()
+      console.log('[ImageGen] 火山引擎响应:', JSON.stringify(data).slice(0, 300))
+      // 火山引擎返回格式: { data: [{ url: "..." }] }
+      const imageUrl = data?.data?.[0]?.url
+      if (imageUrl) {
+        return ApiResponse.success(res, { imageUrl }, '图片生成成功')
+      }
+      return ApiResponse.internalServerError(res, '图片生成返回为空')
+    }
+
+    // ModelScope（预留）
+    ApiResponse.internalServerError(res, '该供应商暂不支持文生图')
+  } catch (error: any) {
+    console.error('[ImageGen] 失败:', error.message)
+    ApiResponse.internalServerError(res, '图片生成失败', error.message)
   }
 })
 

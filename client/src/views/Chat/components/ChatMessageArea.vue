@@ -156,6 +156,20 @@
           active-text="联网"
           style="margin-left: 8px"
         />
+        <el-select
+          v-if="modelList.length > 0"
+          :model-value="selectedModel"
+          size="small"
+          style="width: 170px; margin-left: 0"
+          @update:model-value="$emit('update:selectedModel', $event ?? '')"
+        >
+          <el-option
+            v-for="m in modelList"
+            :key="m.id"
+            :label="`${m.name} · ${m.type === 'image' ? '生图' : m.type === 'vision' ? '视觉' : '文本'}`"
+            :value="m.id"
+          />
+        </el-select>
         <el-switch
           :model-value="nexusMode"
           size="small"
@@ -311,6 +325,8 @@ const props = defineProps<{
   kbList: KbItem[]
   selectedKbId: number | null
   nexusMode: boolean
+  modelList: { id: string; name: string; type: string; desc: string }[]
+  selectedModel: string
 }>()
 
 const emit = defineEmits<{
@@ -319,6 +335,7 @@ const emit = defineEmits<{
   toggleSidebar: []
   'update:selectedKbId': [value: number | null]
   'update:nexusMode': [value: boolean]
+  'update:selectedModel': [value: string]
 }>()
 
 const inputMessage = ref('')

@@ -96,9 +96,9 @@ async function generateSummary(userId: number, sessionId: string, roundCount: nu
   const dialogText = recent.map((r: any) => r.text).join('\n\n')
 
   const Anthropic = (await import('@anthropic-ai/sdk')).default
-  const client = new Anthropic({ apiKey: config.ai.apiKey, baseURL: config.ai.baseURL })
+  const client = new Anthropic({ apiKey: config.ai.modelscope.apiKey, baseURL: config.ai.modelscope.baseURL })
   const msg = await client.messages.create({
-    model: config.ai.model,
+    model: config.ai.defaultModel,
     max_tokens: 200,
     messages: [{
       role: 'user',

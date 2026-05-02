@@ -3,8 +3,8 @@ import config from '../config/index.js'
 import { cacheGet, cacheSet, hashKey } from './cache.js'
 
 const client = new OpenAI({
-  apiKey: config.ai.apiKey,
-  baseURL: config.ai.baseURL + '/v1'
+  apiKey: config.ai.modelscope.apiKey,
+  baseURL: config.ai.modelscope.baseURL + '/v1'
 })
 
 // LanceDB 兼容的 embeddings 实例（含 embedQuery / embedDocuments）

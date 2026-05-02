@@ -28,10 +28,29 @@ const config = {
   
   // AI 配置
   ai: {
-    apiKey: process.env.DASHSCOPE_API_KEY || '',
-    model: 'Qwen/Qwen3.5-397B-A17B',  // 397B MoE，统一多模态（文本+图像+视频）
+    // ModelScope 魔搭社区
+    modelscope: {
+      apiKey: process.env.DASHSCOPE_API_KEY || '',
+      baseURL: 'https://api-inference.modelscope.cn',
+    },
+    // 火山引擎 ARK
+    volcengine: {
+      apiKey: process.env.ARK_API_KEY || '',
+      baseURL: process.env.ARK_BASE_URL || 'https://ark.cn-beijing.volces.com',
+    },
+    defaultModel: 'Qwen/Qwen3.5-397B-A17B',
     maxTokens: 16384,
-    baseURL: 'https://api-inference.modelscope.cn'
+    // 可用模型列表
+    models: [
+      // --- ModelScope 文本 ---
+      { id: 'Qwen/Qwen3.5-397B-A17B',        name: 'Qwen3.5-397B',   type: 'multimodal' as const, provider: 'modelscope' as const, desc: '397B MoE 多模态（默认）' },
+      { id: 'deepseek-ai/DeepSeek-V4-Flash',  name: 'DeepSeek-V4',    type: 'text' as const,        provider: 'modelscope' as const, desc: '文本推理' },
+      { id: 'ZhipuAI/GLM-5.1',                name: 'GLM-5.1',        type: 'text' as const,        provider: 'modelscope' as const, desc: '744B MoE 文本' },
+      { id: 'ZhipuAI/GLM-5',                  name: 'GLM-5',          type: 'text' as const,        provider: 'modelscope' as const, desc: '555B MoE 文本' },
+      { id: 'deepseek-ai/DeepSeek-R1-0528',   name: 'DeepSeek-R1',    type: 'text' as const,        provider: 'modelscope' as const, desc: '推理增强' },
+      // --- 火山引擎 文生图 ---
+      { id: 'doubao-seedream-4-5-251128',      name: 'Seedream 4.5',   type: 'image' as const,       provider: 'volcengine' as const, desc: '火山引擎 文生图' },
+    ] as { id: string; name: string; type: 'text' | 'multimodal' | 'vision' | 'image'; provider: 'modelscope' | 'volcengine'; desc: string }[]
   },
   
   // 上下文配置
@@ -126,7 +145,7 @@ const config = {
     enabled: true,
     provider: 'tavily' as 'tavily' | 'duckduckgo',
     tavilyApiKey: process.env.TAVILY_API_KEY || '',
-    maxResults: 5
+    maxResults: 8
   }
 }
 

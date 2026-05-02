@@ -87,8 +87,8 @@ client/src/
 | 功能 | 实现 | 文件 |
 |------|------|------|
 | 语音输入 | `useVoiceRecording()` → `MediaRecorder` → `POST /api/voice/transcribe` → 文本填入输入框 | `voiceRecording.ts` |
-| 语音播报 | `speak()` → `POST /api/voice/tts` → `<audio>` 播放 MP3 | `tts.ts` |
-| 语音选择 | 13 种 Edge-TTS 中文女声下拉框 | `ChatMessageArea.vue` |
+| 语音播报 | `speak()` → 浏览器原生 `SpeechSynthesis` API，无需后端 | `tts.ts` |
+| 语音选择 | 浏览器已安装中文女声列表，过滤男声，简短友好名称 | `ChatMessageArea.vue` / `tts.ts` |
 | 朗读开关 | `autoSpeakEnabled` localStorage 持久化 | `tts.ts` |
 | 朗读按钮 | AI 消息气泡外右下角悬浮，hover 变金色 | `ChatMessageArea.vue` |
 | 语音反馈 | 识别成功/未识别/录音未就绪三种 ElMessage 提示 | `ChatMessageArea.vue` |
@@ -158,4 +158,4 @@ client/src/
 
 ---
 
-*最后更新: 2026-05-02 | v0.6.1*
+*最后更新: 2026-05-02 | v0.7.1 — 联网搜索优化 + 视频帧智能限帧(联网+视频=40帧) + TTS 浏览器原生*

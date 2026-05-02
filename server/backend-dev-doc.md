@@ -2,7 +2,7 @@
 
 ## 📋 项目概述
 
-本项目是基于 **Node.js + Express + TypeScript** 构建的 AI 智能对话系统后端服务。采用 RESTful API 设计，提供用户认证、AI 对话（流式输出）、对话历史管理、知识库 RAG 检索增强生成、**RAG 增强长期记忆**等核心功能。通过 Anthropic Claude API（ModelScope 代理）实现智能对话能力，LangChain.js + LanceDB 实现文档向量检索，自研 MemoryService 实现跨会话语义记忆。**新增视频上传与分析**：FFmpeg 帧提取 + Whisper ASR 语音转写 + Qwen3.5-397B VL 模型综合分析。**新增联网搜索**：Tavily API + DuckDuckGo 兜底。
+本项目是基于 **Node.js + Express + TypeScript** 构建的 AI 智能对话系统后端服务。采用 RESTful API 设计，提供用户认证、AI 对话（流式输出）、对话历史管理、知识库 RAG 检索增强生成、**RAG 增强长期记忆**等核心功能。**多供应商 AI**：ModelScope（文本/多模态）+ 火山引擎 ARK（文生图 Seedream），前端可切换模型。LangChain.js + LanceDB 实现文档向量检索，自研 MemoryService 实现跨会话语义记忆。**视频上传与分析**：FFmpeg 帧提取 + Whisper ASR 语音转写 + Qwen3.5-397B VL 模型综合分析。**联网搜索**：Tavily API + DuckDuckGo 兜底。
 
 ### 技术栈
 
@@ -115,12 +115,29 @@ const config = {
     expiresIn: '7d'
   },
   
-  // AI 配置
+  // AI 配置（多供应商）
   ai: {
-    apiKey: process.env.DASHSCOPE_API_KEY || '',
-    model: 'Qwen/Qwen3.5-397B-A17B',  // 397B MoE，统一多模态
+    // ModelScope 魔搭社区
+    modelscope: {
+      apiKey: process.env.DASHSCOPE_API_KEY || '',
+      baseURL: 'https://api-inference.modelscope.cn',
+    },
+    // 火山引擎 ARK（文生图）
+    volcengine: {
+      apiKey: process.env.ARK_API_KEY || '',
+      baseURL: 'https://ark.cn-beijing.volces.com',
+    },
+    defaultModel: 'Qwen/Qwen3.5-397B-A17B',
     maxTokens: 16384,
-    baseURL: 'https://api-inference.modelscope.cn'
+    // 可用模型列表
+    models: [
+      { id: 'Qwen/Qwen3.5-397B-A17B',       name: 'Qwen3.5-397B',  type: 'multimodal', provider: 'modelscope' },
+      { id: 'deepseek-ai/DeepSeek-V4-Flash', name: 'DeepSeek-V4',   type: 'text',        provider: 'modelscope' },
+      { id: 'ZhipuAI/GLM-5.1',               name: 'GLM-5.1',       type: 'text',        provider: 'modelscope' },
+      { id: 'ZhipuAI/GLM-5',                 name: 'GLM-5',         type: 'text',        provider: 'modelscope' },
+      { id: 'deepseek-ai/DeepSeek-R1-0528',  name: 'DeepSeek-R1',   type: 'text',        provider: 'modelscope' },
+      { id: 'doubao-seedream-4-5-251128',     name: 'Seedream 4.5',  type: 'image',       provider: 'volcengine' },
+    ]
   },
   
   // 上下文配置
@@ -818,7 +835,7 @@ app.use((err, _req, res, next) => {
 
 ---
 
-### 3.2 联网搜索（WebSearch）— 已完成
+### 3.2 联网搜索（WebSearch）— 已完成 + 优化
 
 **触发方式：** 前端输入区 `el-switch` 联网开关（默认关闭），开启时请求体携带 `webSearch: true`
 
@@ -826,8 +843,14 @@ app.use((err, _req, res, next) => {
 
 | 提供者 | 免费额度 | 特点 |
 |--------|---------|------|
-| Tavily（推荐） | 1000 次/月 | AI 优化格式，返回标题+URL+摘要 |
-| DuckDuckGo | 无限 | 免 Key 兜底，即时答案 API |
+| Tavily（推荐） | 1000 次/月 | `basic` 搜索（免费），`advanced` 需付费订阅，返回标题+URL+摘要 |
+| DuckDuckGo | 无限 | 免 Key 兜底，HTML 搜索结果页解析 → 即时答案 API 兜底 |
+
+**查询优化 (`optimizeQuery`)**：纯本地规则，零延迟，不调 LLM
+- 去除奈克瑟角色语气词（✦◆、指挥官等）和中文提问词（什么是、如何、怎么）
+- 检测时效性关键词（今天、最新、今年等）自动补充当前年月
+
+**结果数：** 8 条（`config.webSearch.maxResults`）
 
 **数据流：**
 
@@ -836,9 +859,9 @@ POST /api/ai/chat { webSearch: true }
   ↓
 chatWithAIStream()
   Promise.all([
-    searchWeb(),         // 联网搜索
-    recallMemory(),      // RAG 记忆
-    retrieveFromKB(),    // 知识库
+    searchWeb(optimizeQuery(msg)),  // 查询优化 → Tavily advanced / DDG
+    recallMemory(),                 // RAG 记忆
+    retrieveFromKB(),              // 知识库
   ])
   ↓
 SSE: type='webSearch' → 前端暂存来源 URL
@@ -848,16 +871,17 @@ SSE: [DONE] → 前端拼接搜索来源链接
 
 **前端展示：** AI 回复结束后，消息底部显示 `搜索来源：1. 标题链接  2. 标题链接 ...`（灰色小字，可点击跳转）
 
-**加载动画：** 联网时显示"正在搜索并思考..." + 蓝色跳动点；无联网时显示"正在思考..."
+**加载动画：** 联网时显示"正在穿越数据之海..." + 蓝色跳动点；无联网时显示"正在解析情报..."
 
 **实现文件：**
 
 | 文件 | 作用 |
 |------|------|
-| `services/webSearch.ts` | Tavily API + DuckDuckGo 兜底，返回 `{ text, sources }` |
+| `services/webSearch.ts` | Tavily advanced + DDG HTML 解析兜底 + `optimizeQuery()` 查询优化 |
 | `services/ai.ts` | `Promise.all` 并行检索，`webSources` 透传 |
 | `routes/ai.ts` | SSE `type: 'webSearch'` 推送结构化来源 |
 | `utils/sse.ts` | 新增 `onEvent` 回调，支持非 content 类型事件 |
+| `config/index.ts` | `webSearch.maxResults: 8` |
 | `ChatMessageArea.vue` | 联网开关 + 加载文案 + 来源链接展示 |
 | `Chat/index.vue` | 暂存来源 → 流式结束后拼接；打字机延迟启动 |
 
@@ -903,24 +927,13 @@ SSE: [DONE] → 前端拼接搜索来源链接
 | `services/videoProcessor.ts` | `getTranscriber()` 模型加载（并发等待/错误持久化）；`parseWav()` WAV 解析；`transcribeAudio()` 转写；`preloadTranscriber()` 预热 |
 | `app.ts` | 启动时后台 `import()` → `preloadTranscriber()` 预热模型 |
 
-#### 3.3.2 获取语音列表
+#### 3.3.2 语音合成（TTS）— 已迁移至前端
 
-**接口地址:** `GET /api/voice/voices`
+TTS 已从后端移除，改用浏览器原生 `SpeechSynthesis` API（`client/src/utils/tts.ts`），无需后端支持。
 
-**响应:** 返回 13 种中文女声（晓晓、晓伊、晓梦等），每项含 `id/name/gender/style`
-
-#### 3.3.3 语音合成（TTS）
-
-**接口地址:** `POST /api/voice/tts`
-
-**请求参数：**
-```json
-{ "text": "指挥官，情报已同步", "voiceId": "zh-CN-XiaoxiaoNeural" }
-```
-
-**响应:** `audio/mpeg` 二进制音频流（MP3）
-
-**实现:** Python `edge-tts` 子进程调用，复用微软 Edge Read Aloud 免费接口
+- 优点：免费、本地可用、中文神经语音质量好、无网络依赖
+- 语音列表由浏览器提供，前端自动过滤男声并映射友好名称（晓晓、云希等）
+- 遗留端点 `GET /api/voice/voices` 和 `POST /api/voice/tts` 已不再被前端调用
 
 ---
 
@@ -2808,4 +2821,4 @@ hotfix/xxx (紧急修复)
 
 ---
 
-*本文档最后更新于 2026-05-02 | RAG 架构 v5.1 | 新增：Whisper-small 中文语音转写(Node.js WAV解析 + HF镜像 + 预加载) + 前端朗读按钮移至气泡外 + 新对话刷新消失修复*
+*本文档最后更新于 2026-05-02 | RAG 架构 v5.3 | 联网搜索优化(Tavily advanced+查询改写+DDG HTML解析) + TTS迁移浏览器 + 视频帧采样 + 新对话刷新修复*

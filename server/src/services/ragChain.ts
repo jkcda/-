@@ -9,8 +9,8 @@ import type { HybridCandidate } from './hybridSearch.js'
 import type { SearchResult } from './knowledgeBase.js'
 
 const llmClient = new Anthropic({
-  apiKey: config.ai.apiKey,
-  baseURL: config.ai.baseURL
+  apiKey: config.ai.modelscope.apiKey,
+  baseURL: config.ai.modelscope.baseURL
 })
 
 export interface RetrievedChunk {
@@ -44,7 +44,7 @@ async function rewriteQuery(query: string, context?: string): Promise<string> {
       ? `对话上下文:\n${context.slice(-2000)}\n\n`
       : ''
     const response = await llmClient.messages.create({
-      model: config.ai.model,
+      model: config.ai.defaultModel,
       max_tokens: 200,
       messages: [{
         role: 'user',
@@ -209,7 +209,7 @@ async function rerankWithLLM(
     ).join('\n\n')
 
     const response = await llmClient.messages.create({
-      model: config.ai.model,
+      model: config.ai.defaultModel,
       max_tokens: 80,
       messages: [{
         role: 'user',

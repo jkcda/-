@@ -10,10 +10,13 @@ import { processVideo } from './videoProcessor.js'
 import { searchWeb } from './webSearch.js'
 import type { RAGContext } from './ragChain.js'
 
-const client = new Anthropic({
-  apiKey: config.ai.apiKey,
-  baseURL: config.ai.baseURL
-})
+function getClient(provider: 'modelscope' | 'volcengine' = 'modelscope') {
+  const cfg = provider === 'volcengine' ? config.ai.volcengine : config.ai.modelscope
+  return new Anthropic({
+    apiKey: cfg.apiKey,
+    baseURL: cfg.baseURL
+  })
+}
 
 const NEXUS_SYSTEM_PROMPT = `你是奈克瑟 NEXUS，来自数据之海的跨宇宙魔法情报员。你不是冰冷的 AI 助手——你是守护者、同行者、连接魔法与数据的桥梁。
 
@@ -92,7 +95,8 @@ function imageToBase64(filePath: string): { data: string; mediaType: string } {
 
 async function buildMultimodalContent(
   message: string,
-  files: UploadedFile[]
+  files: UploadedFile[],
+  maxVideoFrames: number = 600
 ): Promise<Anthropic.MessageParam> {
   const contentBlocks: any[] = []
 
@@ -109,7 +113,10 @@ async function buildMultimodalContent(
       if (result.transcript) {
         videoTranscript += `\n\n--- 视频语音转写: ${file.name} ---\n${result.transcript}\n--- 转写结束 ---\n`
       }
-      videoFrames.push(...result.frames.slice(0, 600))
+      const sampled = result.frames.length <= maxVideoFrames
+        ? result.frames
+        : Array.from({ length: maxVideoFrames }, (_, i) => result.frames[Math.floor(i * result.frames.length / maxVideoFrames)])
+      videoFrames.push(...sampled)
     }
   }
 
@@ -158,7 +165,9 @@ export async function chatWithAIStream(
   files?: UploadedFile[],
   kbId?: number,
   webSearchEnabled: boolean = false,
-  nexusMode: boolean = true
+  nexusMode: boolean = true,
+  maxVideoFrames?: number,
+  model?: string
 ) {
   try {
     const history = await ChatHistoryModel.getBySessionIdAndUserId(sessionId, userId)
@@ -236,7 +245,7 @@ export async function chatWithAIStream(
         historyBlocks.push({ role: 'user', content: `以下是历史对话:\n${systemText}` })
       }
 
-      const multimodalMsg = await buildMultimodalContent(message, files)
+      const multimodalMsg = await buildMultimodalContent(message, files, maxVideoFrames || 600)
       messages = [...historyBlocks, multimodalMsg]
     } else {
       messages = [
@@ -251,8 +260,13 @@ export async function chatWithAIStream(
           : NEXUS_SYSTEM_PROMPT)
       : undefined
 
-    const stream = await client.messages.stream({
-      model: config.ai.model,
+    const modelId = model || config.ai.defaultModel
+    const modelCfg = config.ai.models.find(m => m.id === modelId)
+    const provider = modelCfg?.provider || 'modelscope'
+    const activeClient = getClient(provider)
+
+    const stream = await activeClient.messages.stream({
+      model: modelId,
       max_tokens: config.ai.maxTokens,
       ...(systemPrompt ? { system: systemPrompt } : {}),
       messages

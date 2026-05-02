@@ -27,7 +27,10 @@
       :kbList="kbList"
       :selectedKbId="selectedKbId"
       :nexusMode="nexusMode"
+      :modelList="modelList"
+      :selectedModel="selectedModel"
       @update:nexusMode="nexusMode = $event"
+      @update:selectedModel="selectedModel = $event"
       @send="sendMessage"
       @clearHistory="clearHistory"
       @update:selectedKbId="selectedKbId = $event"
@@ -78,6 +81,8 @@ const sessionList = ref<SessionItem[]>([])
 const kbList = ref<KnowledgeBase[]>([])
 const selectedKbId = ref<number | null>(null)
 const nexusMode = ref(true)
+const selectedModel = ref<string>('')
+const modelList = ref<{ id: string; name: string; type: string; desc: string }[]>([])
 
 const isMobile = ref(window.innerWidth < 768)
 
@@ -173,6 +178,19 @@ const syncSessionsFromBackend = async () => {
   } catch {
     // 静默失败
   }
+}
+
+const loadModelList = async () => {
+  try {
+    const res = await fetch('/api/ai/models')
+    const data = await res.json()
+    if (data.success) {
+      modelList.value = data.result.models
+      if (!selectedModel.value && modelList.value.length > 0) {
+        selectedModel.value = modelList.value[0]!.id
+      }
+    }
+  } catch { /* 静默失败 */ }
 }
 
 const loadKBList = async () => {
@@ -377,6 +395,11 @@ const stopTypewriter = () => {
   typingMessageIndex.value = -1
 }
 
+const currentModelType = () => {
+  const m = modelList.value.find(m => m.id === selectedModel.value)
+  return m?.type || 'multimodal'
+}
+
 const sendMessage = async (payload: { content: string; files: File[]; webSearch: boolean }) => {
   const { content, files, webSearch } = payload
   if (!currentSessionId.value) {
@@ -409,6 +432,40 @@ const sendMessage = async (payload: { content: string; files: File[]; webSearch:
   isLoading.value = true
   await messageAreaRef.value?.scrollToBottom()
 
+  // 文生图模型走单独接口
+  if (currentModelType() === 'image') {
+    try {
+      const imgResp = await fetch('/api/ai/image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: content,
+          model: selectedModel.value
+        })
+      })
+      if (!imgResp.ok) throw new Error('图片生成失败')
+
+      const contentType = imgResp.headers.get('content-type') || ''
+      if (contentType.startsWith('image/')) {
+        const blob = await imgResp.blob()
+        const imageUrl = URL.createObjectURL(blob)
+        messages.value.push({ role: 'assistant', content: `![生成图片](${imageUrl})` })
+      } else {
+        const data = await imgResp.json()
+        if (data.success && data.result?.imageUrl) {
+          messages.value.push({ role: 'assistant', content: `![生成图片](${data.result.imageUrl})` })
+        } else {
+          throw new Error(data.message || '图片生成失败')
+        }
+      }
+    } catch (e: any) {
+      ElMessage.error(e.message || '图片生成失败')
+    }
+    isLoading.value = false
+    addIntimacy()
+    return
+  }
+
   try {
     const userInfo = userStore.getUserInfo()
     const userId = userInfo?.id || null
@@ -423,7 +480,10 @@ const sendMessage = async (payload: { content: string; files: File[]; webSearch:
         files: uploadedFiles.length > 0 ? uploadedFiles : undefined,
         kbId: selectedKbId.value || undefined,
         webSearch: webSearch || undefined,
-        nexusMode: nexusMode.value
+        nexusMode: nexusMode.value,
+        model: selectedModel.value || undefined,
+        // 联网+视频时限制帧数防请求爆炸
+        maxVideoFrames: webSearch && uploadedFiles.some(f => f.type.startsWith('video/')) ? 40 : undefined
       })
     })
 
@@ -521,6 +581,7 @@ const handleResize = () => {
 onMounted(() => {
   initCurrentSession()
   loadKBList()
+  loadModelList()
   window.addEventListener('resize', handleResize)
 })
 
