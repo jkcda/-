@@ -175,13 +175,13 @@
           v-if="autoSpeakEnabled && voices.length > 0"
           :model-value="selectedVoiceId"
           size="small"
-          style="width: 100px; margin-left: 6px"
+          style="width: 130px; margin-left: 6px"
           @update:model-value="onVoiceSelect"
         >
           <el-option
             v-for="v in voices"
             :key="v.id"
-            :label="`${v.name} · ${v.style}`"
+            :label="v.name"
             :value="v.id"
           />
         </el-select>

@@ -2,6 +2,10 @@ import { spawn } from 'child_process'
 import path from 'path'
 import fs from 'fs'
 import os from 'os'
+import { fileURLToPath } from 'url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const BRIDGE_SCRIPT = path.resolve(__dirname, '../../scripts/tts_bridge.py')
 
 // Female-only Chinese neural voices
 export const voiceList = [
@@ -21,26 +25,35 @@ export const voiceList = [
 ]
 
 const defaultVoice = 'zh-CN-XiaoxiaoNeural'
+const MAX_TTS_CHARS = 2000
 
 export async function synthesizeSpeech(text: string, voiceId: string = defaultVoice): Promise<Buffer> {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tts-'))
   const outPath = path.join(tmpDir, 'output.mp3')
+  const inPath = path.join(tmpDir, 'input.txt')
 
   try {
+    const cleanText = text
+      .replace(/[\r\n]+/g, '。')
+      .replace(/[#*`_~\[\]\(\)\{\}]/g, '')
+      .replace(/\s{2,}/g, ' ')
+    const safeText = cleanText.length > MAX_TTS_CHARS
+      ? cleanText.slice(0, MAX_TTS_CHARS) + '。'
+      : cleanText
+    fs.writeFileSync(inPath, safeText, 'utf-8')
+
     await new Promise<void>((resolve, reject) => {
-      const child = spawn('python', [
-        '-m', 'edge_tts',
-        '--text', text,
-        '--voice', voiceId,
-        '--write-media', outPath
-      ], { timeout: 30000 })
+      const child = spawn('python', [BRIDGE_SCRIPT, inPath, voiceId, outPath], {
+        timeout: 30000,
+        windowsHide: true
+      })
 
       let stderr = ''
       child.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
 
       child.on('close', (code) => {
         if (code === 0) resolve()
-        else reject(new Error(stderr.trim() || `edge-tts exited with code ${code}`))
+        else reject(new Error(stderr.trim() || `TTS bridge exited with code ${code}`))
       })
 
       child.on('error', reject)

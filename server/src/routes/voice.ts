@@ -80,11 +80,14 @@ router.post('/tts', async (req, res) => {
     if (!text || text.trim().length === 0) {
       return ApiResponse.badRequest(res, '请提供要合成的文本')
     }
+    console.log(`[TTS] 合成请求: "${text.trim().slice(0, 50)}..." voice=${voiceId || 'default'}`)
     const audio = await synthesizeSpeech(text.trim(), voiceId || undefined)
+    console.log(`[TTS] 合成完成: ${(audio.length / 1024).toFixed(1)}KB`)
     res.set('Content-Type', 'audio/mpeg')
     res.set('Cache-Control', 'public, max-age=3600')
     res.send(audio)
   } catch (error: any) {
+    console.error('[TTS] 合成失败:', error.message)
     ApiResponse.internalServerError(res, '语音合成失败', error.message)
   }
 })
