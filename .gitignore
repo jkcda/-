@@ -12,6 +12,9 @@ dist-ssr/
 build/
 output/
 
+# Claude Code
+.claude/
+
 # 编辑器
 .vscode/
 .idea/
