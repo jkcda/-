@@ -237,6 +237,10 @@ REDIS_DB=0
 
 # 联网搜索 API Key（可选，不配置则降级 DuckDuckGo 免费搜索）
 TAVILY_API_KEY=tvly-xxxxxxxxxxxxxxxx
+
+# 火山引擎 ARK API Key（Seedream 文生图，可选）
+ARK_API_KEY=ark-xxxxxxxx
+ARK_BASE_URL=https://ark.cn-beijing.volces.com
 ```
 
 > **说明**：`DASHSCOPE_API_KEY` 同时用于 AI 对话（Anthropic SDK）和 Embedding 向量化（OpenAI SDK），均为 ModelScope API-Inference 端点。`TAVILY_API_KEY` 在 [tavily.com](https://tavily.com) 免费注册获取（1000 次/月），未配置时自动降级为 DuckDuckGo 即时答案 API。
@@ -588,6 +592,46 @@ function buildContext(messages, maxChars = 2000) {
 > **历史 Bug 记录：**
 > - **PDF 解析失败**（已修复）：最初使用 `pdf-parse` v2.4.5 ESM 版本，该版本仅导出 `PDFParse` 类，直接调用 `load()` 报错 `getDocument - no url parameter`，无法正常工作。解决：降级至 v1.1.1（CJS），通过 `createRequire` 加载，使用简洁的 `pdfParse(buffer) → { text }` API。
 > - **DOCX/DOC 无法解析**（已修复）：初始实现只返回占位文本 `[文档: 文件已上传，请根据文件名进行回答]`，未真正提取文件内容，导致 AI 回复"无法直接解析二进制内容"。解决：DOCX 引入 `mammoth` 库解析 Word 文档 XML 结构提取文本；DOC 为旧版 .doc 二进制格式，JS 生态无可靠解析器，前端返回明确提示引导用户另存为 DOCX。
+
+**模型切换：** 请求体支持 `model` 参数，指定模型 ID。后端根据模型的 `provider` 字段自动选择 API 供应商（ModelScope / 火山引擎）。文生图模型走独立接口。
+
+---
+
+#### 2.1.1 获取模型列表
+
+**接口地址:** `GET /api/ai/models`
+
+**成功响应 (200):**
+```json
+{
+  "success": true,
+  "result": {
+    "models": [
+      { "id": "Qwen/Qwen3.5-397B-A17B", "name": "Qwen3.5-397B", "type": "multimodal", "provider": "modelscope", "desc": "397B MoE 多模态（默认）" },
+      { "id": "doubao-seedream-4-5-251128", "name": "Seedream 4.5", "type": "image", "provider": "volcengine", "desc": "火山引擎 文生图" }
+    ]
+  }
+}
+```
+
+#### 2.1.2 文生图（火山引擎 Seedream）
+
+**接口地址:** `POST /api/ai/image`
+
+**请求参数：**
+```json
+{
+  "prompt": "星际穿越，黑洞里冲出一辆复古列车...",
+  "model": "doubao-seedream-4-5-251128"
+}
+```
+
+**处理流程：** 前端检测 `model.type === 'image'` → `POST /api/ai/image` → 后端按 `provider: 'volcengine'` 路由 → 火山引擎 ARK `/api/v3/images/generations` → 返回图片 URL → 前端 Markdown 图片渲染
+
+**成功响应 (200):**
+```json
+{ "success": true, "message": "图片生成成功", "result": { "imageUrl": "https://..." } }
+```
 
 ---
 
@@ -2821,4 +2865,4 @@ hotfix/xxx (紧急修复)
 
 ---
 
-*本文档最后更新于 2026-05-02 | RAG 架构 v5.3 | 联网搜索优化(Tavily advanced+查询改写+DDG HTML解析) + TTS迁移浏览器 + 视频帧采样 + 新对话刷新修复*
+*本文档最后更新于 2026-05-03 | RAG 架构 v6.0 | 多供应商模型切换(ModelScope+火山引擎Seedream) + 文生图API + 模型列表端点 + 联网搜索优化*

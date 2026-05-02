@@ -53,6 +53,14 @@ client/src/
 
 ## 核心功能
 
+### 0. 模型切换
+
+输入区左侧模型下拉框，按 `type` 自动路由：
+- `text/multimodal` → `POST /api/ai/chat` SSE 流式
+- `image` → `POST /api/ai/image` 生图 → Markdown 图片渲染
+
+默认加载 `GET /api/ai/models` 返回的模型列表，含供应商标签（魔搭 / 火山引擎）。
+
 ### 1. 奈克瑟角色系统
 
 **亲密度 (`utils/intimacy.ts`)**：localStorage 持久化，每次对话 +1（0→100）。影响：
@@ -105,8 +113,9 @@ client/src/
 |------|------|------|------|
 | 用户注册 | POST | `/api/user/register` | |
 | 用户登录 | POST | `/api/user/login` | 返回 JWT |
-| AI 对话 | POST | `/api/ai/chat` | SSE 流式，支持 files/kbId/webSearch/nexusMode |
-| 会话列表 | GET | `/api/ai/sessions` | |
+| 模型列表 | GET | `/api/ai/models` | 返回可用模型及供应商/类型 |
+| AI 对话 | POST | `/api/ai/chat` | SSE 流式，支持 files/kbId/webSearch/nexusMode/model |
+| 文生图 | POST | `/api/ai/image` | 火山引擎 Seedream，前端自动路由 |
 | 对话历史 | GET | `/api/ai/history` | |
 | 删除历史 | DELETE | `/api/ai/history` | 同步清除 RAG 记忆 |
 | 文件上传 | POST | `/api/upload` | multipart |
@@ -158,4 +167,4 @@ client/src/
 
 ---
 
-*最后更新: 2026-05-02 | v0.7.1 — 联网搜索优化 + 视频帧智能限帧(联网+视频=40帧) + TTS 浏览器原生*
+*最后更新: 2026-05-03 | v0.8.0 — 多供应商模型切换(ModelScope文本+火山引擎Seedream文生图) + 多模型支持*
