@@ -109,7 +109,15 @@ export async function removeDocumentFromKB(docId: number): Promise<void> {
   await KbChunkModel.deleteByDocId(docId)
 }
 
-export async function searchInKB(kbId: number, query: string, topK?: number) {
+export interface SearchResult {
+  content: string
+  source: string
+  score: number
+  docId: number
+  chunkIndex: number
+}
+
+export async function searchInKB(kbId: number, query: string, topK?: number): Promise<SearchResult[]> {
   const kb = await KnowledgeBaseModel.findById(kbId)
   if (!kb) throw new Error('知识库不存在')
 
@@ -117,6 +125,8 @@ export async function searchInKB(kbId: number, query: string, topK?: number) {
   return results.map(([doc, score]) => ({
     content: doc.pageContent,
     source: (doc.metadata.filename as string) || (doc.metadata.source as string) || 'unknown',
-    score
+    score,
+    docId: (doc.metadata.doc_id as number) || 0,
+    chunkIndex: (doc.metadata.chunk_index as number) || 0
   }))
 }

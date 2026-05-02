@@ -153,7 +153,6 @@ onMounted(() => {
 .kb-wrapper {
   display: flex;
   height: calc(100vh - 60px);
-  background: #f0f2f5;
   position: relative;
 }
 
@@ -170,7 +169,6 @@ onMounted(() => {
   height: 100%;
 }
 
-/* 移动端知识库选择器 */
 .kb-main-header-mobile {
   display: none;
 }
@@ -179,7 +177,6 @@ onMounted(() => {
   display: none;
 }
 
-/* 响应式设计 */
 @media (max-width: 768px) {
   .kb-wrapper {
     height: calc(100vh - 52px);
@@ -189,15 +186,15 @@ onMounted(() => {
     display: block;
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.4);
+    background: var(--color-bg-overlay);
     z-index: 50;
   }
 
   .kb-main-header-mobile {
     display: flex;
     padding: 8px 12px;
-    background: #fff;
-    border-bottom: 1px solid #ebeef5;
+    background: var(--color-bg-card);
+    border-bottom: var(--border-thin) var(--color-border);
   }
 
   .kb-main-header-mobile .el-button {
@@ -205,7 +202,7 @@ onMounted(() => {
     align-items: center;
     gap: 6px;
     font-size: 14px;
-    color: #303133;
+    color: var(--color-text-primary);
   }
 }
 </style>

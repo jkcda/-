@@ -1,6 +1,5 @@
 <template>
-  <div>
-    <!-- 路由出口 -->
+  <div class="app-root">
     <router-view />
   </div>
 </template>
@@ -8,5 +7,9 @@
 import { RouterLink, RouterView } from 'vue-router'
 </script>
 <style>
-
+.app-root {
+  min-height: 100vh;
+  position: relative;
+  z-index: 1;
+}
 </style>

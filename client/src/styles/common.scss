@@ -1,39 +1,137 @@
-// 重置样式
+// ============================================================
+// AI 助手系统 - 设计令牌 & 全局样式
+// 二次元像素艺术 + 魔法科技风格
+// ============================================================
+
+// ============================================================
+// 设计令牌 | Design Tokens
+// ============================================================
+:root {
+  // --- 主色调 ---
+  --color-primary: #4A90E2;
+  --color-primary-hover: #5BA0F0;
+  --color-primary-light: rgba(74, 144, 226, 0.15);
+  --color-magic-gold: #D4AF37;
+  --color-gold-glow: rgba(212, 175, 55, 0.5);
+  --color-gold-light: rgba(212, 175, 55, 0.15);
+  --color-silver: #f5f5ff;
+
+  // --- 背景色 ---
+  --color-bg-deep: #0d1b2a;
+  --color-bg-card: #1b3a5c;
+  --color-bg-card-hover: #224a70;
+  --color-bg-input: #162d45;
+  --color-bg-overlay: rgba(0, 0, 0, 0.6);
+
+  // --- 文字色 ---
+  --color-text-primary: #f5f5ff;
+  --color-text-secondary: #a0b4cc;
+  --color-text-muted: #6b7d95;
+  --color-text-placeholder: #5a6d85;
+
+  // --- 边框色 ---
+  --color-border: #2a4a6a;
+  --color-border-light: #3a5a7a;
+
+  // --- 状态色 ---
+  --color-success: #52c41a;
+  --color-success-bg: rgba(82, 196, 26, 0.1);
+  --color-warning: #D4AF37;
+  --color-danger: #e06070;
+  --color-danger-hover: #f07080;
+  --color-info: #4A90E2;
+
+  // --- 字体 ---
+  --font-pixel: 'Press Start 2P', monospace;
+  --font-body: 'Noto Sans SC', 'Microsoft Yahei', 'PingFang SC', sans-serif;
+  --font-mono: 'Consolas', 'Courier New', monospace;
+
+  // --- 字号 ---
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-base: 14px;
+  --font-size-md: 16px;
+  --font-size-lg: 18px;
+  --font-size-xl: 24px;
+  --font-size-xxl: 32px;
+
+  // --- 间距 ---
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 20px;
+  --space-xxl: 24px;
+  --space-xxxl: 32px;
+
+  // --- 阴影 ---
+  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.3);
+  --shadow-card-hover: 0 8px 30px rgba(0, 0, 0, 0.4);
+  --shadow-glow: 0 0 15px rgba(74, 144, 226, 0.3);
+  --shadow-gold-glow: 0 0 12px rgba(212, 175, 55, 0.4);
+  --shadow-dialog: 0 12px 40px rgba(0, 0, 0, 0.5);
+
+  // --- 圆角 ---
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+
+  // --- 过渡 ---
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.3s ease;
+
+  // --- 边框 ---
+  --border-thin: 1px solid;
+  --border-game: 2px solid;
+}
+
+// ============================================================
+// 全局重置
+// ============================================================
 * {
   box-sizing: border-box;
 }
 
 html {
   height: 100%;
-  font-size: 14px;
+  font-size: var(--font-size-base);
 }
+
 body {
   height: 100%;
-  color: #333;
   min-width: 320px;
-  font: 1em/1.4 'Microsoft Yahei', 'PingFang SC', 'Avenir', 'Segoe UI',
-    'Hiragino Sans GB', 'STHeiti', 'Microsoft Sans Serif', 'WenQuanYi Micro Hei',
-    sans-serif;
+  color: var(--color-text-primary);
+  background: var(--color-bg-deep);
+  font: 1em/1.6 var(--font-body);
+  -webkit-font-smoothing: antialiased;
 }
+
 body,
 ul,
-h1,
-h3,
-h4,
+h1, h2, h3, h4,
 p,
 dl,
 dd {
   padding: 0;
   margin: 0;
 }
+
 a {
   text-decoration: none;
-  color: #333;
+  color: var(--color-primary);
   outline: none;
+  transition: color var(--transition-fast);
+
+  &:hover {
+    color: var(--color-primary-hover);
+  }
 }
+
 i {
   font-style: normal;
 }
+
 input[type='text'],
 input[type='search'],
 input[type='password'],
@@ -42,24 +140,53 @@ input[type='checkbox'] {
   outline: none;
   border: none;
   -webkit-appearance: none;
+
   &::placeholder {
-    color: #ccc;
+    color: var(--color-text-placeholder);
   }
 }
+
 img {
   max-width: 100%;
   max-height: 100%;
   vertical-align: middle;
-  background: #ebebeb url('@/assets/images/200.png') no-repeat center / contain;
+  background: var(--color-bg-input) no-repeat center / contain;
 }
+
 ul {
   list-style: none;
 }
 
 #app {
-  background: #f5f5f5;
+  background: var(--color-bg-deep);
+  min-height: 100vh;
 }
 
+::selection {
+  background: var(--color-primary);
+  color: var(--color-silver);
+}
+
+// 滚动条
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+
+  &:hover {
+    background: var(--color-border-light);
+  }
+}
+
+// ============================================================
+// 工具类
+// ============================================================
 .container {
   max-width: 1240px;
   width: 100%;
@@ -67,6 +194,7 @@ ul {
   padding: 0 15px;
   position: relative;
 }
+
 .ellipsis {
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -82,13 +210,8 @@ ul {
   overflow: hidden;
 }
 
-.fl {
-  float: left;
-}
-
-.fr {
-  float: right;
-}
+.fl { float: left; }
+.fr { float: right; }
 
 .clearfix:after {
   content: '.';
@@ -99,7 +222,111 @@ ul {
   clear: both;
 }
 
-// reset element
+// ============================================================
+// 特效工具类
+// ============================================================
+
+// 符文角标 — 游戏对话框四角 L 形装饰
+.rune-corner {
+  position: relative;
+
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    pointer-events: none;
+    z-index: 1;
+  }
+  &::before {
+    top: -1px;
+    left: -1px;
+    border-top: var(--border-game) var(--color-magic-gold);
+    border-left: var(--border-game) var(--color-magic-gold);
+  }
+  &::after {
+    bottom: -1px;
+    right: -1px;
+    border-bottom: var(--border-game) var(--color-magic-gold);
+    border-right: var(--border-game) var(--color-magic-gold);
+  }
+}
+
+// 发光文字
+.glow-text {
+  text-shadow: 0 0 12px var(--color-gold-glow);
+}
+
+// 金色光晕
+.glow-gold {
+  box-shadow: var(--shadow-gold-glow);
+}
+
+// 像素字体标题
+.pixel-title {
+  font-family: var(--font-pixel);
+  image-rendering: pixelated;
+  color: var(--color-magic-gold);
+  text-shadow: 0 0 10px var(--color-gold-glow);
+  letter-spacing: 1px;
+  font-size: var(--font-size-md);
+}
+
+// 魔法加载动画
+.magic-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  .magic-dot {
+    width: 8px;
+    height: 8px;
+    background: var(--color-magic-gold);
+    border-radius: 50%;
+    box-shadow: 0 0 6px var(--color-gold-glow);
+    animation: sparkle 1.2s ease-in-out infinite;
+
+    &:nth-child(2) { animation-delay: 0.2s; }
+    &:nth-child(3) { animation-delay: 0.4s; }
+  }
+}
+
+// 点击粒子反馈
+.click-particle {
+  position: relative;
+  overflow: hidden;
+
+  &:active::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0 -10px;
+    background: radial-gradient(circle, var(--color-magic-gold) 0%, transparent 70%);
+    border-radius: 50%;
+    animation: particle-pop 0.4s ease-out forwards;
+  }
+}
+
+// ============================================================
+// Element Plus 重置
+// ============================================================
 .el-breadcrumb__inner.is-link {
   font-weight: 400 !important;
+}
+
+// ============================================================
+// 无障碍：减弱动画偏好
+// ============================================================
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

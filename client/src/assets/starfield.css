@@ -1,0 +1,52 @@
+/* CSS 星空背景 — 亮星闪烁 + 微尘 + 蓝色魔法粒子 */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background-image:
+    /* 亮星 */
+    radial-gradient(3px 3px at 10% 15%, rgba(255, 255, 255, 0.9), transparent),
+    radial-gradient(3px 3px at 35% 25%, rgba(212, 175, 55, 0.7), transparent),
+    radial-gradient(3px 3px at 65% 10%, rgba(255, 255, 255, 0.8), transparent),
+    radial-gradient(3px 3px at 85% 20%, rgba(74, 144, 226, 0.6), transparent),
+    radial-gradient(2px 2px at 20% 50%, rgba(255, 255, 255, 0.7), transparent),
+    radial-gradient(2px 2px at 50% 35%, rgba(212, 175, 55, 0.5), transparent),
+    radial-gradient(2px 2px at 75% 45%, rgba(255, 255, 255, 0.6), transparent),
+    radial-gradient(2px 2px at 95% 55%, rgba(74, 144, 226, 0.5), transparent),
+    /* 中星 */
+    radial-gradient(1.5px 1.5px at 15% 70%, rgba(255, 255, 255, 0.7), transparent),
+    radial-gradient(1.5px 1.5px at 30% 80%, rgba(255, 255, 255, 0.5), transparent),
+    radial-gradient(1.5px 1.5px at 55% 60%, rgba(212, 175, 55, 0.6), transparent),
+    radial-gradient(1.5px 1.5px at 70% 75%, rgba(255, 255, 255, 0.5), transparent),
+    radial-gradient(1.5px 1.5px at 90% 70%, rgba(74, 144, 226, 0.4), transparent),
+    /* 微尘 */
+    radial-gradient(1px 1px at 5% 40%, rgba(255, 255, 255, 0.4), transparent),
+    radial-gradient(1px 1px at 25% 90%, rgba(255, 255, 255, 0.3), transparent),
+    radial-gradient(1px 1px at 45% 15%, rgba(255, 255, 255, 0.5), transparent),
+    radial-gradient(1px 1px at 60% 85%, rgba(255, 255, 255, 0.3), transparent),
+    radial-gradient(1px 1px at 80% 40%, rgba(255, 255, 255, 0.4), transparent),
+    radial-gradient(1px 1px at 40% 95%, rgba(212, 175, 55, 0.3), transparent),
+    radial-gradient(1px 1px at 95% 90%, rgba(255, 255, 255, 0.3), transparent),
+    radial-gradient(1px 1px at 12% 5%, rgba(255, 255, 255, 0.4), transparent);
+  background-size: 400px 400px;
+  animation: star-drift 45s linear infinite;
+  will-change: transform;
+  opacity: 0.85;
+}
+
+@media (max-width: 768px) {
+  body::before {
+    background-image:
+      radial-gradient(2px 2px at 20% 20%, rgba(255, 255, 255, 0.7), transparent),
+      radial-gradient(2px 2px at 60% 30%, rgba(255, 255, 255, 0.6), transparent),
+      radial-gradient(2px 2px at 40% 70%, rgba(255, 255, 255, 0.5), transparent),
+      radial-gradient(2px 2px at 80% 60%, rgba(255, 255, 255, 0.5), transparent),
+      radial-gradient(1px 1px at 25% 50%, rgba(255, 255, 255, 0.4), transparent),
+      radial-gradient(1px 1px at 50% 85%, rgba(255, 255, 255, 0.3), transparent),
+      radial-gradient(1px 1px at 75% 15%, rgba(255, 255, 255, 0.4), transparent);
+    background-size: 250px 250px;
+    animation-duration: 70s;
+  }
+}

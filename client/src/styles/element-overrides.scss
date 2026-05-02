@@ -1,0 +1,463 @@
+// ============================================================
+// Element Plus 深色主题覆盖
+// 将 Element Plus 默认亮色主题映射到二次元蓝金配色
+// ============================================================
+
+// --- CSS 变量覆盖 ---
+:root {
+  // 主色
+  --el-color-primary: var(--color-primary);
+  --el-color-primary-light-3: #6ba8f0;
+  --el-color-primary-light-5: #8bbdf5;
+  --el-color-primary-light-7: #b3d4f8;
+  --el-color-primary-light-8: #cde2fa;
+  --el-color-primary-light-9: #e4f0fd;
+  --el-color-primary-dark-2: #3d7ec9;
+
+  // 状态色
+  --el-color-success: var(--color-success);
+  --el-color-warning: var(--color-warning);
+  --el-color-danger: var(--color-danger);
+  --el-color-info: var(--color-info);
+
+  // 背景
+  --el-bg-color: var(--color-bg-card);
+  --el-bg-color-page: var(--color-bg-deep);
+  --el-bg-color-overlay: var(--color-bg-card);
+  --el-fill-color: var(--color-bg-input);
+  --el-fill-color-blank: var(--color-bg-input);
+  --el-fill-color-light: var(--color-primary-light);
+  --el-fill-color-lighter: var(--color-primary-light);
+
+  // 文字
+  --el-text-color-primary: var(--color-text-primary);
+  --el-text-color-regular: var(--color-text-secondary);
+  --el-text-color-secondary: var(--color-text-muted);
+  --el-text-color-placeholder: var(--color-text-placeholder);
+  --el-text-color-disabled: var(--color-text-muted);
+
+  // 边框
+  --el-border-color: var(--color-border);
+  --el-border-color-light: var(--color-border-light);
+  --el-border-color-lighter: var(--color-border);
+  --el-border-color-extra-light: var(--color-border);
+  --el-border-color-dark: var(--color-border-light);
+
+  // 圆角
+  --el-border-radius-base: var(--radius-sm);
+  --el-border-radius-small: var(--radius-sm);
+  --el-border-radius-round: 20px;
+
+  // 字体
+  --el-font-family: var(--font-body);
+
+  // 阴影
+  --el-box-shadow-light: var(--shadow-card);
+  --el-box-shadow: var(--shadow-card);
+  --el-box-shadow-dark: var(--shadow-dialog);
+
+  // 禁用
+  --el-disabled-bg-color: rgba(22, 45, 69, 0.6);
+  --el-disabled-text-color: var(--color-text-muted);
+  --el-disabled-border-color: var(--color-border);
+}
+
+// ============================================================
+// 按钮 — 像素风格直角 + 金色光晕 hover
+// ============================================================
+.el-button {
+  border-radius: var(--radius-sm) !important;
+}
+
+.el-button--primary {
+  border-radius: var(--radius-sm) !important;
+
+  &:hover, &:focus {
+    box-shadow: var(--shadow-glow) !important;
+  }
+}
+
+.el-button--warning {
+  &:hover, &:focus {
+    box-shadow: var(--shadow-gold-glow) !important;
+  }
+}
+
+.el-button--danger {
+  &:hover, &:focus {
+    box-shadow: 0 0 12px rgba(224, 96, 112, 0.4) !important;
+  }
+}
+
+// ============================================================
+// 对话框 / 消息弹窗 — 深色背景 + 游戏边框
+// ============================================================
+.el-dialog {
+  background: var(--color-bg-card) !important;
+  border: var(--border-game) var(--color-border) !important;
+  border-radius: var(--radius-sm) !important;
+  box-shadow: var(--shadow-dialog) !important;
+}
+
+.el-dialog__header {
+  border-bottom: var(--border-thin) var(--color-border);
+  padding: var(--space-lg) var(--space-xl);
+}
+
+.el-dialog__title {
+  color: var(--color-text-primary) !important;
+  font-weight: 600;
+}
+
+.el-dialog__body {
+  color: var(--color-text-secondary);
+}
+
+.el-dialog__footer {
+  border-top: var(--border-thin) var(--color-border);
+  padding: var(--space-md) var(--space-xl);
+}
+
+.el-message-box {
+  background: var(--color-bg-card) !important;
+  border: var(--border-game) var(--color-border) !important;
+  border-radius: var(--radius-sm) !important;
+  box-shadow: var(--shadow-dialog) !important;
+
+  .el-message-box__title {
+    color: var(--color-text-primary) !important;
+  }
+
+  .el-message-box__message {
+    color: var(--color-text-secondary) !important;
+  }
+
+  .el-message-box__headerbtn .el-message-box__close {
+    color: var(--color-text-muted) !important;
+  }
+}
+
+// ============================================================
+// 输入框 — 深色背景
+// ============================================================
+.el-input__wrapper {
+  background: var(--color-bg-input) !important;
+  border-radius: var(--radius-sm) !important;
+  box-shadow: none !important;
+  border: var(--border-thin) var(--color-border);
+
+  &:hover {
+    border-color: var(--color-primary);
+  }
+}
+
+.el-input__inner {
+  color: var(--color-text-primary) !important;
+
+  &::placeholder {
+    color: var(--color-text-placeholder) !important;
+  }
+}
+
+.el-input.is-focus .el-input__wrapper {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-glow) !important;
+}
+
+.el-textarea__inner {
+  background: var(--color-bg-input) !important;
+  color: var(--color-text-primary) !important;
+  border: var(--border-thin) var(--color-border) !important;
+  border-radius: var(--radius-sm) !important;
+
+  &::placeholder {
+    color: var(--color-text-placeholder) !important;
+  }
+
+  &:focus {
+    border-color: var(--color-primary) !important;
+    box-shadow: var(--shadow-glow) !important;
+  }
+}
+
+// ============================================================
+// 下拉选择 — 深色弹层
+// ============================================================
+.el-select__popper {
+  background: var(--color-bg-card) !important;
+  border: var(--border-thin) var(--color-border) !important;
+  box-shadow: var(--shadow-dialog) !important;
+
+  .el-select-dropdown__item {
+    color: var(--color-text-secondary) !important;
+
+    &:hover {
+      background: var(--color-primary-light) !important;
+      color: var(--color-text-primary) !important;
+    }
+
+    &.selected {
+      color: var(--color-magic-gold) !important;
+      font-weight: 600;
+    }
+  }
+
+  .el-popper__arrow::before {
+    background: var(--color-bg-card) !important;
+    border: var(--border-thin) var(--color-border) !important;
+  }
+}
+
+// ============================================================
+// 表格 — 深色行 + 金色表头（强力覆盖白底）
+// ============================================================
+.el-table {
+  --el-table-bg-color: var(--color-bg-card);
+  --el-table-tr-bg-color: var(--color-bg-card);
+  --el-table-header-bg-color: var(--color-bg-input);
+  --el-table-row-hover-bg-color: var(--color-primary-light);
+  --el-table-current-row-bg-color: var(--color-primary-light);
+  --el-table-border-color: var(--color-border);
+
+  color: var(--color-text-primary) !important;
+  background: var(--color-bg-card) !important;
+
+  th.el-table__cell {
+    background: var(--color-bg-input) !important;
+    color: var(--color-text-primary) !important;
+    font-weight: 600;
+    border-bottom: var(--border-thin) var(--color-border) !important;
+  }
+
+  td.el-table__cell {
+    background: var(--color-bg-card) !important;
+    color: var(--color-text-primary) !important;
+    border-bottom: 1px solid var(--color-border) !important;
+  }
+
+  tr {
+    background: var(--color-bg-card) !important;
+
+    &:hover > td {
+      background: var(--color-bg-card-hover) !important;
+    }
+  }
+
+  .el-table__empty-text {
+    color: var(--color-text-muted) !important;
+  }
+
+  &::before {
+    background-color: var(--color-border) !important;
+  }
+
+  .el-table__row--striped td {
+    background: rgba(74, 144, 226, 0.06) !important;
+  }
+
+  .el-table__inner-wrapper {
+    background: var(--color-bg-card) !important;
+  }
+
+  .el-table__body-wrapper {
+    background: var(--color-bg-card) !important;
+  }
+}
+
+// ============================================================
+// 卡片
+// ============================================================
+.el-card {
+  background: var(--color-bg-card) !important;
+  border: var(--border-thin) var(--color-border) !important;
+  border-radius: var(--radius-sm) !important;
+  box-shadow: var(--shadow-card) !important;
+  color: var(--color-text-primary) !important;
+
+  .el-card__body {
+    background: var(--color-bg-card) !important;
+    color: var(--color-text-primary) !important;
+  }
+}
+
+.el-card__header {
+  border-bottom: var(--border-thin) var(--color-border) !important;
+  color: var(--color-text-primary) !important;
+}
+
+// ============================================================
+// 菜单 — admin sidebar
+// ============================================================
+.el-menu {
+  background: transparent !important;
+  border-right: none !important;
+
+  .el-menu-item {
+    color: var(--color-text-secondary) !important;
+
+    &:hover {
+      background: var(--color-primary-light) !important;
+      color: var(--color-text-primary) !important;
+    }
+
+    &.is-active {
+      color: var(--color-magic-gold) !important;
+      background: var(--color-primary-light) !important;
+    }
+  }
+}
+
+.el-sub-menu__title {
+  color: var(--color-text-secondary) !important;
+
+  &:hover {
+    background: var(--color-primary-light) !important;
+    color: var(--color-text-primary) !important;
+  }
+}
+
+// ============================================================
+// 标签
+// ============================================================
+.el-tag {
+  border-radius: var(--radius-sm) !important;
+  border: var(--border-thin) var(--color-border) !important;
+}
+
+.el-tag--success {
+  background: var(--color-success-bg) !important;
+  color: var(--color-success) !important;
+  border-color: var(--color-success) !important;
+}
+
+.el-tag--warning {
+  background: var(--color-gold-light) !important;
+  color: var(--color-magic-gold) !important;
+  border-color: var(--color-magic-gold) !important;
+}
+
+.el-tag--danger {
+  background: rgba(224, 96, 112, 0.1) !important;
+  color: var(--color-danger) !important;
+  border-color: var(--color-danger) !important;
+}
+
+.el-tag--info {
+  background: var(--color-primary-light) !important;
+  color: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
+}
+
+// ============================================================
+// 开关 — Element Plus switch
+// ============================================================
+.el-switch__label * {
+  color: var(--color-text-secondary) !important;
+}
+
+// ============================================================
+// 抽屉 — 管理后台对话历史
+// ============================================================
+.el-drawer {
+  background: var(--color-bg-card) !important;
+  color: var(--color-text-primary) !important;
+}
+
+.el-drawer__header {
+  color: var(--color-text-primary) !important;
+  border-bottom: var(--border-thin) var(--color-border);
+}
+
+// ============================================================
+// 分页器
+// ============================================================
+.el-pagination {
+  .el-pager li {
+    color: var(--color-text-secondary) !important;
+    background: transparent !important;
+
+    &:hover {
+      color: var(--color-primary) !important;
+    }
+
+    &.is-active {
+      background: var(--color-primary) !important;
+      color: var(--color-silver) !important;
+    }
+  }
+
+  .btn-prev, .btn-next {
+    color: var(--color-text-muted) !important;
+    background: transparent !important;
+
+    &:hover {
+      color: var(--color-primary) !important;
+    }
+  }
+}
+
+// ============================================================
+// 面包屑
+// ============================================================
+.el-breadcrumb__inner {
+  color: var(--color-text-secondary) !important;
+
+  &:hover {
+    color: var(--color-magic-gold) !important;
+  }
+}
+
+.el-breadcrumb__item:last-child .el-breadcrumb__inner {
+  color: var(--color-magic-gold) !important;
+  font-weight: 600;
+}
+
+// ============================================================
+// 加载遮罩
+// ============================================================
+.el-loading-mask {
+  background: rgba(13, 27, 42, 0.75) !important;
+}
+
+// ============================================================
+// Popover / Tooltip
+// ============================================================
+.el-popper {
+  background: var(--color-bg-card) !important;
+  border: var(--border-thin) var(--color-border) !important;
+  color: var(--color-text-primary) !important;
+
+  .el-popper__arrow::before {
+    background: var(--color-bg-card) !important;
+    border: var(--border-thin) var(--color-border) !important;
+  }
+}
+
+.el-tooltip__popper {
+  background: var(--color-bg-card) !important;
+  border: var(--border-thin) var(--color-border) !important;
+  color: var(--color-text-primary) !important;
+}
+
+// ============================================================
+// 复选框 / 单选框
+// ============================================================
+.el-checkbox__label {
+  color: var(--color-text-primary) !important;
+}
+
+.el-radio__label {
+  color: var(--color-text-primary) !important;
+}
+
+.el-form-item__label {
+  color: var(--color-text-secondary) !important;
+}
+
+// ============================================================
+// 全局焦点环 — 金色高亮
+// ============================================================
+*:focus-visible {
+  outline: 2px solid var(--color-magic-gold);
+  outline-offset: 2px;
+}

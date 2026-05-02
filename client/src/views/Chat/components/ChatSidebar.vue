@@ -61,10 +61,10 @@ defineEmits<{
 <style scoped>
 .chat-sidebar {
   width: 260px;
-  background: #fff;
+  background: var(--color-bg-card);
   display: flex;
   flex-direction: column;
-  border-right: 1px solid #e4e7ed;
+  border-right: var(--border-thin) var(--color-border);
   transition: width 0.3s;
   flex-shrink: 0;
 }
@@ -76,8 +76,8 @@ defineEmits<{
 }
 
 .sidebar-header {
-  padding: 12px;
-  border-bottom: 1px solid #e4e7ed;
+  padding: var(--space-md);
+  border-bottom: var(--border-thin) var(--color-border);
 }
 
 .new-chat-btn {
@@ -87,28 +87,30 @@ defineEmits<{
 .session-list {
   flex: 1;
   overflow-y: auto;
-  padding: 8px;
+  padding: var(--space-sm);
 }
 
 .session-item {
   padding: 10px 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   margin-bottom: 4px;
-  transition: background 0.15s;
+  transition: background var(--transition-fast);
+  border-left: 3px solid transparent;
 }
 
 .session-item:hover {
-  background: #f5f7fa;
+  background: var(--color-primary-light);
 }
 
 .session-item.active {
-  background: #ecf5ff;
+  background: var(--color-primary-light);
+  border-left: 3px solid var(--color-magic-gold);
 }
 
 .session-preview {
-  font-size: 14px;
-  color: #303133;
+  font-size: var(--font-size-base);
+  color: var(--color-text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -119,8 +121,8 @@ defineEmits<{
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 12px;
-  color: #909399;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
 }
 
 .delete-session-btn {
@@ -137,11 +139,10 @@ defineEmits<{
 .empty-sessions {
   text-align: center;
   padding: 30px 0;
-  color: #c0c4cc;
-  font-size: 14px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-base);
 }
 
-/* 响应式设计 */
 @media (max-width: 768px) {
   .chat-sidebar {
     position: fixed;
@@ -151,7 +152,7 @@ defineEmits<{
     height: 100vh;
     z-index: 60;
     transition: left 0.3s ease;
-    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
+    box-shadow: var(--shadow-card);
   }
 
   .chat-sidebar.mobile-open {
@@ -161,7 +162,7 @@ defineEmits<{
   .chat-sidebar.collapsed {
     width: 260px;
     overflow: visible;
-    border-right: 1px solid #e4e7ed;
+    border-right: var(--border-thin) var(--color-border);
   }
 }
 </style>

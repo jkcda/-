@@ -496,7 +496,6 @@ onBeforeUnmount(() => {
 .chat-wrapper {
   display: flex;
   height: calc(100vh - 60px);
-  background: #f0f2f5;
   position: relative;
 }
 
@@ -505,31 +504,29 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   width: 28px;
-  background: #fff;
-  color: #909399;
+  background: var(--color-bg-card);
+  color: var(--color-text-muted);
   cursor: pointer;
   flex-shrink: 0;
   font-size: 16px;
-  transition: color 0.2s, background 0.2s;
-  border-right: 1px solid #e4e7ed;
+  transition: color var(--transition-fast), background var(--transition-fast);
+  border-right: var(--border-thin) var(--color-border);
   z-index: 10;
 }
 
 .sidebar-toggle:hover {
-  color: #409EFF;
-  background: #f5f7fa;
+  color: var(--color-primary);
+  background: var(--color-primary-light);
 }
 
 .rotated {
   transform: rotate(180deg);
 }
 
-/* 移动端遮罩 */
 .mobile-sidebar-overlay {
   display: none;
 }
 
-/* 响应式设计 */
 @media (max-width: 768px) {
   .chat-wrapper {
     height: calc(100vh - 52px);
@@ -539,7 +536,7 @@ onBeforeUnmount(() => {
     display: block;
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.4);
+    background: var(--color-bg-overlay);
     z-index: 50;
   }
 
@@ -549,8 +546,8 @@ onBeforeUnmount(() => {
     top: 0;
     height: 44px;
     width: 36px;
-    border-right: 1px solid #e4e7ed;
-    border-bottom: 1px solid #e4e7ed;
+    border-right: var(--border-thin) var(--color-border);
+    border-bottom: var(--border-thin) var(--color-border);
     border-radius: 0 0 6px 0;
     z-index: 10;
   }

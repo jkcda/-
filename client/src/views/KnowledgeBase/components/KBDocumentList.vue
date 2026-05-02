@@ -239,7 +239,7 @@ onMounted(() => {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #fff;
+  background: var(--color-bg-card);
 }
 
 .kb-docs-header {
@@ -247,25 +247,25 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 16px 24px;
-  border-bottom: 1px solid #ebeef5;
+  border-bottom: var(--border-thin) var(--color-border);
 }
 
 .kb-docs-header h3 {
   margin: 0;
   font-size: 16px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .search-bar {
   padding: 12px 24px;
-  background: #fafafa;
-  border-bottom: 1px solid #ebeef5;
+  background: var(--color-bg-input);
+  border-bottom: var(--border-thin) var(--color-border);
 }
 
 .search-results {
   padding: 12px 24px;
-  background: #f0f9eb;
-  border-bottom: 1px solid #e1f3d8;
+  background: var(--color-primary-light);
+  border-bottom: var(--border-thin) var(--color-primary);
 }
 
 .search-results-header {
@@ -274,27 +274,27 @@ onMounted(() => {
   align-items: center;
   margin-bottom: 8px;
   font-size: 13px;
-  color: #67c23a;
+  color: var(--color-magic-gold);
   font-weight: 500;
 }
 
 .search-result-item {
-  background: #fff;
-  border-radius: 6px;
+  background: var(--color-bg-card);
+  border-radius: var(--radius-sm);
   padding: 10px 12px;
   margin-bottom: 8px;
-  border: 1px solid #e1f3d8;
+  border: var(--border-thin) var(--color-border);
 }
 
 .chunk-source {
   font-size: 12px;
-  color: #909399;
+  color: var(--color-text-muted);
   margin-bottom: 4px;
 }
 
 .chunk-content {
   font-size: 13px;
-  color: #606266;
+  color: var(--color-text-secondary);
   line-height: 1.6;
   white-space: pre-wrap;
 }
@@ -310,11 +310,11 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 12px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .doc-item:hover {
-  background: #fafafa;
+  background: var(--color-primary-light);
 }
 
 .doc-info {
@@ -327,7 +327,7 @@ onMounted(() => {
 
 .doc-icon {
   font-size: 24px;
-  color: #409EFF;
+  color: var(--color-primary);
   flex-shrink: 0;
 }
 
@@ -339,7 +339,7 @@ onMounted(() => {
 .doc-name {
   font-size: 14px;
   font-weight: 500;
-  color: #303133;
+  color: var(--color-text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -351,12 +351,12 @@ onMounted(() => {
   align-items: center;
   margin-top: 4px;
   font-size: 12px;
-  color: #909399;
+  color: var(--color-text-muted);
 }
 
 .doc-error {
   font-size: 12px;
-  color: #f56c6c;
+  color: var(--color-danger);
   margin-top: 4px;
 }
 
@@ -367,15 +367,14 @@ onMounted(() => {
 
 .upload-progress p {
   margin-top: 12px;
-  color: #606266;
+  color: var(--color-text-secondary);
 }
 
 .upload-hint {
   font-size: 12px;
-  color: #909399 !important;
+  color: var(--color-text-muted) !important;
 }
 
-/* 响应式设计 */
 @media (max-width: 768px) {
   .kb-docs-header {
     padding: 12px 16px;

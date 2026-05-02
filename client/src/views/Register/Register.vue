@@ -2,7 +2,7 @@
   <div class="register-container">
     <div class="register-form-wrapper">
       <!-- 注册表单卡片 -->
-      <el-card class="register-card" shadow="hover">
+      <el-card class="register-card rune-corner" shadow="hover">
         <!-- 标题 -->
         <template #header>
           <div class="register-title">
@@ -194,58 +194,55 @@ const goToLogin = () => {
 </script>
 
 <style scoped lang="scss">
-// 注册容器 - 使用 flex 布局居中
 .register-container {
   display: flex;
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--color-bg-deep);
   padding: 20px;
 }
 
-// 表单包装器
 .register-form-wrapper {
   width: 100%;
   max-width: 400px;
 }
 
-// 注册卡片
 .register-card {
-  border-radius: 12px;
+  border-radius: var(--radius-sm);
   overflow: hidden;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-dialog);
+  border: var(--border-game) var(--color-border);
+  background: var(--color-bg-card);
 }
 
-// 标题样式
 .register-title {
   text-align: center;
   margin-bottom: 20px;
-  
+
   h2 {
-    font-size: 24px;
-    font-weight: 600;
-    color: #333;
+    font-family: var(--font-pixel);
+    font-size: 16px;
+    color: var(--color-magic-gold);
+    text-shadow: 0 0 10px var(--color-gold-glow);
     margin-bottom: 8px;
+    image-rendering: pixelated;
   }
-  
+
   p {
     font-size: 14px;
-    color: #666;
+    color: var(--color-text-secondary);
   }
 }
 
-// 注册表单
 .register-form {
   padding: 0 20px 20px;
 }
 
-// 表单项间距
 .el-form-item {
   margin-bottom: 20px;
 }
 
-// 注册按钮
 .register-btn {
   width: 100%;
   height: 44px;
@@ -253,40 +250,24 @@ const goToLogin = () => {
   font-weight: 500;
 }
 
-// 登录链接
 .login-link {
   text-align: center;
   margin-top: 20px;
-  
+
   span {
-    color: #666;
+    color: var(--color-text-secondary);
     font-size: 14px;
   }
 }
 
-// 响应式设计
 @media (max-width: 768px) {
-  .register-container {
-    padding: 16px;
-  }
-
-  .register-form-wrapper {
-    max-width: 100%;
-  }
-
-  .register-title h2 {
-    font-size: 20px;
-  }
+  .register-container { padding: 16px; }
+  .register-form-wrapper { max-width: 100%; }
+  .register-title h2 { font-size: 14px; }
 }
 
 @media (max-width: 480px) {
-  .register-container {
-    align-items: flex-start;
-    padding: 40px 12px;
-  }
-
-  .register-form {
-    padding: 0 12px 12px;
-  }
+  .register-container { align-items: flex-start; padding: 40px 12px; }
+  .register-form { padding: 0 12px 12px; }
 }
 </style>

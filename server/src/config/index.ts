@@ -41,10 +41,30 @@ const config = {
 
   // RAG 配置
   rag: {
-    chunkSize: 1000,        // 文档分块大小（字符数）
-    chunkOverlap: 200,      // 分块重叠字符数
-    topK: 5,                // 检索返回的最相关分块数
-    similarityThreshold: 0.5 // 相似度阈值
+    chunkSize: 300,         // 文档分块大小（小窗口检索用，字符数）
+    chunkOverlap: 100,      // 分块重叠字符数
+    topK: 5,                // 最终返回的最相关分块数
+    retrievalTopK: 20,      // 初始检索候选数（向量检索阶段）
+    similarityThreshold: 0.5, // 相似度阈值
+
+    // 查询重写
+    enableQueryRewrite: true,  // 是否启用 LLM 查询重写
+    queryRewriteMinLen: 15,    // 短于此长度的查询触发重写（字符）
+
+    // 混合检索（向量 + BM25）
+    enableHybridSearch: true,  // 是否启用混合检索
+    vectorWeight: 0.7,         // 向量相似度权重
+    bm25Weight: 0.3,           // BM25 关键词权重
+
+    // LLM 重排序
+    enableRerank: true,        // 是否启用 LLM 重排序
+    rerankTopK: 10,            // 送入 LLM 重排序的候选数
+
+    // 小窗口检索 → 大窗口上下文（Small-to-Big）
+    enableSmallToBig: true,    // 是否启用上下文窗口扩展
+    windowBefore: 1,           // 匹配块前取几块
+    windowAfter: 2,            // 匹配块后取几块
+    maxExpandedChars: 3000     // 扩展后单个上下文窗口最大字符数（超过则截断）
   },
 
   // Embedding 模型配置（ModelScope API-Inference）

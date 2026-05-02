@@ -3,20 +3,25 @@
     <!-- 英雄区域 -->
     <section class="hero-section">
       <div class="hero-content">
-        <h1>AI 智能对话系统</h1>
-        <p>基于大模型的智能对话平台，为您提供专业、高效的智能交互体验</p>
-        <div class="hero-buttons">
-          <el-button type="primary" size="large" @click="goToChat">
-            开始对话
-          </el-button>
-          <template v-if="!isLoggedIn">
-            <el-button size="large" @click="goToLogin">
-              登录
+        <div class="hero-left">
+          <h1>AI 智能对话系统</h1>
+          <p>基于大模型的智能对话平台，为您提供专业、高效的智能交互体验</p>
+          <div class="hero-buttons">
+            <el-button type="primary" size="large" @click="goToChat">
+              开始对话
             </el-button>
-            <el-button size="large" @click="goToRegister">
-              注册账号
-            </el-button>
-          </template>
+            <template v-if="!isLoggedIn">
+              <el-button size="large" @click="goToLogin">
+                登录
+              </el-button>
+              <el-button size="large" @click="goToRegister">
+                注册账号
+              </el-button>
+            </template>
+          </div>
+        </div>
+        <div class="hero-right">
+          <img :src="characterImg" alt="AI助手" class="hero-character" />
         </div>
       </div>
     </section>
@@ -114,7 +119,7 @@ import { useUserStore } from '@/stores/userStore'
 const router = useRouter()
 const userStore = useUserStore()
 
-// 检查是否已登录
+const characterImg = '/images/character-full.png'
 const isLoggedIn = userStore.isLoggedIn()
 
 // 跳转到对话页面
@@ -136,22 +141,51 @@ const goToLogin = () => {
 <style scoped>
 .home-container {
   min-height: 100vh;
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  background: var(--color-bg-deep);
 }
 
-/* 英雄区域 */
 .hero-section {
-  padding: 100px 0;
+  padding: 80px 0;
   text-align: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: linear-gradient(180deg, var(--color-bg-deep) 0%, var(--color-bg-card) 50%, var(--color-bg-deep) 100%);
+  color: var(--color-silver);
+}
+
+.hero-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 60px;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+.hero-left {
+  flex: 1;
+  text-align: left;
+}
+
+.hero-right {
+  flex-shrink: 0;
+}
+
+.hero-character {
+  width: 340px;
+  height: auto;
+  max-height: 500px;
+  object-fit: contain;
+  border-radius: var(--radius-lg);
+  filter: drop-shadow(0 0 24px var(--color-gold-glow));
 }
 
 .hero-content h1 {
-  font-size: 3.5rem;
+  font-family: var(--font-pixel);
+  font-size: 2rem;
   margin-bottom: 20px;
-  font-weight: 700;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  color: var(--color-magic-gold);
+  text-shadow: 0 0 20px var(--color-gold-glow);
+  image-rendering: pixelated;
 }
 
 .hero-content p {
@@ -159,8 +193,7 @@ const goToLogin = () => {
   margin-bottom: 40px;
   opacity: 0.9;
   max-width: 600px;
-  margin-left: auto;
-  margin-right: auto;
+  color: var(--color-text-secondary);
 }
 
 .hero-buttons {
@@ -179,9 +212,11 @@ const goToLogin = () => {
 
 .features-section h2 {
   text-align: center;
-  font-size: 2.5rem;
+  font-family: var(--font-pixel);
+  font-size: 1.3rem;
   margin-bottom: 60px;
-  color: #333;
+  color: var(--color-magic-gold);
+  text-shadow: 0 0 10px var(--color-gold-glow);
 }
 
 .features-grid {
@@ -191,47 +226,50 @@ const goToLogin = () => {
 }
 
 .feature-card {
-  background: white;
+  background: var(--color-bg-card);
   padding: 40px 30px;
-  border-radius: 15px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-card);
+  border: var(--border-thin) var(--color-border);
   text-align: center;
   transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
 .feature-card:hover {
-  transform: translateY(-10px);
-  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
+  transform: translateY(-8px);
+  box-shadow: var(--shadow-glow);
 }
 
 .feature-icon {
   font-size: 3rem;
   margin-bottom: 20px;
-  color: #667eea;
+  color: var(--color-magic-gold);
 }
 
 .feature-card h3 {
-  font-size: 1.3rem;
+  font-family: var(--font-pixel);
+  font-size: 11px;
   margin-bottom: 15px;
-  color: #333;
+  color: var(--color-text-primary);
 }
 
 .feature-card p {
-  color: #666;
+  color: var(--color-text-secondary);
   line-height: 1.6;
 }
 
 /* 技术优势 */
 .advantages-section {
   padding: 100px 20px;
-  background: #f8f9fa;
+  background: var(--color-bg-card);
 }
 
 .advantages-section h2 {
   text-align: center;
-  font-size: 2.5rem;
+  font-family: var(--font-pixel);
+  font-size: 1.3rem;
   margin-bottom: 60px;
-  color: #333;
+  color: var(--color-magic-gold);
 }
 
 .advantages-content {
@@ -246,26 +284,27 @@ const goToLogin = () => {
   display: flex;
   align-items: center;
   gap: 20px;
-  background: white;
+  background: var(--color-bg-input);
   padding: 30px;
-  border-radius: 10px;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+  border-radius: var(--radius-sm);
+  border: var(--border-thin) var(--color-border);
+  box-shadow: var(--shadow-card);
 }
 
 .advantage-icon {
   font-size: 2.5rem;
-  color: #764ba2;
+  color: var(--color-primary);
   flex-shrink: 0;
 }
 
 .advantage-item h3 {
   font-size: 1.2rem;
   margin-bottom: 8px;
-  color: #333;
+  color: var(--color-text-primary);
 }
 
 .advantage-item p {
-  color: #666;
+  color: var(--color-text-secondary);
   line-height: 1.5;
 }
 
@@ -278,9 +317,10 @@ const goToLogin = () => {
 
 .start-section h2 {
   text-align: center;
-  font-size: 2.5rem;
+  font-family: var(--font-pixel);
+  font-size: 1.3rem;
   margin-bottom: 60px;
-  color: #333;
+  color: var(--color-magic-gold);
 }
 
 .start-steps {
@@ -299,35 +339,51 @@ const goToLogin = () => {
   width: 50px;
   height: 50px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: var(--color-magic-gold);
+  color: #1a1a2e;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.5rem;
-  font-weight: bold;
+  font-family: var(--font-pixel);
+  font-size: 1.2rem;
   flex-shrink: 0;
+  image-rendering: pixelated;
 }
 
 .step-content h3 {
   font-size: 1.2rem;
   margin-bottom: 10px;
-  color: #333;
+  color: var(--color-text-primary);
 }
 
 .step-content p {
-  color: #666;
+  color: var(--color-text-secondary);
   line-height: 1.5;
 }
 
 /* 响应式设计 */
 @media (max-width: 768px) {
   .hero-section {
-    padding: 60px 20px;
+    padding: 40px 20px;
+  }
+
+  .hero-content {
+    flex-direction: column;
+    text-align: center;
+    gap: 24px;
+  }
+
+  .hero-left {
+    text-align: center;
+  }
+
+  .hero-character {
+    width: 160px;
+    max-height: 280px;
   }
 
   .hero-content h1 {
-    font-size: 2rem;
+    font-size: 1.4rem;
   }
 
   .hero-content p {

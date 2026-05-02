@@ -1,0 +1,72 @@
+/* ============================================================
+   全局动画关键帧
+   仅使用 transform / opacity — GPU 合成，不触发重排
+   ============================================================ */
+
+/* 像素风淡入（逐帧 steps） */
+@keyframes pixel-fade-in {
+  0% { opacity: 0; transform: scale(0.95); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* 光晕呼吸 */
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(74, 144, 226, 0.3); }
+  50% { box-shadow: 0 0 20px rgba(74, 144, 226, 0.6); }
+}
+
+/* 金色光晕呼吸 */
+@keyframes gold-pulse {
+  0%, 100% { box-shadow: 0 0 6px rgba(212, 175, 55, 0.3); }
+  50% { box-shadow: 0 0 16px rgba(212, 175, 55, 0.6); }
+}
+
+/* 星尘闪烁 */
+@keyframes sparkle {
+  0%, 100% { opacity: 0.3; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+
+/* 星辰背景漂移 */
+@keyframes star-drift {
+  0% { transform: translate(0, 0); }
+  50% { transform: translate(-20px, -10px); }
+  100% { transform: translate(0, 0); }
+}
+
+/* 对话框弹出 */
+@keyframes dialog-appear {
+  0% { opacity: 0; transform: scale(0.92); }
+  60% { transform: scale(1.02); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* 金色流光扫过 */
+@keyframes shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+/* 打字指示器弹跳 */
+@keyframes typing-bounce {
+  0%, 80%, 100% { transform: scale(0.4); opacity: 0.3; }
+  40% { transform: scale(1); opacity: 1; }
+}
+
+/* 粒子爆开 */
+@keyframes particle-pop {
+  0% { transform: scale(1); opacity: 0.8; }
+  100% { transform: scale(4); opacity: 0; }
+}
+
+/* 魔法符文旋转 */
+@keyframes rune-rotate {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* 浮动 */
+@keyframes float-up {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}

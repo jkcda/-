@@ -111,19 +111,20 @@ const handleClearMemories = async () => {
 
 .welcome-text h2 {
   margin: 0 0 8px 0;
-  font-size: 22px;
-  color: #303133;
+  font-family: var(--font-pixel);
+  font-size: 14px;
+  color: var(--color-magic-gold);
 }
 
 .welcome-text p {
   margin: 0;
-  color: #909399;
+  color: var(--color-text-secondary);
   font-size: 14px;
 }
 
 .welcome-icon {
-  color: #409EFF;
-  opacity: 0.6;
+  color: var(--color-magic-gold);
+  opacity: 0.5;
 }
 
 /* 响应式设计 */

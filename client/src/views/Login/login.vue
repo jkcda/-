@@ -2,7 +2,7 @@
   <div class="login-container">
     <div class="login-form-wrapper">
       <!-- 登录表单卡片 -->
-      <el-card class="login-card" shadow="hover">
+      <el-card class="login-card rune-corner" shadow="hover">
         <!-- 卡片头部：标题 + 管理员登录切换 -->
         <template #header>
           <div class="card-header">
@@ -198,30 +198,28 @@ const handleLogin = async () => {
 </script>
 
 <style scoped lang="scss">
-// 登录容器 - 使用 flex 布局居中
 .login-container {
   display: flex;
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--color-bg-deep);
   padding: 20px;
 }
 
-// 表单包装器
 .login-form-wrapper {
   width: 100%;
   max-width: 400px;
 }
 
-// 登录卡片
 .login-card {
-  border-radius: 12px;
+  border-radius: var(--radius-sm);
   overflow: hidden;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-dialog);
+  border: var(--border-game) var(--color-border);
+  background: var(--color-bg-card);
 }
 
-// 卡片头部
 .card-header {
   display: flex;
   justify-content: space-between;
@@ -229,44 +227,40 @@ const handleLogin = async () => {
   gap: 20px;
 }
 
-// 标题样式
 .login-title {
   flex: 1;
-  
+
   h2 {
-    font-size: 24px;
-    font-weight: 600;
-    color: #333;
+    font-family: var(--font-pixel);
+    font-size: 16px;
+    color: var(--color-magic-gold);
+    text-shadow: 0 0 10px var(--color-gold-glow);
     margin-bottom: 8px;
+    image-rendering: pixelated;
   }
-  
+
   p {
     font-size: 14px;
-    color: #666;
+    color: var(--color-text-secondary);
   }
 }
 
-// 管理员切换开关
 .admin-switch {
   flex-shrink: 0;
 }
 
-// 登录表单
 .login-form {
   padding: 0 20px 20px;
 }
 
-// 表单项间距
 .el-form-item {
   margin-bottom: 20px;
 }
 
-// 表单项底部
 .form-footer-item {
   margin-bottom: 10px;
 }
 
-// 表单底部
 .form-footer {
   display: flex;
   justify-content: space-between;
@@ -274,20 +268,17 @@ const handleLogin = async () => {
   width: 100%;
 }
 
-// 注册账号链接
 .register-link {
   display: flex;
   justify-content: center;
   align-items: center;
   width: 100%;
-  
+
   :deep(.el-link) {
-    color: #667eea;
+    color: var(--color-magic-gold);
   }
 }
 
-
-// 登录按钮
 .login-btn {
   width: 100%;
   height: 44px;
@@ -295,18 +286,17 @@ const handleLogin = async () => {
   font-weight: 500;
 }
 
-// 其他登录方式
 .other-login {
   margin-top: 20px;
   text-align: center;
-  
+
   span {
     display: block;
     font-size: 14px;
-    color: #999;
+    color: var(--color-text-muted);
     margin-bottom: 15px;
     position: relative;
-    
+
     &::before,
     &::after {
       content: '';
@@ -314,70 +304,41 @@ const handleLogin = async () => {
       top: 50%;
       width: 35%;
       height: 1px;
-      background: #eaeaea;
+      background: var(--color-border);
     }
-    
-    &::before {
-      left: 0;
-    }
-    
-    &::after {
-      right: 0;
-    }
+
+    &::before { left: 0; }
+    &::after { right: 0; }
   }
 }
 
-// 社交登录图标
 .social-login {
   display: flex;
   justify-content: center;
   gap: 30px;
-  
+
   .social-icon {
     font-size: 24px;
-    color: #999;
+    color: var(--color-text-muted);
     cursor: pointer;
-    transition: color 0.3s;
-    
+    transition: color var(--transition-normal);
+
     &:hover {
-      color: #667eea;
+      color: var(--color-magic-gold);
     }
   }
 }
 
-// 响应式设计
 @media (max-width: 768px) {
-  .login-container {
-    padding: 16px;
-  }
-
-  .login-form-wrapper {
-    max-width: 100%;
-  }
-
-  .card-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-  }
-
-  .login-title h2 {
-    font-size: 20px;
-  }
+  .login-container { padding: 16px; }
+  .login-form-wrapper { max-width: 100%; }
+  .card-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .login-title h2 { font-size: 14px; }
 }
 
 @media (max-width: 480px) {
-  .login-container {
-    align-items: flex-start;
-    padding: 40px 12px;
-  }
-
-  .login-form {
-    padding: 0 12px 12px;
-  }
-
-  .admin-switch {
-    width: 100%;
-  }
+  .login-container { align-items: flex-start; padding: 40px 12px; }
+  .login-form { padding: 0 12px 12px; }
+  .admin-switch { width: 100%; }
 }
 </style>

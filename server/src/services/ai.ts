@@ -146,7 +146,7 @@ export async function chatWithAIStream(
     const context = buildContext(historyMessages)
 
     const [kbResult, memoryContext, webResult] = await Promise.all([
-      kbId ? retrieveFromKB(message, kbId) : Promise.resolve(null),
+      kbId ? retrieveFromKB(message, kbId, context, config.rag.topK, undefined, sessionId) : Promise.resolve(null),
       userId ? recallMemory(userId, message) : Promise.resolve(''),
       webSearchEnabled ? searchWeb(message) : Promise.resolve({ text: '', sources: [] })
     ])

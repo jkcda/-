@@ -838,7 +838,12 @@ A: 清除浏览器 localStorage 中的 token，重新登录
 A: 检查网络连接，确认后端 `/api/ai/chat` 接口正常返回流式数据
 
 **Q: 弹窗（MessageBox）出现在左上角且看不清？**
-A: 检查父容器是否设置了 `overflow: hidden`。该属性会裁剪 Element Plus 弹窗的遮罩层和对话框，导致定位异常。`.kb-wrapper` 和 `.chat-wrapper` 不应使用 `overflow: hidden`。
+A: 根因是 `ElMessageBox` 和 `ElMessage` 为命令式调用（非模板组件），`unplugin-vue-components` 的按需导入只加载模板组件的 CSS，不会自动加载命令式组件的样式。已在 `main.ts` 中手动引入缺失的 CSS：
+```typescript
+import 'element-plus/theme-chalk/el-message.css'
+import 'element-plus/theme-chalk/el-message-box.css'
+```
+（已修复于 2026-05-02）
 
 **Q: 知识库上传文档后瞬间弹窗消失，文档未出现？**
 A: 两种可能原因：

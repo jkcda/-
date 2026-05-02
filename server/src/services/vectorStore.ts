@@ -68,6 +68,31 @@ export async function deleteVectorStore(tableName: string): Promise<void> {
   }
 }
 
+export async function getAdjacentChunks(
+  tableName: string,
+  docId: number,
+  centerChunkIndex: number,
+  before: number,
+  after: number
+): Promise<{ text: string; chunkIndex: number }[]> {
+  const conn = await getConnection()
+  const tableNames = await conn.tableNames()
+  if (!tableNames.includes(tableName)) return []
+
+  const table = await conn.openTable(tableName)
+  const minIdx = Math.max(0, centerChunkIndex - before)
+  const maxIdx = centerChunkIndex + after
+
+  const results = await table
+    .query()
+    .where(`doc_id = ${docId} AND chunk_index >= ${minIdx} AND chunk_index <= ${maxIdx}`)
+    .toArray()
+
+  return (results as any[])
+    .sort((a, b) => a.chunk_index - b.chunk_index)
+    .map(r => ({ text: r.text as string, chunkIndex: r.chunk_index as number }))
+}
+
 export async function deleteDocumentsByDocId(
   tableName: string,
   docId: number

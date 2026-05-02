@@ -2,6 +2,7 @@ import express from 'express'
 import { chatWithAIStream } from '../services/ai.js'
 import { ChatHistoryModel } from '../models/chatHistory.js'
 import { commitMemoryPair, forgetSession, forgetAllMemories } from '../services/memoryService.js'
+import { clearSessionCache } from '../services/ragChain.js'
 import { ApiResponse } from '../utils/response.js'
 import { authMiddleware } from '../middleware/auth.js'
 import { adminMiddleware } from '../middleware/admin.js'
@@ -149,6 +150,7 @@ router.delete('/history', async (req, res) => {
     }
 
     await ChatHistoryModel.deleteBySessionId(sessionId as string)
+    clearSessionCache(sessionId as string)
 
     // 同步清除 RAG 记忆
     let memoryCleared = false

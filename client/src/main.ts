@@ -1,5 +1,8 @@
+import 'element-plus/theme-chalk/el-message.css'
+import 'element-plus/theme-chalk/el-message-box.css'
 import './assets/main.css'
 import './styles/common.scss'
+import './styles/element-overrides.scss'
 
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'

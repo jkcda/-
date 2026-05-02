@@ -57,8 +57,8 @@ defineEmits<{
 <style scoped>
 .kb-sidebar {
   width: 260px;
-  background: #fff;
-  border-right: 1px solid #e4e7ed;
+  background: var(--color-bg-card);
+  border-right: var(--border-thin) var(--color-border);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
@@ -69,13 +69,13 @@ defineEmits<{
   justify-content: space-between;
   align-items: center;
   padding: 16px;
-  border-bottom: 1px solid #ebeef5;
+  border-bottom: var(--border-thin) var(--color-border);
 }
 
 .kb-sidebar-header h3 {
   margin: 0;
   font-size: 15px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .kb-list {
@@ -88,19 +88,19 @@ defineEmits<{
   display: flex;
   align-items: center;
   padding: 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background var(--transition-fast);
   margin-bottom: 4px;
 }
 
 .kb-item:hover {
-  background: #f5f7fa;
+  background: var(--color-primary-light);
 }
 
 .kb-item.active {
-  background: #ecf5ff;
-  border: 1px solid #d9ecff;
+  background: var(--color-primary-light);
+  border: var(--border-thin) var(--color-primary);
 }
 
 .kb-item-content {
@@ -111,7 +111,7 @@ defineEmits<{
 .kb-name {
   font-size: 14px;
   font-weight: 500;
-  color: #303133;
+  color: var(--color-text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -119,7 +119,7 @@ defineEmits<{
 
 .kb-meta {
   font-size: 12px;
-  color: #909399;
+  color: var(--color-text-muted);
   margin-top: 4px;
   display: flex;
   gap: 4px;
@@ -134,7 +134,6 @@ defineEmits<{
   opacity: 1;
 }
 
-/* 响应式设计 */
 @media (max-width: 768px) {
   .kb-sidebar {
     position: fixed;
@@ -144,7 +143,7 @@ defineEmits<{
     height: 100vh;
     z-index: 60;
     transition: left 0.3s ease;
-    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
+    box-shadow: var(--shadow-card);
   }
 
   .kb-sidebar.mobile-open {

@@ -11,9 +11,6 @@
       <el-menu
         :default-active="activeMenu"
         :collapse="isCollapsed"
-        background-color="#1d1e1f"
-        text-color="#bfcbd9"
-        active-text-color="#409EFF"
         router
         @select="mobileSidebarOpen = false"
       >
@@ -138,7 +135,8 @@ const handleLogout = async () => {
 
 .admin-sidebar {
   width: 220px;
-  background: #1d1e1f;
+  background: var(--color-bg-card);
+  border-right: var(--border-thin) var(--color-border);
   display: flex;
   flex-direction: column;
   transition: width 0.3s;
@@ -155,14 +153,17 @@ const handleLogout = async () => {
 
 .sidebar-header {
   padding: 20px 16px;
-  color: white;
+  color: var(--color-silver);
   text-align: center;
-  border-bottom: 1px solid #333;
+  border-bottom: var(--border-thin) var(--color-border);
 }
 
 .sidebar-header h2 {
   margin: 0;
-  font-size: 18px;
+  font-family: var(--font-pixel);
+  font-size: 12px;
+  color: var(--color-magic-gold);
+  text-shadow: 0 0 8px var(--color-gold-glow);
   white-space: nowrap;
   overflow: hidden;
 }
@@ -179,14 +180,14 @@ const handleLogout = async () => {
 .sidebar-collapse {
   padding: 12px;
   text-align: center;
-  color: #bfcbd9;
+  color: var(--color-text-muted);
   cursor: pointer;
-  border-top: 1px solid #333;
+  border-top: var(--border-thin) var(--color-border);
   font-size: 18px;
 }
 
 .sidebar-collapse:hover {
-  color: #409EFF;
+  color: var(--color-magic-gold);
 }
 
 .rotated {
@@ -200,7 +201,7 @@ const handleLogout = async () => {
   flex-direction: column;
   transition: margin-left 0.3s;
   min-height: 100vh;
-  background: #f0f2f5;
+  background: var(--color-bg-deep);
 }
 
 .admin-main.expanded {
@@ -208,12 +209,13 @@ const handleLogout = async () => {
 }
 
 .admin-header {
-  background: white;
+  background: var(--color-bg-card);
+  border-bottom: var(--border-thin) var(--color-border);
   padding: 12px 24px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-card);
   position: sticky;
   top: 0;
   z-index: 99;
@@ -226,8 +228,7 @@ const handleLogout = async () => {
 }
 
 .admin-username {
-  color: #606266;
-  font-size: 14px;
+  color: var(--color-text-secondary);  font-size: 14px;
 }
 
 .admin-content {
@@ -238,8 +239,7 @@ const handleLogout = async () => {
 /* 移动端菜单按钮 */
 .mobile-menu-btn {
   display: none;
-  color: #606266;
-}
+  color: var(--color-text-secondary);}
 
 .mobile-sidebar-overlay {
   display: none;
@@ -256,7 +256,7 @@ const handleLogout = async () => {
     display: block;
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.4);
+    background: var(--color-bg-overlay);
     z-index: 99;
   }
 

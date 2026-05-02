@@ -15,9 +15,14 @@
 - **AI 服务**: Anthropic SDK (@anthropic-ai/sdk)
 - **RAG 框架**: LangChain.js (文本分块、Embedding 封装)
 - **向量数据库**: LanceDB (嵌入式向量存储，文件持久化)
-- **Embedding**: DashScope text-embedding-v3 (1024 维)
+- **Embedding**: Qwen3-Embedding-0.6B (1024 维, 32K 上下文) via ModelScope
 - **文档处理**: pdf-parse、mammoth
 - **缓存**: Redis (ioredis)，Embedding 向量缓存 + 知识库列表缓存 + RAG 检索结果缓存
+- **混合检索**: BM25 关键词 + 向量相似度加权融合
+- **重排序**: LLM 语义级精选
+- **查询重写**: LLM 改写模糊/指代问题
+- **Small-to-Big**: 小块检索 → 大窗口上下文扩展
+- **追问检测**: 自动识别追问/新话题，复用缓存或跳过检索
 - **环境配置**: dotenv
 - **跨域支持**: cors
 - **开发工具**: nodemon + tsx
@@ -58,7 +63,8 @@ server/
 │   │   ├── knowledgeBase.ts        # 知识库业务逻辑
 │   │   ├── memoryService.ts        # RAG 长期记忆服务（Q&A配对/衰减/去重/时间戳）
 │   │   ├── videoProcessor.ts        # 视频处理服务（FFmpeg帧提取 + Whisper ASR）
-│   │   └── ragChain.ts             # RAG 检索编排
+│   │   ├── hybridSearch.ts         # BM25 + 向量混合检索
+│   │   └── ragChain.ts             # RAG 检索编排（7阶段管线）
 │   ├── types/
 │   │   └── globel.d.ts             # 全局类型定义
 │   └── utils/
@@ -109,27 +115,47 @@ const config = {
   // AI 配置
   ai: {
     apiKey: process.env.DASHSCOPE_API_KEY || '',
-    model: 'Qwen/Qwen3.5-35B-A3B',
-    maxTokens: 8192,  // 约支持 5000-5500 中文字输出
+    model: 'Qwen/Qwen3.5-397B-A17B',  // 397B MoE，统一多模态
+    maxTokens: 16384,
     baseURL: 'https://api-inference.modelscope.cn'
   },
   
   // 上下文配置
   context: {
-    maxChars: 10000  // 上下文最大字符数
+    maxChars: 30000 // 上下文最大字符数（约 15-20 轮对话）
   },
 
   // RAG 配置
   rag: {
-    chunkSize: 1000,        // 文档分块大小（字符数）
-    chunkOverlap: 200,      // 分块重叠字符数
-    topK: 5,                // 检索返回的最相关分块数
-    similarityThreshold: 0.5 // 相似度阈值
+    chunkSize: 300,         // 文档分块大小（小窗口检索用，字符数）
+    chunkOverlap: 100,      // 分块重叠字符数
+    topK: 5,                // 最终返回的最相关分块数
+    retrievalTopK: 20,      // 初始检索候选数（向量检索阶段）
+    similarityThreshold: 0.5, // 相似度阈值
+
+    // 查询重写
+    enableQueryRewrite: true,  // 是否启用 LLM 查询重写
+    queryRewriteMinLen: 15,    // 短于此长度的查询触发重写（字符）
+
+    // 混合检索（向量 + BM25）
+    enableHybridSearch: true,  // 是否启用混合检索
+    vectorWeight: 0.7,         // 向量相似度权重
+    bm25Weight: 0.3,           // BM25 关键词权重
+
+    // LLM 重排序
+    enableRerank: true,        // 是否启用 LLM 重排序
+    rerankTopK: 10,            // 送入 LLM 重排序的候选数
+
+    // 小窗口检索 → 大窗口上下文（Small-to-Big）
+    enableSmallToBig: true,    // 是否启用上下文窗口扩展
+    windowBefore: 1,           // 匹配块前取几块
+    windowAfter: 2,            // 匹配块后取几块
+    maxExpandedChars: 3000     // 扩展后单个上下文窗口最大字符数
   },
 
-  // Embedding 模型配置
+  // Embedding 模型配置（ModelScope API-Inference）
   embeddings: {
-    modelName: 'text-embedding-v3',
+    modelName: 'qwen/Qwen3-Embedding-0.6B',  // 1024 维，32K 上下文
     batchSize: 100          // 批量嵌入大小
   },
 
@@ -1748,8 +1774,27 @@ Express App (app.ts)
 - `chunkFileForChat()`: 聊天附件文档分块（轻量版，不关联知识库）
 
 **4. RAG 编排服务 (`services/ragChain.ts`)**
-- `retrieveFromKB()`: 从知识库检索 → Embedding 查询向量 → LanceDB 相似度搜索 → 返回 top-K 分块
-- `retrieveFromFileChunks()`: 从聊天附件分块中检索（关键词匹配，无需额外 Embedding 开销）
+
+完整的 7 阶段检索管线：
+```
+用户问题
+  → 追问检测 → (纯追问跳过 / 引用追问复用缓存)
+  → 阶段1: LLM查询重写 → 模糊/指代问题改写为明确查询
+  → 元数据过滤 → 按文件类型/日期/文档ID过滤
+  → 阶段2a: 向量检索 → LanceDB 查 Top-20（300字符小块）
+  → 阶段2b: BM25 + 向量混合融合 → 加权排序
+  → 阶段2.5: Small-to-Big → 匹配块 ± 相邻块拼接大窗口
+  → 阶段3: LLM 重排序 → 语义级精选 Top-5
+  → 结果缓存 (Redis + 会话内存缓存)
+```
+
+关键函数：
+- `retrieveFromKB(query, kbId, context?, topK?, filters?, sessionId?)` — 主检索入口
+- `rewriteQuery(query, context?)` — LLM 查询重写（仅对短查询或含指代词触发）
+- `expandToContextWindow(results, kbTableName)` — 小窗口→大窗口，自动合并相邻匹配块
+- `rerankWithLLM(query, candidates, topK)` — LLM 重排序
+- `detectFollowUp(query)` — 追问检测（纯追问/引用追问/新话题三分类）
+- `retrieveFromFileChunks()`: 从聊天附件分块中检索（关键词 + BM25 混合）
 
 **5. RAG 长期记忆服务 (`services/memoryService.ts`)**
 - `holdUserMessage()` + `commitMemoryPair()`: Q&A 成对暂存→配对写出
@@ -1764,6 +1809,12 @@ Express App (app.ts)
 - Prompt 拼接顺序：记忆 → 知识库 → 当前对话窗口
 - 多模态文件（图片）仍走 content-block 格式
 - 文档附件先分块再检索，取代原有的全量文本拼接
+
+**6. 混合检索服务 (`services/hybridSearch.ts`)**
+- `hybridFuse(query, candidates, topK)` — 对向量检索候选集计算 BM25 关键词分，加权融合
+- 分词策略：中文单字 + 二字词（bigram），英文空格分词
+- BM25 使用候选集内 IDF（无需全局索引），k1=1.5, b=0.75
+- 归一化后加权融合：`0.7 * 向量分 + 0.3 * BM25分`
 
 ### Redis 缓存层 (`services/cache.ts`)
 
@@ -2332,9 +2383,15 @@ hotfix/xxx (紧急修复)
 - [x] 粘贴文件上传（Ctrl+V 直接粘贴图片/文档/视频）
 - [x] 上下文窗口扩容至 30000 字符 / 16384 tokens
 - [x] 管理员 RAG 记忆管理（清空指定用户全部记忆）
-
+- [x] **查询重写** — LLM 改写模糊/指代问题，仅短查询或含指代词触发
+- [x] **混合检索 (Hybrid Search)** — BM25 关键词 + 向量相似度加权融合（0.3/0.7）
+- [x] **LLM 重排序 (Rerank)** — 对 Top-10 候选 LLM 语义级精选 Top-5
+- [x] **Small-to-Big 检索** — 300字符小块匹配 → 取±相邻块拼接大窗口上下文 → 相邻窗口自动合并
+- [x] **元数据过滤** — 支持按文件类型/日期范围/文档ID过滤检索结果
+- [x] **追问检测** — 自动识别"还有呢"/"那第二个"等追问，复用缓存或跳过检索
 ### 功能增强
-- [x] **联网搜索（WebSearch）** — Tavily API + DuckDuckGo 兜底，与 RAG 记忆/知识库并行检索，搜索结果 SSE 推送前端可视化，AI 流式回复后展示来源链接
+- [x] **联网搜索（WebSearch）** — Tavily API + DuckDuckGo 兜底
+- [x] **RAG 检索增强 6 连击** — 查询重写 / 混合检索 / LLM重排序 / Small-to-Big / 元数据过滤 / 追问检测
 - [ ] 知识库权限共享（多用户协作）
 - [ ] 对话导出功能（PDF/Markdown）
 - [ ] AI 模型切换功能（前端可切换模型）
@@ -2342,7 +2399,7 @@ hotfix/xxx (紧急修复)
 - [ ] 敏感词过滤
 
 ### 性能优化
-- [ ] Redis 缓存层
+- [x] Redis 缓存层 — Embedding 向量缓存 + 知识库列表缓存 + RAG 检索结果缓存
 - [ ] 数据库读写分离
 - [ ] API 响应压缩（Gzip/Brotli）
 - [ ] CDN 静态资源加速
@@ -2562,8 +2619,11 @@ hotfix/xxx (紧急修复)
 |------|--------|------|
 | 文档状态轮询 | 高 | 当前上传后同步处理，大文档需异步 + 前端轮询 |
 | 文档重新处理 | 中 | 支持对已上传文档重新分块/向量化 |
-| 混合检索 (Hybrid) | 中 | BM25 关键词 + 语义检索融合 |
-| 重排序 (Rerank) | 中 | Qwen3-Reranker 对检索结果二次排序 |
+| 混合检索 (Hybrid) | ✅ 已完成 | BM25 关键词 + 语义检索融合 |
+| 重排序 (Rerank) | ✅ 已完成 | LLM 对检索结果二次排序 |
+| Small-to-Big 检索 | ✅ 已完成 | 小块匹配 → 大窗口上下文扩展 |
+| 查询重写 | ✅ 已完成 | LLM 改写模糊/指代问题 |
+| 追问检测 | ✅ 已完成 | 自动识别追问模式，复用/跳过检索 |
 | 更大 Embedding 模型 | 低 | Qwen3-Embedding-4B (2560维) 或 8B (4096维) |
 | DOC 格式支持 | 低 | 旧版 .doc 二进制无 JS 可靠解析器 |
 | 图片/表格内容提取 | 低 | PDF/DOCX 中的非文本内容 |
@@ -2615,4 +2675,4 @@ hotfix/xxx (紧急修复)
 
 ---
 
-*本文档最后更新于 2026-05-02 | 由后端开发团队维护 | RAG 架构 v4.1（联网搜索 + 可视化来源 + 打字机体验优化）*
+*本文档最后更新于 2026-05-02 | 由后端开发团队维护 | RAG 架构 v5.0（7阶段检索管线：查询重写 + 混合检索 + LLM重排序 + Small-to-Big + 元数据过滤 + 追问检测）*
