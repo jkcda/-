@@ -29,14 +29,14 @@ const config = {
   // AI 配置
   ai: {
     apiKey: process.env.DASHSCOPE_API_KEY || '',
-    model: 'Qwen/Qwen3.5-35B-A3B',
-    maxTokens: 8192,
+    model: 'Qwen/Qwen3.5-397B-A17B',  // 397B MoE，统一多模态（文本+图像+视频）
+    maxTokens: 16384,
     baseURL: 'https://api-inference.modelscope.cn'
   },
   
   // 上下文配置
   context: {
-    maxChars: 10000 // 上下文最大字符数
+    maxChars: 30000 // 上下文最大字符数（模型 32K 上下文）
   },
 
   // RAG 配置
@@ -77,6 +77,7 @@ const config = {
   upload: {
     maxImageSize: 10 * 1024 * 1024,   // 图片最大 10MB
     maxDocSize: 20 * 1024 * 1024,     // 文档最大 20MB
+    maxVideoSize: 500 * 1024 * 1024,  // 视频最大 500MB
     allowedImages: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
     allowedDocs: [
       'text/plain',
@@ -84,7 +85,22 @@ const config = {
       'application/pdf',
       'application/msword',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-    ]
+    ],
+    allowedVideos: ['video/mp4', 'video/webm', 'video/quicktime']
+  },
+
+  // 视频处理配置
+  video: {
+    maxDuration: 1800,  // 最长 30 分钟
+    fps: 2              // 每秒 2 帧采样
+  },
+
+  // 联网搜索配置
+  webSearch: {
+    enabled: true,
+    provider: 'tavily' as 'tavily' | 'duckduckgo',
+    tavilyApiKey: process.env.TAVILY_API_KEY || '',
+    maxResults: 5
   }
 }
 

@@ -125,6 +125,10 @@ export async function recallMemory(
   if (!names.includes(tableName(userId))) return ''
 
   const table = await conn.openTable(tableName(userId))
+  // 记忆少于 5 条时跳过检索，省 Embedding API 调用
+  const count = await table.countRows()
+  if (count < 5) return ''
+
   const qVector = await embedQuery(query)
   const raw = await table.search(qVector).limit(topK * 3).toArray()
   if (raw.length === 0) return ''

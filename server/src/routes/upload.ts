@@ -36,7 +36,8 @@ const storage = multer.diskStorage({
 function fileFilter(_req: express.Request, file: Express.Multer.File, cb: multer.FileFilterCallback) {
   const isImage = config.upload.allowedImages.includes(file.mimetype)
   const isDoc = config.upload.allowedDocs.includes(file.mimetype)
-  if (isImage || isDoc) {
+  const isVideo = config.upload.allowedVideos.includes(file.mimetype)
+  if (isImage || isDoc || isVideo) {
     cb(null, true)
   } else {
     cb(new Error(`不支持的文件类型: ${file.mimetype}`))
@@ -47,7 +48,7 @@ const upload = multer({
   storage,
   fileFilter,
   limits: {
-    fileSize: Math.max(config.upload.maxImageSize, config.upload.maxDocSize)
+    fileSize: Math.max(config.upload.maxImageSize, config.upload.maxDocSize, config.upload.maxVideoSize)
   }
 })
 

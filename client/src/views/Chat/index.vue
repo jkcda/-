@@ -347,8 +347,8 @@ const stopTypewriter = () => {
   typingMessageIndex.value = -1
 }
 
-const sendMessage = async (payload: { content: string; files: File[] }) => {
-  const { content, files } = payload
+const sendMessage = async (payload: { content: string; files: File[]; webSearch: boolean }) => {
+  const { content, files, webSearch } = payload
   if (!currentSessionId.value) {
     createNewSession()
   }
@@ -391,28 +391,49 @@ const sendMessage = async (payload: { content: string; files: File[] }) => {
         sessionId: currentSessionId.value,
         userId,
         files: uploadedFiles.length > 0 ? uploadedFiles : undefined,
-        kbId: selectedKbId.value || undefined
+        kbId: selectedKbId.value || undefined,
+        webSearch: webSearch || undefined
       })
     })
 
     if (!response.ok) throw new Error('网络请求失败')
 
     messages.value.push({ role: 'assistant', content: '' })
-    const typewriter = startTypewriter(messages.value.length - 1)
+    const msgIndex = messages.value.length - 1
+    let typewriter: ReturnType<typeof startTypewriter> | null = null
+    const pendingWebSources: any[] = []
 
     await handleSSE(
       response,
-      (chunk) => typewriter.append(chunk),
+      (chunk) => {
+        if (!typewriter) typewriter = startTypewriter(msgIndex)
+        typewriter.append(chunk)
+      },
       (error) => {
         stopTypewriter()
         ElMessage.error(error.message || '发送消息失败')
         isLoading.value = false
       },
       () => {
-        typewriter.flush()
+        if (typewriter) {
+          typewriter.flush()
+        } else {
+          // 没有任何内容返回
+          typingMessageIndex.value = -1
+          isLoading.value = false
+        }
+        const lastMsg = messages.value[msgIndex]
+        if (lastMsg && pendingWebSources.length > 0) {
+          (lastMsg as any).webSources = pendingWebSources
+        }
         isLoading.value = false
         messageAreaRef.value?.scrollToBottom()
         refreshSessionMeta()
+      },
+      (event) => {
+        if (event.type === 'webSearch' && event.sources) {
+          pendingWebSources.push(...event.sources)
+        }
       }
     )
   } catch (error: any) {

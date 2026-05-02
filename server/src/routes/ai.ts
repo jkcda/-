@@ -1,15 +1,17 @@
 import express from 'express'
 import { chatWithAIStream } from '../services/ai.js'
 import { ChatHistoryModel } from '../models/chatHistory.js'
-import { commitMemoryPair, forgetSession } from '../services/memoryService.js'
+import { commitMemoryPair, forgetSession, forgetAllMemories } from '../services/memoryService.js'
 import { ApiResponse } from '../utils/response.js'
+import { authMiddleware } from '../middleware/auth.js'
+import { adminMiddleware } from '../middleware/admin.js'
 
 const router = express.Router()
 
 // POST /api/ai/chat - AI对话（流式输出，支持多模态文件 + RAG 知识库）
 router.post('/chat', async (req, res) => {
   try {
-    const { message, sessionId, userId, files, kbId } = req.body
+    const { message, sessionId, userId, files, kbId, webSearch } = req.body
 
     if (!message && (!files || files.length === 0)) {
       return ApiResponse.badRequest(res, '请输入消息内容或上传文件')
@@ -26,13 +28,21 @@ router.post('/chat', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*')
 
     try {
-      const { stream, sessionId: returnedSessionId, retrievedChunks } = await chatWithAIStream(
+      const { stream, sessionId: returnedSessionId, retrievedChunks, webSources } = await chatWithAIStream(
         message || '',
         sessionId,
         userId,
         files && files.length > 0 ? files : undefined,
-        kbId || undefined
+        kbId || undefined,
+        webSearch === true
       )
+
+      // 发送联网搜索结果
+      if (webSources && webSources.length > 0) {
+        res.write(`data: ${JSON.stringify({ type: 'webSearch', sources: webSources })}
+
+`)
+      }
 
       // 发送检索状态提示
       if (retrievedChunks && retrievedChunks.length > 0) {
@@ -141,13 +151,29 @@ router.delete('/history', async (req, res) => {
     await ChatHistoryModel.deleteBySessionId(sessionId as string)
 
     // 同步清除 RAG 记忆
+    let memoryCleared = false
     if (userId) {
-      forgetSession(Number(userId), sessionId as string).catch(() => {})
+      try {
+        await forgetSession(Number(userId), sessionId as string)
+        memoryCleared = true
+      } catch {}
     }
 
-    ApiResponse.success(res, null, '对话历史已清空')
+    ApiResponse.success(res, null, memoryCleared ? '对话历史已清空（含 RAG 记忆）' : '对话历史已清空')
   } catch (error: any) {
     ApiResponse.internalServerError(res, '服务器错误', error.message)
+  }
+})
+
+// DELETE /api/ai/memory - 清空用户全部 RAG 记忆（管理员专用）
+router.delete('/memory', authMiddleware as any, adminMiddleware as any, async (req, res) => {
+  try {
+    const { userId } = req.query
+    if (!userId) return ApiResponse.badRequest(res, '请提供用户ID')
+    await forgetAllMemories(Number(userId))
+    ApiResponse.success(res, null, `用户 ${userId} 的 RAG 记忆已全部清空`)
+  } catch (error: any) {
+    ApiResponse.internalServerError(res, '清空记忆失败', error.message)
   }
 })
 

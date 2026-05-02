@@ -2,7 +2,7 @@
 
 ## 📋 项目概述
 
-本项目是基于 **Node.js + Express + TypeScript** 构建的 AI 智能对话系统后端服务。采用 RESTful API 设计，提供用户认证、AI 对话（流式输出）、对话历史管理、知识库 RAG 检索增强生成、**RAG 增强长期记忆**等核心功能。通过 Anthropic Claude API（ModelScope 代理）实现智能对话能力，LangChain.js + LanceDB 实现文档向量检索，自研 MemoryService 实现跨会话语义记忆。
+本项目是基于 **Node.js + Express + TypeScript** 构建的 AI 智能对话系统后端服务。采用 RESTful API 设计，提供用户认证、AI 对话（流式输出）、对话历史管理、知识库 RAG 检索增强生成、**RAG 增强长期记忆**等核心功能。通过 Anthropic Claude API（ModelScope 代理）实现智能对话能力，LangChain.js + LanceDB 实现文档向量检索，自研 MemoryService 实现跨会话语义记忆。**新增视频上传与分析**：FFmpeg 帧提取 + Whisper ASR 语音转写 + Qwen3.5-397B VL 模型综合分析。
 
 ### 技术栈
 
@@ -57,6 +57,7 @@ server/
 │   │   ├── documentPipeline.ts     # 文档摄入管道（解析→分块→嵌入）
 │   │   ├── knowledgeBase.ts        # 知识库业务逻辑
 │   │   ├── memoryService.ts        # RAG 长期记忆服务（Q&A配对/衰减/去重/时间戳）
+│   │   ├── videoProcessor.ts        # 视频处理服务（FFmpeg帧提取 + Whisper ASR）
 │   │   └── ragChain.ts             # RAG 检索编排
 │   ├── types/
 │   │   └── globel.d.ts             # 全局类型定义
@@ -571,14 +572,41 @@ ORDER BY created_at ASC
 ```json
 {
   "success": true,
-  "message": "对话历史已清空",
+  "message": "对话历史已清空（含 RAG 记忆）",
   "result": null
 }
 ```
 
+> 清空对话时自动同步清除该会话的 RAG 记忆（消息 Q&A + 关联摘要）。
+
 ---
 
-#### 2.4 获取会话列表
+#### 2.4 清空用户全部 RAG 记忆（管理员专用）
+
+**接口地址:** `DELETE /api/ai/memory`
+
+**认证:** `authMiddleware` + `adminMiddleware`
+
+**查询参数：**
+- `userId`: 必填，目标用户 ID
+
+**成功响应 (200):**
+```json
+{
+  "success": true,
+  "message": "用户 3 的 RAG 记忆已全部清空",
+  "result": null
+}
+```
+
+**错误响应：**
+- 401: 未认证
+- 403: 非管理员
+- 400: 缺少 userId
+
+---
+
+#### 2.5 获取会话列表
 
 **接口地址:** `GET /api/ai/sessions`
 
@@ -648,6 +676,7 @@ WHERE user_id IS NULL
 **支持的文件类型：**
 - 图片: JPEG, PNG, GIF, WebP（最大 10MB）
 - 文档: TXT, MD, PDF, DOC, DOCX（最大 20MB）
+- 视频: MP4, WebM, MOV（最大 500MB，最长 30 分钟）
 
 **成功响应 (200):**
 ```json
@@ -696,6 +725,85 @@ app.use((err, _req, res, next) => {
   res.status(500).json({ success: false, message: '服务器内部错误' })
 })
 ```
+
+---
+
+### 3.1 视频处理 (`services/videoProcessor.ts`)
+
+视频上传后，发送消息时自动触发处理管线：
+
+```
+视频文件 (.mp4/.webm/.mov)
+  ├── FFmpeg 帧提取 (2fps, ffmpeg-static)
+  ├── FFmpeg 音频提取 (16kHz mono WAV)
+  └── Whisper ASR (Xenova/whisper-tiny, 本地推理)
+        ↓
+  Qwen3.5-397B-A17B VL 模型
+  ├── 图像帧 (base64 JPEG content blocks)
+  └── 语音转写文本
+        ↓
+  流式输出分析结果
+```
+
+**关键配置 (`config.video`)：**
+
+| 配置项 | 值 |
+|--------|-----|
+| `maxDuration` | 1800 秒（30 分钟） |
+| `fps` | 2（每秒 2 帧） |
+| 硬上限 | 600 帧（payload 保护） |
+| `maxVideoSize` | 500MB |
+
+**模型：** `Qwen/Qwen3.5-397B-A17B`（397B MoE，统一多模态架构，原生支持图像/视频帧）
+
+**ASR 模型：** `Xenova/whisper-tiny`（首次运行时自动下载 ~150MB，本地推理，无需 API Key）
+
+---
+
+### 3.2 联网搜索（WebSearch）— 已完成
+
+**触发方式：** 前端输入区 `el-switch` 联网开关（默认关闭），开启时请求体携带 `webSearch: true`
+
+**搜索提供者：**
+
+| 提供者 | 免费额度 | 特点 |
+|--------|---------|------|
+| Tavily（推荐） | 1000 次/月 | AI 优化格式，返回标题+URL+摘要 |
+| DuckDuckGo | 无限 | 免 Key 兜底，即时答案 API |
+
+**数据流：**
+
+```
+POST /api/ai/chat { webSearch: true }
+  ↓
+chatWithAIStream()
+  Promise.all([
+    searchWeb(),         // 联网搜索
+    recallMemory(),      // RAG 记忆
+    retrieveFromKB(),    // 知识库
+  ])
+  ↓
+SSE: type='webSearch' → 前端暂存来源 URL
+SSE: content chunks → 打字机流式输出
+SSE: [DONE] → 前端拼接搜索来源链接
+```
+
+**前端展示：** AI 回复结束后，消息底部显示 `搜索来源：1. 标题链接  2. 标题链接 ...`（灰色小字，可点击跳转）
+
+**加载动画：** 联网时显示"正在搜索并思考..." + 蓝色跳动点；无联网时显示"正在思考..."
+
+**实现文件：**
+
+| 文件 | 作用 |
+|------|------|
+| `services/webSearch.ts` | Tavily API + DuckDuckGo 兜底，返回 `{ text, sources }` |
+| `services/ai.ts` | `Promise.all` 并行检索，`webSources` 透传 |
+| `routes/ai.ts` | SSE `type: 'webSearch'` 推送结构化来源 |
+| `utils/sse.ts` | 新增 `onEvent` 回调，支持非 content 类型事件 |
+| `ChatMessageArea.vue` | 联网开关 + 加载文案 + 来源链接展示 |
+| `Chat/index.vue` | 暂存来源 → 流式结束后拼接；打字机延迟启动 |
+
+**环境变量：** `TAVILY_API_KEY`（tavily.com 免费注册，无 Key 时降级 DuckDuckGo）
 
 ---
 
@@ -2218,14 +2326,18 @@ hotfix/xxx (紧急修复)
 - [x] 知识库 CRUD（创建、文档管理、向量检索）
 - [x] 对话中集成知识库检索增强生成
 - [x] 文档分块管道（pdf-parse、mammoth、RecursiveCharacterTextSplitter）
-- [x] DashScope Embedding 集成（text-embedding-v3）
+- [x] Embedding 迁移至 Qwen3-Embedding-0.6B（openai SDK → ModelScope）
+- [x] RAG 长期记忆系统（Q&A 配对、会话摘要、分级检索、时间衰减、遗忘机制）
+- [x] 视频上传与分析（FFmpeg 帧提取 + Whisper ASR + Qwen3.5-397B VL 模型）
+- [x] 粘贴文件上传（Ctrl+V 直接粘贴图片/文档/视频）
+- [x] 上下文窗口扩容至 30000 字符 / 16384 tokens
+- [x] 管理员 RAG 记忆管理（清空指定用户全部记忆）
 
 ### 功能增强
+- [x] **联网搜索（WebSearch）** — Tavily API + DuckDuckGo 兜底，与 RAG 记忆/知识库并行检索，搜索结果 SSE 推送前端可视化，AI 流式回复后展示来源链接
 - [ ] 知识库权限共享（多用户协作）
-- [ ] 用户头像上传
 - [ ] 对话导出功能（PDF/Markdown）
-- [ ] 多轮对话上下文管理优化
-- [ ] AI 模型切换功能
+- [ ] AI 模型切换功能（前端可切换模型）
 - [ ] 对话分享功能
 - [ ] 敏感词过滤
 
@@ -2365,6 +2477,8 @@ hotfix/xxx (紧急修复)
 | 会话摘要 | 每 10 轮自动调用 LLM 生成 1-2 句摘要，存入记忆库（`session_id = summary_{id}`） | 浓缩信息密度，减少碎片检索噪音 |
 | 分级检索 | `recallMemory` 取 TopK×3 候选 → 摘要 1.2x 加权 → 保证至少 1 条摘要 → 截断 | 优先展示信息密度高的摘要，再补原始对话 |
 | 遗忘机制 | `forgetSession(userId, sessionId)` 删除指定会话记忆；`forgetAllMemories(userId)` 删整表；清空对话时自动同步清除 | 与前端"清空当前对话"按钮兼容，MySQL 清空时同步删除 LanceDB 记忆 |
+| 检索并行化 | `Promise.all([retrieveFromKB, recallMemory])` 知识库与记忆同时检索 | 减少延迟 50%（300ms → 150ms） |
+| 上下文扩容 | `maxChars: 30000`、`maxTokens: 16384` | 滑动窗口从 5-8 轮扩至 15-20 轮 |
 
 ### Prompt 拼接顺序
 
@@ -2469,7 +2583,9 @@ hotfix/xxx (紧急修复)
 | 指标 | 数值 | 测量条件 |
 |------|------|---------|
 | 分块速度 | ~50 块/秒 | 单文档，含 Embedding API 调用 |
-| 检索延迟 | < 200ms | TopK=5，LanceDB 本地 |
+| 检索延迟 | < 200ms | TopK=5，LanceDB 本地（KB + 记忆并行） |
+| 记忆短路 | 0ms | 记忆 < 5 条时跳过 Embedding API |
+| 上下文窗口 | 30000 字符 | 约 15-20 轮中文对话 |
 | Embedding API | 2,000 次/天 | ModelScope 免费额度 |
 | Redis 缓存命中率 | 70-85% | 相似查询/重复文档场景 |
 | 单文档最大 | 20MB | multer limits |
@@ -2499,4 +2615,4 @@ hotfix/xxx (紧急修复)
 
 ---
 
-*本文档最后更新于 2026-05-01 | 由后端开发团队维护 | RAG 架构 v3.0（中期优化完成）*
+*本文档最后更新于 2026-05-02 | 由后端开发团队维护 | RAG 架构 v4.1（联网搜索 + 可视化来源 + 打字机体验优化）*

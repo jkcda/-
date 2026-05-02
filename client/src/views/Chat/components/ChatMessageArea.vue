@@ -1,5 +1,5 @@
 <template>
-  <div class="chat-main">
+  <div class="chat-main" @paste="onPaste">
     <div class="chat-header">
       <div class="chat-header-left">
         <el-button
@@ -29,10 +29,24 @@
       <div
         v-for="(msg, index) in messages"
         :key="index"
+        v-show="msg.content || !isLoading || index !== messages.length - 1"
         :class="['message', msg.role]"
       >
         <div class="message-content">
           <div v-html="renderMarkdown(msg.content)"></div>
+          <!-- 联网搜索参考链接 -->
+          <div v-if="(msg as any).webSources && (msg as any).webSources.length > 0 && msg.role === 'assistant'" class="web-refs">
+            <span class="web-refs-label">搜索来源：</span>
+            <a
+              v-for="(src, si) in (msg as any).webSources"
+              :key="si"
+              :href="src.url"
+              target="_blank"
+              class="web-ref-link"
+            >{{ Number(si) + 1 }}. {{ src.title }}</a>
+          </div>
+
+          <!-- RAG 参考来源 -->
           <div v-if="(msg as any).retrievedChunks && (msg as any).retrievedChunks.length > 0 && msg.role === 'assistant'" class="retrieved-sources">
             <div class="sources-header" @click="(msg as any)._showSources = !(msg as any)._showSources">
               <span>参考来源 ({{ (msg as any).retrievedChunks.length }})</span>
@@ -62,9 +76,12 @@
       </div>
       <div v-if="isLoading && typingMessageIndex === -1" class="message assistant">
         <div class="message-content typing-indicator">
-          <span class="dot"></span>
-          <span class="dot"></span>
-          <span class="dot"></span>
+          <span class="loading-text">{{ webSearchEnabled ? '正在搜索并思考...' : '正在思考...' }}</span>
+          <div class="typing-dots">
+            <span class="dot"></span>
+            <span class="dot"></span>
+            <span class="dot"></span>
+          </div>
         </div>
       </div>
     </div>
@@ -86,23 +103,31 @@
     </div>
 
     <div class="chat-input">
-      <div class="kb-selector-row" v-if="kbList.length > 0">
-        <span class="kb-selector-label">知识库：</span>
-        <el-select
-          :model-value="selectedKbId"
-          placeholder="选择知识库（可选）"
-          clearable
+      <div class="kb-selector-row">
+        <template v-if="kbList.length > 0">
+          <span class="kb-selector-label">知识库：</span>
+          <el-select
+            :model-value="selectedKbId"
+            placeholder="选择知识库（可选）"
+            clearable
+            size="small"
+            style="width: 180px"
+            @update:model-value="$emit('update:selectedKbId', $event ?? null)"
+          >
+            <el-option
+              v-for="kb in kbList"
+              :key="kb.id"
+              :label="kb.name"
+              :value="kb.id"
+            />
+          </el-select>
+        </template>
+        <el-switch
+          v-model="webSearchEnabled"
           size="small"
-          style="width: 220px"
-          @update:model-value="$emit('update:selectedKbId', $event ?? null)"
-        >
-          <el-option
-            v-for="kb in kbList"
-            :key="kb.id"
-            :label="kb.name"
-            :value="kb.id"
-          />
-        </el-select>
+          active-text="联网"
+          style="margin-left: 8px"
+        />
       </div>
       <div class="input-row">
         <div class="upload-btns">
@@ -133,6 +158,19 @@
               <el-icon><FolderOpened /></el-icon>
             </el-button>
           </el-tooltip>
+
+          <input
+            ref="videoInputRef"
+            type="file"
+            accept="video/*"
+            hidden
+            @change="onFilesSelected($event, 'video')"
+          />
+          <el-tooltip content="上传视频">
+            <el-button size="small" circle @click="videoInputRef?.click()">
+              <el-icon><VideoCameraFilled /></el-icon>
+            </el-button>
+          </el-tooltip>
         </div>
 
         <el-input
@@ -161,7 +199,7 @@
 <script setup lang="ts">
 import { ref, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
-import { PictureFilled, FolderOpened, Document, Close, ArrowDown, Menu } from '@element-plus/icons-vue'
+import { PictureFilled, FolderOpened, Document, Close, ArrowDown, Menu, VideoCameraFilled } from '@element-plus/icons-vue'
 import { marked } from 'marked'
 
 marked.setOptions({
@@ -203,16 +241,18 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  send: [payload: { content: string; files: File[] }]
+  send: [payload: { content: string; files: File[]; webSearch: boolean }]
   clearHistory: []
   toggleSidebar: []
   'update:selectedKbId': [value: number | null]
 }>()
 
 const inputMessage = ref('')
+const webSearchEnabled = ref(false)
 const messagesContainer = ref<HTMLElement>()
 const imageInputRef = ref<HTMLInputElement>()
 const docInputRef = ref<HTMLInputElement>()
+const videoInputRef = ref<HTMLInputElement>()
 
 interface SelectedFile {
   file: File
@@ -228,16 +268,11 @@ function renderMarkdown(content: string): string {
   return marked.parse(content) as string
 }
 
-function onFilesSelected(event: Event, _source: 'image' | 'doc') {
-  const input = event.target as HTMLInputElement
-  const files = input.files
-  if (!files) return
-
+function addFiles(files: FileList | File[]) {
   for (const file of files) {
     const previewUrl = file.type.startsWith('image/')
       ? URL.createObjectURL(file)
       : ''
-
     selectedFiles.value.push({
       file,
       name: file.name,
@@ -245,9 +280,25 @@ function onFilesSelected(event: Event, _source: 'image' | 'doc') {
       previewUrl
     })
   }
+}
 
-  // Reset input so same file can be selected again
+function onFilesSelected(event: Event, _source: 'image' | 'doc' | 'video') {
+  const input = event.target as HTMLInputElement
+  if (input.files) addFiles(input.files)
   input.value = ''
+}
+
+function onPaste(event: ClipboardEvent) {
+  const items = event.clipboardData?.items
+  if (!items) return
+  const files: File[] = []
+  for (const item of items) {
+    if (item.kind === 'file') {
+      const f = item.getAsFile()
+      if (f) files.push(f)
+    }
+  }
+  if (files.length > 0) addFiles(files)
 }
 
 function removeFile(index: number) {
@@ -263,7 +314,7 @@ function handleSend() {
 
   if (!content && files.length === 0) return
 
-  emit('send', { content, files })
+  emit('send', { content, files, webSearch: webSearchEnabled.value })
   inputMessage.value = ''
 
   // Clear selected files
@@ -536,6 +587,37 @@ defineExpose({ scrollToBottom })
   color: #909399;
 }
 
+/* 联网搜索参考链接 */
+.web-refs {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.web-refs-label {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.web-ref-link {
+  font-size: 12px;
+  color: #6b7280;
+  text-decoration: none;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.web-ref-link:hover {
+  color: #3b82f6;
+  text-decoration: underline;
+}
+
 .input-row {
   display: flex;
   gap: 8px;
@@ -555,25 +637,37 @@ defineExpose({ scrollToBottom })
 
 .typing-indicator {
   display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 12px 16px !important;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 18px !important;
+  min-width: 140px;
 }
 
-.typing-indicator .dot {
-  width: 8px;
-  height: 8px;
+.loading-text {
+  font-size: 13px;
+  color: #909399;
+}
+
+.typing-dots {
+  display: flex;
+  gap: 6px;
+}
+
+.typing-dots .dot {
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
-  background: #909399;
+  background: #409EFF;
   animation: typingBounce 1.4s ease-in-out infinite both;
 }
 
-.typing-indicator .dot:nth-child(1) { animation-delay: 0s; }
-.typing-indicator .dot:nth-child(2) { animation-delay: 0.2s; }
-.typing-indicator .dot:nth-child(3) { animation-delay: 0.4s; }
+.typing-dots .dot:nth-child(1) { animation-delay: 0s; }
+.typing-dots .dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dots .dot:nth-child(3) { animation-delay: 0.4s; }
 
 @keyframes typingBounce {
-  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+  0%, 80%, 100% { transform: scale(0.5); opacity: 0.3; }
   40% { transform: scale(1); opacity: 1; }
 }
 

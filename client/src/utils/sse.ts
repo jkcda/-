@@ -8,11 +8,20 @@
  * @param onError - 错误回调函数
  * @param onComplete - 完成回调函数
  */
+export interface SSEEvent {
+  type?: string
+  content?: string
+  error?: string
+  sources?: { title: string; url: string; snippet: string }[]
+  chunks?: { source: string; score: number }[]
+}
+
 export async function handleSSE(
   response: Response,
   onContent: (content: string) => void,
   onError: (error: Error) => void,
-  onComplete: () => void
+  onComplete: () => void,
+  onEvent?: (event: SSEEvent) => void
 ) {
   try {
     const reader = response.body?.getReader()
@@ -46,6 +55,8 @@ export async function handleSSE(
               onContent(parsed.content)
             } else if (parsed.error) {
               throw new Error(parsed.error)
+            } else if (parsed.type) {
+              onEvent?.(parsed as SSEEvent)
             }
           } catch (e) {
             console.error('解析 SSE 数据失败:', e)

@@ -355,6 +355,7 @@ const startTypewriter = (msgIndex: number) => {
 - 768px 以下：侧边栏初始折叠（`isCollapsed = true`），通过 `mobileSidebarOpen` 控制覆盖显示
 - 顶栏自适应换行：面包屑 + 操作按钮在窄屏下 `flex-wrap`
 - 用户名在移动端隐藏（`display: none`），节省空间
+- RAG 记忆管理卡片（AdminDashboard.vue）：768px 以下输入框和按钮纵向堆叠
 - 统计卡片（UserChatStats.vue）：
   - 768px 以下：2 列排列（`flex: 0 0 50%`）
   - 480px 以下：1 列堆叠（`flex: 0 0 100%`）
@@ -597,8 +598,9 @@ router.beforeEach((to, from, next) => {
 | `getSessions` | GET | `/ai/sessions` | `userId?` | 获取用户会话列表 |
 | `getChatHistory` | GET | `/ai/history` | `sessionId, userId?` | 获取对话历史 |
 | `chatWithAI` | POST | `/ai/chat` | `{message, sessionId, userId?, files?, kbId?}` | AI 对话（流式，支持多模态 + RAG） |
-| `uploadFile` | POST | `/upload` | `FormData (file)` | 上传文件（图片/文档） |
-| `deleteChatHistory` | DELETE | `/ai/history` | `sessionId, userId?` | 删除对话历史 |
+| `uploadFile` | POST | `/upload` | `FormData (file)` | 上传文件（图片/文档/视频，视频最大 500MB） |
+| `deleteChatHistory` | DELETE | `/ai/history` | `sessionId, userId?` | 删除对话历史（同步清除 RAG 记忆） |
+| `clearUserMemories` | DELETE | `/ai/memory` | `userId` | 清空用户全部 RAG 记忆（管理员专用，需 admin 权限） |
 
 ### 知识库相关接口 ([apis/knowledgeBase.ts](src/apis/knowledgeBase.ts))
 
@@ -758,7 +760,7 @@ UI Re-render
 | [stores/userStore.ts](src/stores/userStore.ts) | 用户状态管理 | ⭐⭐⭐⭐⭐ |
 | [views/Chat/index.vue](src/views/Chat/index.vue) | AI 对话核心页面（会话管理、SSE、打字机效果、移动端覆盖侧边栏） | ⭐⭐⭐⭐⭐ |
 | [views/Chat/components/ChatSidebar.vue](src/views/Chat/components/ChatSidebar.vue) | 会话列表侧边栏（桌面折叠 + 移动端抽屉覆盖） | ⭐⭐⭐ |
-| [views/Chat/components/ChatMessageArea.vue](src/views/Chat/components/ChatMessageArea.vue) | 消息展示与输入区（Markdown 渲染、KB 选择器、移动端菜单按钮） | ⭐⭐⭐ |
+| [views/Chat/components/ChatMessageArea.vue](src/views/Chat/components/ChatMessageArea.vue) | 消息展示与输入区（Markdown 渲染、KB/联网开关、移动端菜单、视频/粘贴上传、搜索来源链接、加载动画） | ⭐⭐⭐ |
 | [views/KnowledgeBase/index.vue](src/views/KnowledgeBase/index.vue) | 知识库管理页面主入口（移动端覆盖侧边栏） | ⭐⭐⭐⭐ |
 | [views/KnowledgeBase/components/KBList.vue](src/views/KnowledgeBase/components/KBList.vue) | 知识库侧边栏列表（桌面固定 + 移动端抽屉覆盖） | ⭐⭐⭐ |
 | [views/KnowledgeBase/components/KBDocumentList.vue](src/views/KnowledgeBase/components/KBDocumentList.vue) | 文档列表 + 上传 + 检索（移动端适配） | ⭐⭐⭐ |
@@ -771,7 +773,7 @@ UI Re-render
 | [apis/user.ts](src/apis/user.ts) | 用户 API 接口 | ⭐⭐⭐⭐ |
 | [apis/ai.ts](src/apis/ai.ts) | AI API 接口 | ⭐⭐⭐⭐ |
 | [views/Admin/AdminLayout.vue](src/views/Admin/AdminLayout.vue) | 后台管理布局（侧边栏+顶栏、移动端自动折叠+覆盖抽屉） | ⭐⭐⭐⭐⭐ |
-| [views/Admin/AdminDashboard.vue](src/views/Admin/AdminDashboard.vue) | 后台仪表盘（移动端垂直布局） | ⭐⭐⭐⭐⭐ |
+| [views/Admin/AdminDashboard.vue](src/views/Admin/AdminDashboard.vue) | 后台仪表盘（含 RAG 记忆管理卡片，管理员可清空任意用户记忆） | ⭐⭐⭐⭐⭐ |
 | [views/Admin/AdminUsers.vue](src/views/Admin/AdminUsers.vue) | 用户管理（增删改查、移动端表格横滚） | ⭐⭐⭐⭐⭐ |
 | [views/Admin/components/UserChatStats.vue](src/views/Admin/components/UserChatStats.vue) | 用户对话统计可视化组件（卡片响应式 4→2→1 列） | ⭐⭐⭐⭐⭐ |
 | [views/Layout/components/Header.vue](src/views/Layout/components/Header.vue) | 头部导航（管理员入口、移动端汉堡菜单+侧滑面板） | ⭐⭐⭐⭐ |
@@ -847,7 +849,7 @@ A: 两种可能原因：
 
 ## 📅 版本信息
 
-- **当前版本**: 0.3.0 (RAG 记忆：会话摘要 + 分级检索 + 遗忘机制)
+- **当前版本**: 0.5.0 (联网搜索 + 可视化来源 + 打字机体验优化)
 - **最后更新**: 2026-05-01
 - **维护团队**: AI 对话系统开发组
 

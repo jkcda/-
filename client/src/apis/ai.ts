@@ -45,6 +45,11 @@ export const deleteChatHistory = (sessionId: string, userId?: number | null) => 
   return request.delete(`/ai/history?${params.toString()}`)
 }
 
+// 清空用户全部 RAG 记忆（管理员专用）
+export const clearUserMemories = (userId: number) => {
+  return request.delete(`/ai/memory?userId=${userId}`)
+}
+
 // 上传文件
 export const uploadFile = async (file: File): Promise<UploadResult> => {
   const formData = new FormData()

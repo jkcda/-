@@ -38,10 +38,10 @@ app.use('/api', uploadRouter)
 // Multer 文件上传错误处理
 app.use((err: any, _req: express.Request, res: express.Response, next: express.NextFunction) => {
   if (err.code === 'LIMIT_FILE_SIZE') {
-    return res.status(400).json({ success: false, message: '文件大小超出限制（最大 20MB）' })
+    return res.status(400).json({ success: false, message: '文件大小超出限制（图片10MB/文档20MB/视频500MB）' })
   }
-  if (err.message === '不支持的文件类型') {
-    return res.status(400).json({ success: false, message: '不支持的文件类型，仅支持 TXT/MD/PDF/DOC/DOCX' })
+  if (err.message?.startsWith('不支持的文件类型')) {
+    return res.status(400).json({ success: false, message: err.message })
   }
   if (err.name === 'MulterError') {
     return res.status(400).json({ success: false, message: `文件上传错误: ${err.message}` })

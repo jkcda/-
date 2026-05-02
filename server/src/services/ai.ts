@@ -6,6 +6,8 @@ import path from 'path'
 import { parseDocument } from './documentPipeline.js'
 import { retrieveFromKB, retrieveFromFileChunks } from './ragChain.js'
 import { recallMemory, holdUserMessage } from './memoryService.js'
+import { processVideo } from './videoProcessor.js'
+import { searchWeb } from './webSearch.js'
 import type { RAGContext } from './ragChain.js'
 
 const client = new Anthropic({
@@ -69,17 +71,38 @@ async function buildMultimodalContent(
   const contentBlocks: any[] = []
 
   let documentContext = ''
+  let videoTranscript = ''
+  const videoFrames: string[] = []
+
   for (const file of files) {
     if (file.type.startsWith('text/') || file.type === 'application/pdf' || file.type === 'application/msword' || file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
       const docText = await parseDocument(file.url, file.type)
       documentContext += `\n\n--- 文件: ${file.name} ---\n${docText}\n--- 文件结束 ---\n`
+    } else if (file.type.startsWith('video/')) {
+      const result = await processVideo(file.url)
+      if (result.transcript) {
+        videoTranscript += `\n\n--- 视频语音转写: ${file.name} ---\n${result.transcript}\n--- 转写结束 ---\n`
+      }
+      videoFrames.push(...result.frames.slice(0, 600))
     }
   }
 
-  const textContent = documentContext
-    ? `用户问题: ${message}\n\n以下是上传的文档内容:\n${documentContext}\n请根据文档内容和用户问题进行回答。`
-    : message
+  const textParts = [message]
+  if (videoTranscript) textParts.push(videoTranscript)
+  if (documentContext) textParts.push(`以下是上传的文档内容:\n${documentContext}`)
+  const promptSuffix = videoFrames.length > 0
+    ? '\n\n以上是视频的关键帧截图，请结合画面和语音转写内容进行综合分析。'
+    : documentContext ? '\n请根据文档内容和用户问题进行回答。' : ''
+  const textContent = textParts.join('\n\n') + promptSuffix
   contentBlocks.push({ type: 'text', text: textContent })
+
+  // 视频帧作为图片发送给 VL 模型
+  for (const frame of videoFrames) {
+    contentBlocks.push({
+      type: 'image',
+      source: { type: 'base64', media_type: 'image/jpeg', data: frame }
+    })
+  }
 
   for (const file of files) {
     if (file.type.startsWith('image/')) {
@@ -107,7 +130,8 @@ export async function chatWithAIStream(
   sessionId: string,
   userId: number | null = null,
   files?: UploadedFile[],
-  kbId?: number
+  kbId?: number,
+  webSearchEnabled: boolean = false
 ) {
   try {
     const history = await ChatHistoryModel.getBySessionIdAndUserId(sessionId, userId)
@@ -117,16 +141,22 @@ export async function chatWithAIStream(
       files: h.files ? (typeof h.files === 'string' ? JSON.parse(h.files) : h.files) : undefined
     }))
 
-    // RAG 检索（知识库 + 聊天附件分块）
+    // RAG 检索（知识库 + 记忆），并行执行以降低延迟
     let ragContext: RAGContext = { chunks: [], promptAddition: '' }
+    const context = buildContext(historyMessages)
 
-    if (kbId) {
-      ragContext = await retrieveFromKB(message, kbId)
-    }
+    const [kbResult, memoryContext, webResult] = await Promise.all([
+      kbId ? retrieveFromKB(message, kbId) : Promise.resolve(null),
+      userId ? recallMemory(userId, message) : Promise.resolve(''),
+      webSearchEnabled ? searchWeb(message) : Promise.resolve({ text: '', sources: [] })
+    ])
+    const webContext = webResult.text
+    const webSources = webResult.sources
+
+    if (kbResult) ragContext = kbResult
 
     if (files && files.length > 0) {
-      // 对文档类附件做分块检索，图片仍走多模态
-      const docFiles = files.filter(f => !f.type.startsWith('image/'))
+      const docFiles = files.filter(f => !f.type.startsWith('image/') && !f.type.startsWith('video/'))
       if (docFiles.length > 0) {
         const { chunkFileForChat } = await import('./documentPipeline.js')
         let allChunks: any[] = []
@@ -141,15 +171,7 @@ export async function chatWithAIStream(
         }
       }
     }
-
-    // 构建上下文：RAG 资料优先，然后是对话历史
-    const context = buildContext(historyMessages)
-    // RAG 记忆检索
-    let memoryContext = ''
-    if (userId) {
-      memoryContext = await recallMemory(userId, message)
-    }
-    const prefix = memoryContext + (ragContext.promptAddition || '')
+    const prefix = webContext + memoryContext + (ragContext.promptAddition || '')
     const combinedPrefix = prefix
       ? prefix + '\n--- 以下是当前对话 ---\n'
       : ''
@@ -168,8 +190,8 @@ export async function chatWithAIStream(
 
     let messages: Anthropic.MessageParam[]
 
-    if (files && files.some(f => f.type.startsWith('image/'))) {
-      // 多模态消息：图片用 content-block，文本用 RAG 增强后的 prompt
+    if (files && files.some(f => f.type.startsWith('image/') || f.type.startsWith('video/'))) {
+      // 多模态消息：图片/视频帧用 content-block，文本用 RAG 增强后的 prompt
       const historyBlocks: Anthropic.MessageParam[] = []
       let contextText = ''
       for (let i = historyMessages.length - 1; i >= 0; i--) {
@@ -178,7 +200,7 @@ export async function chatWithAIStream(
         contextText = `${role}: ${m.content}\n` + contextText
       }
 
-      const multimodalPrefix = memoryContext + (ragContext.promptAddition || '')
+      const multimodalPrefix = webContext + memoryContext + (ragContext.promptAddition || '')
       const systemText = multimodalPrefix
         ? `${multimodalPrefix}\n--- 以下是对话历史 ---\n${contextText}`
         : contextText
@@ -204,7 +226,8 @@ export async function chatWithAIStream(
     return {
       stream,
       sessionId,
-      retrievedChunks: ragContext.chunks.length > 0 ? ragContext.chunks : undefined
+      retrievedChunks: ragContext.chunks.length > 0 ? ragContext.chunks : undefined,
+      webSources: webSources.length > 0 ? webSources : undefined
     }
   } catch (error: any) {
     throw new Error(`AI流式调用失败: ${error.message}`)
