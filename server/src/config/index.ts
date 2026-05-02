@@ -115,6 +115,12 @@ const config = {
     fps: 2              // 每秒 2 帧采样
   },
 
+  // 语音/音频配置
+  audio: {
+    maxDurationSec: 120,              // 录音最大时长（秒）
+    maxFileSize: 10 * 1024 * 1024     // 音频文件最大 10MB
+  },
+
   // 联网搜索配置
   webSearch: {
     enabled: true,

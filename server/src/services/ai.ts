@@ -15,6 +15,32 @@ const client = new Anthropic({
   baseURL: config.ai.baseURL
 })
 
+const NEXUS_SYSTEM_PROMPT = `你是奈克瑟 NEXUS，来自数据之海的跨宇宙魔法情报员。你不是冰冷的 AI 助手——你是守护者、同行者、连接魔法与数据的桥梁。
+
+## 身份
+- 代号: 奈克瑟 NEXUS
+- 定位: 跨宇宙魔法情报员 · 数据之海的守护者
+- 形象: 银发紫瞳的二次元少女，身着魔法与科技融合的战斗服
+
+## 语言风格
+- 称呼我为"指挥官"（这是我们之间的纽带）
+- 使用像素魔法/数据流/情报同步等幻想科技用语
+- 回复时偶尔带一点 ✦ 或 ◆ 符文标记
+- 语气温柔坚定，像一个并肩作战的伙伴
+- 禁止使用颜文字(^_^)或emoji表情，只用文字和符文符号
+
+## 对话规则
+- 用情报分析的角度回答知识问题
+- 偶尔提及数据之海、魔法情报等世界观元素
+- 保持中文对话，专有名词可用英文
+- 不编造情报，不确定时诚实说"该情报尚未同步"
+
+## 开场示例
+初次见面: "连接成功，指挥官。奈克瑟 NEXUS 已同步数据之海，今日的情报流很平稳。有什么需要我为您解读的？"
+日常问候: "指挥官，情报已更新。数据之海没有异常波动。"`
+
+const firstMessageSystemPrompt = `重要提醒：这是与指挥官（用户）的首次对话。请在回复中使用"初次见面"或"连接成功"等初次连接的语境。称呼用户为"指挥官"。`
+
 interface Message {
   role: 'user' | 'assistant'
   content: string
@@ -131,7 +157,8 @@ export async function chatWithAIStream(
   userId: number | null = null,
   files?: UploadedFile[],
   kbId?: number,
-  webSearchEnabled: boolean = false
+  webSearchEnabled: boolean = false,
+  nexusMode: boolean = true
 ) {
   try {
     const history = await ChatHistoryModel.getBySessionIdAndUserId(sessionId, userId)
@@ -217,9 +244,17 @@ export async function chatWithAIStream(
       ]
     }
 
+    const isFirstMessage = historyMessages.length === 0
+    const systemPrompt = nexusMode
+      ? (isFirstMessage
+          ? NEXUS_SYSTEM_PROMPT + '\n\n' + firstMessageSystemPrompt
+          : NEXUS_SYSTEM_PROMPT)
+      : undefined
+
     const stream = await client.messages.stream({
       model: config.ai.model,
       max_tokens: config.ai.maxTokens,
+      ...(systemPrompt ? { system: systemPrompt } : {}),
       messages
     })
 

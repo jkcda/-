@@ -2,7 +2,7 @@
   <div class="layout-header">
     <div class="header-logo">
       <img :src="'/images/logo.png'" alt="logo" class="logo-img" v-show="logoExists" @error="onLogoError" />
-      <h1>AI 智能助手</h1>
+      <h1>奈克瑟 NEXUS</h1>
     </div>
 
     <div class="mobile-menu-btn" @click="mobileMenuOpen = !mobileMenuOpen">

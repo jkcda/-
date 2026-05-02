@@ -8,13 +8,38 @@ import os from 'os'
 const ffmpegPath = createRequire(import.meta.url)('ffmpeg-static')
 
 let _transcriber: any = null
+let _transcriberLoading = false
+let _transcriberLoadError: string | null = null
 
 async function getTranscriber() {
-  if (!_transcriber) {
-    const { pipeline } = await import('@xenova/transformers')
-    _transcriber = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny')
+  if (_transcriber) return _transcriber
+  if (_transcriberLoadError) throw new Error(_transcriberLoadError)
+  if (_transcriberLoading) {
+    // 等待已在进行的加载
+    for (let i = 0; i < 60; i++) {
+      await new Promise(r => setTimeout(r, 2000))
+      if (_transcriber) return _transcriber
+      if (_transcriberLoadError) throw new Error(_transcriberLoadError)
+    }
+    throw new Error('语音模型加载超时（2分钟）')
   }
-  return _transcriber
+  _transcriberLoading = true
+  try {
+    console.log('[Whisper] 加载 whisper-small 模型（首次约需下载500MB，中文识别更好）...')
+    const { pipeline, env } = await import('@xenova/transformers')
+    // 设置国内 HF 镜像，解决 fetch failed 问题
+    env.remoteHost = 'https://hf-mirror.com/'
+    console.log('[Whisper] 下载源:', env.remoteHost)
+    _transcriber = await pipeline('automatic-speech-recognition', 'Xenova/whisper-small')
+    console.log('[Whisper] 模型加载完成')
+    return _transcriber
+  } catch (e: any) {
+    _transcriberLoadError = e.message || '模型加载失败'
+    console.error('[Whisper] 模型加载失败:', _transcriberLoadError)
+    throw e
+  } finally {
+    _transcriberLoading = false
+  }
 }
 
 function extractFrames(videoPath: string): string[] {
@@ -46,12 +71,82 @@ function extractAudio(videoPath: string): string | null {
   return out
 }
 
-async function transcribeAudio(audioPath: string): Promise<string> {
+export async function preloadTranscriber(): Promise<void> {
   try {
+    await getTranscriber()
+  } catch {
+    // 预加载失败不阻塞启动
+  }
+}
+
+export async function transcribeAudio(audioPath: string): Promise<string> {
+  try {
+    // Node.js 无 AudioContext，需手动读取 WAV 为 Float32Array
+    const buffer = fs.readFileSync(audioPath)
+    // 解析 WAV 头，提取 PCM 采样数据
+    const wav = parseWav(buffer)
+    if (!wav) {
+      console.error('[Whisper] WAV 解析失败')
+      return ''
+    }
+    console.log(`[Whisper] 音频: ${wav.sampleRate}Hz, ${wav.channels}ch, ${(wav.samples.length / wav.sampleRate).toFixed(1)}s`)
     const t = await getTranscriber()
-    const r = await t(audioPath)
+    const r = await t(wav.samples, {
+      sampling_rate: wav.sampleRate,
+      language: 'chinese',
+      task: 'transcribe'
+    })
     return (r as any).text?.trim() || ''
-  } catch { return '' }
+  } catch (e: any) {
+    console.error('[Whisper] 转写失败:', e.message || e)
+    return ''
+  }
+}
+
+function parseWav(buffer: Buffer): { samples: Float32Array; sampleRate: number; channels: number } | null {
+  try {
+    // WAV 头: RIFF(4) + size(4) + WAVE(4) + fmt(4) + fmtSize(4) + audioFormat(2) + channels(2)
+    // + sampleRate(4) + byteRate(4) + blockAlign(2) + bitsPerSample(2)
+    // 然后找 data chunk
+    const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength)
+    if (view.getUint32(0, true) !== 0x46464952) return null // "RIFF"
+    // 找 fmt chunk
+    let offset = 12
+    let fmtFound = false
+    while (offset < buffer.length - 8) {
+      const chunkId = view.getUint32(offset, true)
+      const chunkSize = view.getUint32(offset + 4, true)
+      if (chunkId === 0x20746d66) { // "fmt "
+        const audioFormat = view.getUint16(offset + 8, true)
+        if (audioFormat !== 1) return null // 只支持 PCM
+        const channels = view.getUint16(offset + 10, true)
+        const sampleRate = view.getUint32(offset + 12, true)
+        const bitsPerSample = view.getUint16(offset + 22, true)
+        fmtFound = true
+        // 找 data chunk
+        offset = offset + 8 + chunkSize
+        while (offset < buffer.length - 8) {
+          const dId = view.getUint32(offset, true)
+          const dSize = view.getUint32(offset + 4, true)
+          if (dId === 0x61746164) { // "data"
+            const dataStart = offset + 8
+            const dataEnd = Math.min(dataStart + dSize, buffer.length)
+            const raw = buffer.subarray(dataStart, dataEnd)
+            // 16-bit PCM → Float32
+            const samples = new Float32Array(Math.floor(raw.length / 2))
+            for (let i = 0; i < samples.length; i++) {
+              samples[i] = raw.readInt16LE(i * 2) / 32768
+            }
+            return { samples, sampleRate, channels }
+          }
+          offset = offset + 8 + dSize
+        }
+        break
+      }
+      offset = offset + 8 + chunkSize
+    }
+    return null
+  } catch { return null }
 }
 
 export async function processVideo(videoUrl: string) {

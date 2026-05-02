@@ -8,7 +8,7 @@ import { RouterLink, RouterView } from 'vue-router'
 </script>
 <style>
 .app-root {
-  min-height: 100vh;
+  height: 100vh;
   position: relative;
   z-index: 1;
 }

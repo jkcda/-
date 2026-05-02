@@ -152,7 +152,7 @@ onMounted(() => {
 <style scoped>
 .kb-wrapper {
   display: flex;
-  height: calc(100vh - 60px);
+  height: 100%;
   position: relative;
 }
 
@@ -178,10 +178,6 @@ onMounted(() => {
 }
 
 @media (max-width: 768px) {
-  .kb-wrapper {
-    height: calc(100vh - 52px);
-  }
-
   .mobile-sidebar-overlay {
     display: block;
     position: fixed;

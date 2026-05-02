@@ -1,7 +1,7 @@
 <template>
   <div class="kb-sidebar" :class="{ 'mobile-open': mobileOpen }">
     <div class="kb-sidebar-header">
-      <h3>知识库</h3>
+      <h3>水晶书库</h3>
       <el-button size="small" type="primary" @click="$emit('create')">新建</el-button>
     </div>
 
@@ -31,7 +31,7 @@
         </el-button>
       </div>
 
-      <el-empty v-if="!loading && kbList.length === 0" description="暂无知识库" :image-size="60" />
+      <el-empty v-if="!loading && kbList.length === 0" description="水晶书库为空" :image-size="60" />
     </div>
   </div>
 </template>

@@ -12,7 +12,7 @@ const router = express.Router()
 // POST /api/ai/chat - AI对话（流式输出，支持多模态文件 + RAG 知识库）
 router.post('/chat', async (req, res) => {
   try {
-    const { message, sessionId, userId, files, kbId, webSearch } = req.body
+    const { message, sessionId, userId, files, kbId, webSearch, nexusMode } = req.body
 
     if (!message && (!files || files.length === 0)) {
       return ApiResponse.badRequest(res, '请输入消息内容或上传文件')
@@ -35,7 +35,8 @@ router.post('/chat', async (req, res) => {
         userId,
         files && files.length > 0 ? files : undefined,
         kbId || undefined,
-        webSearch === true
+        webSearch === true,
+        nexusMode !== false  // default true (Nexus mode)
       )
 
       // 发送联网搜索结果

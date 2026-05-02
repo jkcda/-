@@ -4,8 +4,9 @@
     <section class="hero-section">
       <div class="hero-content">
         <div class="hero-left">
-          <h1>AI 智能对话系统</h1>
-          <p>基于大模型的智能对话平台，为您提供专业、高效的智能交互体验</p>
+          <h1>奈克瑟 NEXUS</h1>
+          <p>跨宇宙魔法情报员 · 数据之海的守护者</p>
+          <p class="hero-quote">"连接成功，指挥官。今日的情报已同步，请指示。"</p>
           <div class="hero-buttons">
             <el-button type="primary" size="large" @click="goToChat">
               开始对话
@@ -103,7 +104,7 @@
           <div class="step-number">3</div>
           <div class="step-content">
             <h3>开始对话</h3>
-            <p>输入您的问题，与 AI 进行智能交互</p>
+            <p>唤醒奈克瑟，探索数据之海的秘密</p>
           </div>
         </div>
       </div>
@@ -140,7 +141,8 @@ const goToLogin = () => {
 
 <style scoped>
 .home-container {
-  min-height: 100vh;
+  height: 100%;
+  overflow-y: auto;
   background: var(--color-bg-deep);
 }
 
@@ -172,9 +174,8 @@ const goToLogin = () => {
 
 .hero-character {
   width: 340px;
-  height: auto;
-  max-height: 500px;
-  object-fit: contain;
+  aspect-ratio: 9 / 16;
+  object-fit: cover;
   border-radius: var(--radius-lg);
   filter: drop-shadow(0 0 24px var(--color-gold-glow));
 }
@@ -186,6 +187,14 @@ const goToLogin = () => {
   color: var(--color-magic-gold);
   text-shadow: 0 0 20px var(--color-gold-glow);
   image-rendering: pixelated;
+}
+
+.hero-quote {
+  font-style: italic;
+  color: var(--color-magic-gold) !important;
+  text-shadow: 0 0 8px var(--color-gold-glow);
+  font-size: 1rem !important;
+  margin-top: -10px !important;
 }
 
 .hero-content p {
@@ -379,7 +388,6 @@ const goToLogin = () => {
 
   .hero-character {
     width: 160px;
-    max-height: 280px;
   }
 
   .hero-content h1 {

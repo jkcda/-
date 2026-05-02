@@ -6,6 +6,13 @@
         新对话
       </el-button>
     </div>
+    <div class="nexus-card">
+      <img :src="'/images/character-avatar.png'" class="nexus-avatar" />
+      <div class="nexus-info">
+        <span class="nexus-name">奈克瑟 NEXUS</span>
+        <span class="nexus-level">{{ intimacyRank }}</span>
+      </div>
+    </div>
     <div class="session-list">
       <div
         v-for="sess in sessionList"
@@ -28,7 +35,8 @@
         </div>
       </div>
       <div v-if="sessionList.length === 0" class="empty-sessions">
-        暂无对话记录
+        <p class="empty-welcome">{{ welcomeLine }}</p>
+        <p class="empty-hint">点击上方按钮开始对话</p>
       </div>
     </div>
   </div>
@@ -43,6 +51,13 @@ interface SessionItem {
   messageCount: number
   lastActiveAt: string
 }
+
+import { computed } from 'vue'
+import { loadIntimacy, getIntimacyRank, getWelcomeLine } from '@/utils/intimacy'
+
+const intimacy = computed(() => loadIntimacy())
+const intimacyRank = computed(() => getIntimacyRank(intimacy.value))
+const welcomeLine = computed(() => getWelcomeLine(intimacy.value))
 
 defineProps<{
   sessionList: SessionItem[]
@@ -82,6 +97,46 @@ defineEmits<{
 
 .new-chat-btn {
   width: 100%;
+}
+
+.nexus-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  margin: 0 8px 8px;
+  background: var(--color-bg-input);
+  border-radius: var(--radius-md);
+  border: var(--border-thin) var(--color-border);
+}
+
+.nexus-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-lg);
+  border: 2px solid var(--color-magic-gold);
+  box-shadow: var(--shadow-gold-glow);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.nexus-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.nexus-name {
+  font-family: var(--font-pixel);
+  font-size: 9px;
+  color: var(--color-magic-gold);
+  white-space: nowrap;
+}
+
+.nexus-level {
+  font-size: 11px;
+  color: var(--color-text-muted);
 }
 
 .session-list {
@@ -138,9 +193,22 @@ defineEmits<{
 
 .empty-sessions {
   text-align: center;
-  padding: 30px 0;
+  padding: 20px 12px;
   color: var(--color-text-muted);
   font-size: var(--font-size-base);
+}
+
+.empty-welcome {
+  color: var(--color-magic-gold);
+  font-size: 13px;
+  line-height: 1.6;
+  margin-bottom: 8px;
+  text-shadow: 0 0 6px var(--color-gold-glow);
+}
+
+.empty-hint {
+  font-size: 12px;
+  color: var(--color-text-muted);
 }
 
 @media (max-width: 768px) {

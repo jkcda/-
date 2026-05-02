@@ -10,7 +10,7 @@
         >
           <el-icon :size="18"><Menu /></el-icon>
         </el-button>
-        <h2>AI 智能对话</h2>
+        <h2>奈克瑟 · 情报同步</h2>
         <img :src="'/images/character-avatar.png'" alt="AI" class="chat-header-avatar" />
       </div>
       <el-button
@@ -23,7 +23,13 @@
       </el-button>
     </div>
 
-    <div class="chat-messages" ref="messagesContainer">
+    <div v-if="!currentSessionId" class="chat-empty-state">
+      <img :src="'/images/character-avatar.png'" alt="AI" class="empty-avatar" />
+      <p class="empty-title">奈克瑟 NEXUS</p>
+      <p class="empty-desc">在左侧创建或选择一个对话，开始同步情报。</p>
+    </div>
+
+    <div v-else class="chat-messages" ref="messagesContainer">
       <div v-if="loadingHistory" class="loading-history">
         加载历史对话中...
       </div>
@@ -77,10 +83,19 @@
             </div>
           </div>
         </div>
+        <el-button
+          v-if="msg.role === 'assistant' && msg.content"
+          class="speak-btn"
+          size="small"
+          text
+          @click="speakMessage(msg.content)"
+        >
+          <el-icon :size="16"><Headset /></el-icon>
+        </el-button>
       </div>
       <div v-if="isLoading && typingMessageIndex === -1" class="message assistant">
         <div class="message-content typing-indicator">
-          <span class="loading-text">{{ webSearchEnabled ? '正在搜索并思考...' : '正在思考...' }}</span>
+          <span class="loading-text">{{ webSearchEnabled ? '正在穿越数据之海...' : '正在解析情报...' }}</span>
           <div class="typing-dots">
             <span class="dot"></span>
             <span class="dot"></span>
@@ -90,6 +105,7 @@
       </div>
     </div>
 
+    <template v-if="currentSessionId">
     <!-- 已选文件预览 -->
     <div v-if="selectedFiles.length > 0" class="file-preview-bar">
       <div
@@ -104,6 +120,14 @@
           <el-icon><Close /></el-icon>
         </el-button>
       </div>
+    </div>
+
+    <!-- 录音状态条 -->
+    <div v-if="isRecording" class="recording-bar">
+      <span class="recording-dot"></span>
+      <span class="recording-timer">{{ formatDuration(recordingDuration) }}</span>
+      <el-button size="small" text type="danger" @click="handleCancelRecording">取消</el-button>
+      <el-button size="small" type="primary" @click="handleStopRecording">完成</el-button>
     </div>
 
     <div class="chat-input">
@@ -132,6 +156,35 @@
           active-text="联网"
           style="margin-left: 8px"
         />
+        <el-switch
+          :model-value="nexusMode"
+          size="small"
+          active-text="奈克瑟"
+          inactive-text="AI助手"
+          style="margin-left: 8px"
+          @change="$emit('update:nexusMode', $event as boolean)"
+        />
+        <el-switch
+          :model-value="autoSpeakEnabled"
+          size="small"
+          active-text="朗读"
+          style="margin-left: 8px"
+          @change="onAutoSpeakToggle"
+        />
+        <el-select
+          v-if="autoSpeakEnabled && voices.length > 0"
+          :model-value="selectedVoiceId"
+          size="small"
+          style="width: 100px; margin-left: 6px"
+          @update:model-value="onVoiceSelect"
+        >
+          <el-option
+            v-for="v in voices"
+            :key="v.id"
+            :label="`${v.name} · ${v.style}`"
+            :value="v.id"
+          />
+        </el-select>
       </div>
       <div class="input-row">
         <div class="upload-btns">
@@ -175,6 +228,17 @@
               <el-icon><VideoCameraFilled /></el-icon>
             </el-button>
           </el-tooltip>
+
+          <el-tooltip :content="isRecording ? '录音中...' : '语音输入'">
+            <el-button
+              size="small"
+              circle
+              :type="isRecording ? 'danger' : undefined"
+              @click="toggleRecording"
+            >
+              <el-icon><Microphone /></el-icon>
+            </el-button>
+          </el-tooltip>
         </div>
 
         <el-input
@@ -198,14 +262,17 @@
         发送
       </el-button>
     </div>
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick } from 'vue'
+import { ref, nextTick, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { PictureFilled, FolderOpened, Document, Close, ArrowDown, Menu, VideoCameraFilled } from '@element-plus/icons-vue'
+import { PictureFilled, FolderOpened, Document, Close, ArrowDown, Menu, VideoCameraFilled, Microphone, Headset } from '@element-plus/icons-vue'
 import { marked } from 'marked'
+import { useVoiceRecording, uploadVoiceForTranscription } from '@/utils/voiceRecording'
+import { speak, autoSpeakEnabled, toggleAutoSpeak, voices, selectedVoiceId, selectVoice, loadVoices } from '@/utils/tts'
 
 marked.setOptions({
   breaks: true,
@@ -243,6 +310,7 @@ const props = defineProps<{
   currentSessionId: string
   kbList: KbItem[]
   selectedKbId: number | null
+  nexusMode: boolean
 }>()
 
 const emit = defineEmits<{
@@ -250,6 +318,7 @@ const emit = defineEmits<{
   clearHistory: []
   toggleSidebar: []
   'update:selectedKbId': [value: number | null]
+  'update:nexusMode': [value: boolean]
 }>()
 
 const inputMessage = ref('')
@@ -267,6 +336,68 @@ interface SelectedFile {
 }
 
 const selectedFiles = ref<SelectedFile[]>([])
+
+// Voice recording
+const { isRecording, duration: recordingDuration, audioBlob,
+         startRecording, stopRecording, cancelRecording } = useVoiceRecording()
+
+async function toggleRecording() {
+  if (isRecording.value) {
+    await handleStopRecording()
+  } else {
+    await startRecording()
+  }
+}
+
+async function handleStopRecording() {
+  stopRecording()
+  // 等待 audioBlob 就绪（MediaRecorder.onstop 是异步的）
+  for (let i = 0; i < 50; i++) {
+    await new Promise(r => setTimeout(r, 100))
+    if (audioBlob.value) break
+  }
+  if (!audioBlob.value) {
+    ElMessage.warning('录音数据未就绪，请重试')
+    return
+  }
+
+  try {
+    const text = await uploadVoiceForTranscription(audioBlob.value)
+    if (text) {
+      inputMessage.value = inputMessage.value
+        ? inputMessage.value + '\n' + text
+        : text
+      ElMessage.success('语音识别完成')
+    } else {
+      ElMessage.warning('未识别到语音内容')
+    }
+  } catch (e: any) {
+    ElMessage.error(e.message || '语音识别失败')
+  }
+}
+
+function handleCancelRecording() {
+  cancelRecording()
+}
+
+function formatDuration(sec: number): string {
+  const m = Math.floor(sec / 60)
+  const s = sec % 60
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
+
+// TTS
+function speakMessage(content: string) {
+  speak(content)
+}
+
+function onAutoSpeakToggle() {
+  toggleAutoSpeak()
+}
+
+function onVoiceSelect(id: string) {
+  selectVoice(id)
+}
 
 function renderMarkdown(content: string): string {
   if (!content) return ''
@@ -335,6 +466,10 @@ async function scrollToBottom() {
     messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
   }
 }
+
+onMounted(() => {
+  loadVoices()
+})
 
 defineExpose({ scrollToBottom })
 </script>
@@ -744,6 +879,88 @@ defineExpose({ scrollToBottom })
 .typing-dots .dot:nth-child(1) { animation-delay: 0s; }
 .typing-dots .dot:nth-child(2) { animation-delay: 0.2s; }
 .typing-dots .dot:nth-child(3) { animation-delay: 0.4s; }
+
+/* 录音状态条 */
+.recording-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 24px;
+  background: var(--color-bg-card);
+  border-top: var(--border-thin) var(--color-danger);
+  flex-shrink: 0;
+}
+
+.recording-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-danger);
+  animation: recording-pulse 1s ease-in-out infinite;
+}
+
+@keyframes recording-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(1.3); }
+}
+
+.recording-timer {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--color-text-primary);
+  min-width: 50px;
+}
+
+/* 空状态 */
+.chat-empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--color-text-muted);
+  user-select: none;
+  padding: 40px;
+}
+
+.empty-avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  border: var(--border-game) var(--color-magic-gold);
+  box-shadow: var(--shadow-gold-glow);
+  object-fit: cover;
+  opacity: 0.6;
+}
+
+.empty-title {
+  font-family: var(--font-pixel);
+  font-size: 12px;
+  color: var(--color-magic-gold);
+  text-shadow: 0 0 10px var(--color-gold-glow);
+  margin: 0;
+}
+
+.empty-desc {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+/* 朗读播放按钮 — 气泡外右下角 */
+.speak-btn {
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+  align-self: flex-end;
+  margin-left: 4px;
+  margin-bottom: 2px;
+  transition: color var(--transition-fast);
+}
+
+.speak-btn:hover {
+  color: var(--color-magic-gold);
+}
 
 .mobile-menu-btn {
   display: none;

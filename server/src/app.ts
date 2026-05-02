@@ -7,6 +7,7 @@ import adminRouter from './routes/admin.js'
 import aiRouter from './routes/ai.js'
 import uploadRouter from './routes/upload.js'
 import knowledgeBaseRouter from './routes/knowledgeBase.js'
+import voiceRouter from './routes/voice.js'
 import config from './config/index.js'
 import fs from 'fs'
 
@@ -34,6 +35,7 @@ app.use('/api/admin', adminRouter)
 app.use('/api/ai', aiRouter)
 app.use('/api/kb', knowledgeBaseRouter)
 app.use('/api', uploadRouter)
+app.use('/api/voice', voiceRouter)
 
 // Multer 文件上传错误处理
 app.use((err: any, _req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -49,6 +51,12 @@ app.use((err: any, _req: express.Request, res: express.Response, next: express.N
   console.error('未捕获的错误:', err)
   res.status(500).json({ success: false, message: '服务器内部错误' })
 })
+
+// 后台预加载语音识别模型（避免首次请求阻塞/OOM崩溃）
+import('./services/videoProcessor.js').then(m => {
+  console.log('[Preload] 后台预加载语音识别模型...')
+  m.preloadTranscriber()
+}).catch(() => {})
 
 // 启动
 const PORT = config.server.port

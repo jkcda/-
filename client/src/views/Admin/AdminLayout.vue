@@ -6,7 +6,7 @@
     <!-- 侧边栏 -->
     <div class="admin-sidebar" :class="{ collapsed: isCollapsed, 'mobile-open': mobileSidebarOpen }">
       <div class="sidebar-header">
-        <h2>{{ isCollapsed ? '后台' : '后台管理系统' }}</h2>
+        <h2>{{ isCollapsed ? 'NEXUS' : 'NEXUS 控制台' }}</h2>
       </div>
       <el-menu
         :default-active="activeMenu"
@@ -130,7 +130,7 @@ const handleLogout = async () => {
 <style scoped>
 .admin-layout {
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
 }
 
 .admin-sidebar {
@@ -200,7 +200,7 @@ const handleLogout = async () => {
   display: flex;
   flex-direction: column;
   transition: margin-left 0.3s;
-  min-height: 100vh;
+  overflow-y: auto;
   background: var(--color-bg-deep);
 }
 

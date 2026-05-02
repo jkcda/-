@@ -26,6 +26,8 @@
       :currentSessionId="currentSessionId"
       :kbList="kbList"
       :selectedKbId="selectedKbId"
+      :nexusMode="nexusMode"
+      @update:nexusMode="nexusMode = $event"
       @send="sendMessage"
       @clearHistory="clearHistory"
       @update:selectedKbId="selectedKbId = $event"
@@ -41,6 +43,8 @@ import { Fold } from '@element-plus/icons-vue'
 import { getChatHistory, deleteChatHistory, getSessions, uploadFile } from '@/apis/ai'
 import { getKnowledgeBases, type KnowledgeBase } from '@/apis/knowledgeBase'
 import { handleSSE } from '@/utils/sse'
+import { addIntimacy, loadIntimacy, getWelcomeLine, getTimeGreeting } from '@/utils/intimacy'
+import { autoSpeakEnabled, speak } from '@/utils/tts'
 import { useUserStore } from '@/stores/userStore'
 import ChatSidebar from './components/ChatSidebar.vue'
 import ChatMessageArea from './components/ChatMessageArea.vue'
@@ -73,6 +77,7 @@ const currentSessionId = ref<string>('')
 const sessionList = ref<SessionItem[]>([])
 const kbList = ref<KnowledgeBase[]>([])
 const selectedKbId = ref<number | null>(null)
+const nexusMode = ref(true)
 
 const isMobile = ref(window.innerWidth < 768)
 
@@ -195,24 +200,33 @@ const initCurrentSession = async () => {
     currentSessionId.value = sessionList.value[0]!.id
     localStorage.setItem(getCurrentKey(), currentSessionId.value)
     await loadHistory()
-  } else {
-    createNewSession(false)
   }
+  // 无会话时空着，等待用户点击"新对话"
 }
 
 const createNewSession = (switchTo = true) => {
   const newId = generateSessionId()
+  const welcomeText = getWelcomeLine()
+  const greeting = getTimeGreeting()
+
   const newSession: SessionItem = {
     id: newId,
-    preview: '',
-    messageCount: 0,
+    preview: welcomeText,
+    messageCount: 1,
     lastActiveAt: new Date().toISOString()
   }
   sessionList.value.unshift(newSession)
   saveSessionList()
 
   if (switchTo) {
-    switchSession(newId, false)
+    stopTypewriter()
+    currentSessionId.value = newId
+    localStorage.setItem(getCurrentKey(), newId)
+    messages.value = [{
+      role: 'assistant',
+      content: `${greeting}\n\n${welcomeText}`
+    }]
+    isLoading.value = false
   }
 }
 
@@ -257,7 +271,9 @@ const deleteSession = async (sessionId: string) => {
     if (sessionList.value.length > 0) {
       await switchSession(sessionList.value[0]!.id)
     } else {
-      createNewSession()
+      currentSessionId.value = ''
+      messages.value = []
+      localStorage.removeItem(getCurrentKey())
     }
   }
 }
@@ -270,7 +286,21 @@ const loadHistory = async () => {
     const userId = userInfo?.id || null
     const response = await getChatHistory(currentSessionId.value, userId)
     if (response.data.success) {
-      messages.value = response.data.result.messages
+      const msgs = response.data.result.messages
+      if (msgs && msgs.length > 0) {
+        messages.value = msgs
+      } else {
+        // 新会话无后端记录时显示欢迎消息，防止刷新消失
+        const sess = sessionList.value.find(s => s.id === currentSessionId.value)
+        if (sess) {
+          messages.value = [{
+            role: 'assistant',
+            content: `${getTimeGreeting()}\n\n${sess.preview || getWelcomeLine()}`
+          }]
+        } else {
+          messages.value = []
+        }
+      }
     }
   } catch {
     ElMessage.error('加载历史对话失败')
@@ -392,7 +422,8 @@ const sendMessage = async (payload: { content: string; files: File[]; webSearch:
         userId,
         files: uploadedFiles.length > 0 ? uploadedFiles : undefined,
         kbId: selectedKbId.value || undefined,
-        webSearch: webSearch || undefined
+        webSearch: webSearch || undefined,
+        nexusMode: nexusMode.value
       })
     })
 
@@ -429,6 +460,12 @@ const sendMessage = async (payload: { content: string; files: File[]; webSearch:
         isLoading.value = false
         messageAreaRef.value?.scrollToBottom()
         refreshSessionMeta()
+        addIntimacy()
+        // Auto-speak
+        if (autoSpeakEnabled.value) {
+          const lastMsg = messages.value[msgIndex]
+          if (lastMsg?.content) speak(lastMsg.content)
+        }
       },
       (event) => {
         if (event.type === 'webSearch' && event.sources) {
@@ -495,7 +532,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .chat-wrapper {
   display: flex;
-  height: calc(100vh - 60px);
+  height: 100%;
   position: relative;
 }
 
@@ -528,10 +565,6 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 768px) {
-  .chat-wrapper {
-    height: calc(100vh - 52px);
-  }
-
   .mobile-sidebar-overlay {
     display: block;
     position: fixed;

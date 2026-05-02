@@ -2,7 +2,7 @@
 
 ## 📋 项目概述
 
-本项目是基于 **Node.js + Express + TypeScript** 构建的 AI 智能对话系统后端服务。采用 RESTful API 设计，提供用户认证、AI 对话（流式输出）、对话历史管理、知识库 RAG 检索增强生成、**RAG 增强长期记忆**等核心功能。通过 Anthropic Claude API（ModelScope 代理）实现智能对话能力，LangChain.js + LanceDB 实现文档向量检索，自研 MemoryService 实现跨会话语义记忆。**新增视频上传与分析**：FFmpeg 帧提取 + Whisper ASR 语音转写 + Qwen3.5-397B VL 模型综合分析。
+本项目是基于 **Node.js + Express + TypeScript** 构建的 AI 智能对话系统后端服务。采用 RESTful API 设计，提供用户认证、AI 对话（流式输出）、对话历史管理、知识库 RAG 检索增强生成、**RAG 增强长期记忆**等核心功能。通过 Anthropic Claude API（ModelScope 代理）实现智能对话能力，LangChain.js + LanceDB 实现文档向量检索，自研 MemoryService 实现跨会话语义记忆。**新增视频上传与分析**：FFmpeg 帧提取 + Whisper ASR 语音转写 + Qwen3.5-397B VL 模型综合分析。**新增联网搜索**：Tavily API + DuckDuckGo 兜底。
 
 ### 技术栈
 
@@ -54,7 +54,8 @@ server/
 │   │   ├── admin.ts                # 管理员路由
 │   │   ├── ai.ts                   # AI 对话路由
 │   │   ├── upload.ts               # 文件上传路由
-│   │   └── knowledgeBase.ts        # 知识库路由
+│   │   ├── knowledgeBase.ts        # 知识库路由
+│   │   └── voice.ts                # 语音路由（STT 转写 + TTS 合成）
 │   ├── services/
 │   │   ├── ai.ts                   # AI 服务层（含 RAG 集成 + 记忆注入）
 │   │   ├── embedding.ts            # Embedding 向量化服务（openai SDK → ModelScope）
@@ -64,7 +65,9 @@ server/
 │   │   ├── memoryService.ts        # RAG 长期记忆服务（Q&A配对/衰减/去重/时间戳）
 │   │   ├── videoProcessor.ts        # 视频处理服务（FFmpeg帧提取 + Whisper ASR）
 │   │   ├── hybridSearch.ts         # BM25 + 向量混合检索
-│   │   └── ragChain.ts             # RAG 检索编排（7阶段管线）
+│   │   ├── ragChain.ts             # RAG 检索编排（7阶段管线）
+│   │   ├── ttsService.ts           # Edge-TTS 语音合成（13种中文女声）
+│   │   └── voiceRecording.ts       # 语音录制 + Whisper 转写
 │   ├── types/
 │   │   └── globel.d.ts             # 全局类型定义
 │   └── utils/
@@ -166,10 +169,26 @@ const config = {
 
   // 文件上传配置
   upload: {
-    maxImageSize: 10 * 1024 * 1024,
-    maxDocSize: 20 * 1024 * 1024,
+    maxImageSize: 10 * 1024 * 1024,   // 图片最大 10MB
+    maxDocSize: 20 * 1024 * 1024,     // 文档最大 20MB
+    maxVideoSize: 500 * 1024 * 1024,  // 视频最大 500MB
     allowedImages: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
-    allowedDocs: ['text/plain', 'text/markdown', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
+    allowedDocs: ['text/plain', 'text/markdown', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+    allowedVideos: ['video/mp4', 'video/webm', 'video/quicktime']
+  },
+
+  // 视频处理配置
+  video: {
+    maxDuration: 1800,  // 最长 30 分钟
+    fps: 2              // 每秒 2 帧采样
+  },
+
+  // 联网搜索配置
+  webSearch: {
+    enabled: true,
+    provider: 'tavily' as 'tavily' | 'duckduckgo',  // 优先 Tavily，无 Key 降级 DuckDuckGo
+    tavilyApiKey: process.env.TAVILY_API_KEY || '',
+    maxResults: 5
   }
 }
 ```
@@ -190,15 +209,20 @@ DB_NAME=ai_chat
 # JWT 密钥（生产环境必须修改！）
 JWT_SECRET=your-super-secret-key
 
-# AI API 密钥
+# AI API 密钥（ModelScope API-Inference）
 DASHSCOPE_API_KEY=your-api-key
 
-# Redis 缓存配置（可选，不配置则缓存自动失效）
+# Redis 缓存配置（可选，不配置则缓存自动降级失效）
 REDIS_HOST=localhost
 REDIS_PORT=6379
 REDIS_PASSWORD=
 REDIS_DB=0
+
+# 联网搜索 API Key（可选，不配置则降级 DuckDuckGo 免费搜索）
+TAVILY_API_KEY=tvly-xxxxxxxxxxxxxxxx
 ```
+
+> **说明**：`DASHSCOPE_API_KEY` 同时用于 AI 对话（Anthropic SDK）和 Embedding 向量化（OpenAI SDK），均为 ModelScope API-Inference 端点。`TAVILY_API_KEY` 在 [tavily.com](https://tavily.com) 免费注册获取（1000 次/月），未配置时自动降级为 DuckDuckGo 即时答案 API。
 
 ---
 
@@ -482,8 +506,16 @@ Authorization: Bearer <token>
 - `userId`: 可选，用户 ID（已登录用户）
 - `files`: 可选，上传的附件列表（先调用 `/api/upload` 上传后获得 URL）
 - `kbId`: 可选，知识库 ID（启用 RAG 检索增强，从指定知识库中检索相关分块注入 prompt）
+- `webSearch`: 可选，布尔值，启用联网搜索（默认 false）
 
-**RAG 检索提示：** 当启用知识库时，SSE 首先返回一条 `type: "retrieval"` 事件，告知前端检索到的分块来源：
+**SSE 非内容事件（在内容流之前推送）：**
+
+1. **联网搜索结果**（`webSearch: true` 时）：
+```
+data: {"type":"webSearch","sources":[{"title":"标题","url":"https://...","snippet":"摘要"}]}
+```
+
+2. **RAG 检索提示**（`kbId` 启用知识库时）：
 ```
 data: {"type":"retrieval","chunks":[{"source":"report.pdf","score":0.92}]}
 ```
@@ -830,6 +862,45 @@ SSE: [DONE] → 前端拼接搜索来源链接
 | `Chat/index.vue` | 暂存来源 → 流式结束后拼接；打字机延迟启动 |
 
 **环境变量：** `TAVILY_API_KEY`（tavily.com 免费注册，无 Key 时降级 DuckDuckGo）
+
+---
+
+### 3.3 语音模块 (`/api/voice`)
+
+#### 3.3.1 语音转写（STT）
+
+**接口地址:** `POST /api/voice/transcribe`
+
+**Content-Type:** `multipart/form-data`
+
+**请求参数：**
+- `audio`: 必填，音频文件（WebM/Opus，浏览器 MediaRecorder 原生格式）
+
+**处理流程：** 内存接收 → ffmpeg 转 16kHz mono WAV → Whisper 转写 → 返回文本
+
+**成功响应 (200):**
+```json
+{ "success": true, "message": "语音识别成功", "result": { "text": "你好奈克瑟" } }
+```
+
+#### 3.3.2 获取语音列表
+
+**接口地址:** `GET /api/voice/voices`
+
+**响应:** 返回 13 种中文女声（晓晓、晓伊、晓梦等），每项含 `id/name/gender/style`
+
+#### 3.3.3 语音合成（TTS）
+
+**接口地址:** `POST /api/voice/tts`
+
+**请求参数：**
+```json
+{ "text": "指挥官，情报已同步", "voiceId": "zh-CN-XiaoxiaoNeural" }
+```
+
+**响应:** `audio/mpeg` 二进制音频流（MP3）
+
+**实现:** Python `edge-tts` 子进程调用，复用微软 Edge Read Aloud 免费接口
 
 ---
 
@@ -1533,8 +1604,17 @@ const client = new Anthropic({
 ```
 
 **支持的模型：**
-- 默认模型: `Qwen/Qwen3.5-35B-A3B`
-- 最大输出 token: 1024
+- 默认模型: `Qwen/Qwen3.5-397B-A17B`（397B MoE 统一多模态，支持文本+图像+视频帧）
+- 最大输出 token: 16384
+
+### 奈克瑟角色 System Prompt
+
+对话支持两种模式，通过 `nexusMode` 参数切换（默认 true）：
+
+- **奈克瑟模式**：注入完整 roleplay system prompt，AI 以"跨宇宙魔法情报员 NEXUS"身份回复，称呼用户为"指挥官"，使用魔法科技用语和符文符号
+- **AI 助手模式**：不注入 system prompt，以标准 AI 助手行为回复
+
+System prompt 定义在 `services/ai.ts` 的 `NEXUS_SYSTEM_PROMPT` 常量中，包含身份设定、语言风格、对话规则三部分。首次对话额外追加 `firstMessageSystemPrompt`。
 
 ---
 
@@ -1574,8 +1654,11 @@ async function chatWithAI(
 async function chatWithAIStream(
   message: string, 
   sessionId: string, 
-  userId: number | null = null
-): Promise<{ stream: any; sessionId: string }>
+  userId: number | null = null,
+  files?: UploadedFile[],
+  kbId?: number,
+  webSearchEnabled: boolean = false
+): Promise<{ stream: any; sessionId: string; retrievedChunks?: any[]; webSources?: any[] }>
 ```
 
 **优势：**
@@ -1583,8 +1666,37 @@ async function chatWithAIStream(
 - 降低首字延迟
 - 支持长文本逐步展示
 
+**并行检索架构：**
+```typescript
+// 知识库检索、记忆召回、联网搜索 三者并行执行
+const [kbResult, memoryContext, webResult] = await Promise.all([
+  kbId ? retrieveFromKB(...) : null,
+  userId ? recallMemory(...) : '',
+  webSearchEnabled ? searchWeb(...) : { text: '', sources: [] }
+])
+```
+
+**Prompt 拼接顺序：**
+```
+联网搜索结果
+  ↓
+RAG 长期记忆（含时间戳和时效衰减）
+  ↓
+知识库检索资料（7阶段管线处理后）
+  ↓
+对话附件文档分块（即时分块检索）
+  ↓
+当前对话滑动窗口（MySQL 近期历史）
+  ↓
+多模态内容（图片 base64 / 视频帧 + 语音转写文本）
+  ↓
+用户当前问题
+```
+
 **SSE 事件类型：**
-- `content_block_delta`: 包含文本片段
+- `type: 'webSearch'` — 联网搜索结果（含 `sources` 数组，先于内容流推送）
+- `type: 'retrieval'` — 知识库检索分块摘要（含 `chunks` 数组）
+- `content_block_delta` — 包含文本片段
 - 结束标记: `data: [DONE]`
 
 **内容格式说明：**
@@ -1805,10 +1917,11 @@ Express App (app.ts)
 - 记忆写入异步、失败不阻塞对话
 
 **6. RAG 增强的 AI 对话 (`services/ai.ts`)**
-- `chatWithAIStream()` 支持 `kbId`、`files`、记忆注入
-- Prompt 拼接顺序：记忆 → 知识库 → 当前对话窗口
-- 多模态文件（图片）仍走 content-block 格式
-- 文档附件先分块再检索，取代原有的全量文本拼接
+- `chatWithAIStream()` 支持 `kbId`、`files`、`webSearch`、记忆注入
+- `Promise.all` 并行检索：知识库 + 记忆召回 + 联网搜索，降低延迟 50%+
+- Prompt 拼接顺序：联网搜索 → 记忆 → 知识库 → 附件分块 → 对话窗口 → 多模态内容 → 用户问题
+- 多模态文件分类处理：图片→base64 content-block；文档→即时分块检索；视频→FFmpeg 帧提取 + Whisper ASR 语音转写
+- 文档附件先分块再走 `retrieveFromFileChunks` 关键字检索，取代全量文本拼接
 
 **6. 混合检索服务 (`services/hybridSearch.ts`)**
 - `hybridFuse(query, candidates, topK)` — 对向量检索候选集计算 BM25 关键词分，加权融合
@@ -2515,8 +2628,8 @@ hotfix/xxx (紧急修复)
 
 | 文件 | 改动 |
 |------|------|
-| `services/ai.ts` | `holdUserMessage` + `recallMemory` |
-| `routes/ai.ts` | `commitMemoryPair` + 清空历史时同步 `forgetSession` |
+| `services/ai.ts` | `holdUserMessage` (发送前暂存) + `recallMemory` (与 KB/联网搜索 `Promise.all` 并行) |
+| `routes/ai.ts` | `commitMemoryPair` (AI回复后配对写入) + 清空历史时同步 `forgetSession` + 管理员 `forgetAllMemories` |
 
 ### 短期优化（已完成）
 
@@ -2675,4 +2788,4 @@ hotfix/xxx (紧急修复)
 
 ---
 
-*本文档最后更新于 2026-05-02 | 由后端开发团队维护 | RAG 架构 v5.0（7阶段检索管线：查询重写 + 混合检索 + LLM重排序 + Small-to-Big + 元数据过滤 + 追问检测）*
+*本文档最后更新于 2026-05-02 | RAG 架构 v5.0 | 新增：语音输入(Whisper) + 语音播报(Edge-TTS 13种女声) + 奈克瑟角色System Prompt + 角色/AI模式切换*

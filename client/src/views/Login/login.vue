@@ -202,7 +202,8 @@ const handleLogin = async () => {
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 100vh;
+  height: 100vh;
+  overflow-y: auto;
   background: var(--color-bg-deep);
   padding: 20px;
 }
