@@ -876,12 +876,32 @@ SSE: [DONE] → 前端拼接搜索来源链接
 **请求参数：**
 - `audio`: 必填，音频文件（WebM/Opus，浏览器 MediaRecorder 原生格式）
 
-**处理流程：** 内存接收 → ffmpeg 转 16kHz mono WAV → Whisper 转写 → 返回文本
+**处理流程：** 内存接收 → ffmpeg 转 16kHz mono WAV → 手动解析 WAV 头提取 PCM Float32Array → Whisper-small 转写 → 返回文本
+
+**模型：** `Xenova/whisper-small`（244M 参数，中文识别良好），通过 `@xenova/transformers` 加载
+
+**国内网络适配：** 设置 `env.remoteHost = 'https://hf-mirror.com/'` 使用 HuggingFace 镜像下载模型
+
+**Node.js 适配：** Node 环境无 `AudioContext`，不能直接传文件路径。需手动解析 WAV 头，提取 16-bit PCM 采样数据，转为 Float32Array 传入 pipeline，同时传递 `sampling_rate`、`language: 'chinese'`、`task: 'transcribe'`
+
+**预加载：** 服务启动时后台异步调用 `preloadTranscriber()` 预热模型，避免首次请求超时
 
 **成功响应 (200):**
 ```json
 { "success": true, "message": "语音识别成功", "result": { "text": "你好奈克瑟" } }
 ```
+
+**错误情况：**
+- 400: 音频格式转换失败（ffmpeg 转码异常）
+- 400: 音频文件无效或太短（< 1KB）
+- 200 + text 为空：未识别到语音内容（非错误，前端显示提示）
+
+**实现文件：**
+| 文件 | 作用 |
+|------|------|
+| `routes/voice.ts` | multer 内存接收 → ffmpeg 转换 → 转写 → 返回，含步骤日志 |
+| `services/videoProcessor.ts` | `getTranscriber()` 模型加载（并发等待/错误持久化）；`parseWav()` WAV 解析；`transcribeAudio()` 转写；`preloadTranscriber()` 预热 |
+| `app.ts` | 启动时后台 `import()` → `preloadTranscriber()` 预热模型 |
 
 #### 3.3.2 获取语音列表
 
@@ -2788,4 +2808,4 @@ hotfix/xxx (紧急修复)
 
 ---
 
-*本文档最后更新于 2026-05-02 | RAG 架构 v5.0 | 新增：语音输入(Whisper) + 语音播报(Edge-TTS 13种女声) + 奈克瑟角色System Prompt + 角色/AI模式切换*
+*本文档最后更新于 2026-05-02 | RAG 架构 v5.1 | 新增：Whisper-small 中文语音转写(Node.js WAV解析 + HF镜像 + 预加载) + 前端朗读按钮移至气泡外 + 新对话刷新消失修复*

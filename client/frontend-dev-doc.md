@@ -90,6 +90,8 @@ client/src/
 | 语音播报 | `speak()` → `POST /api/voice/tts` → `<audio>` 播放 MP3 | `tts.ts` |
 | 语音选择 | 13 种 Edge-TTS 中文女声下拉框 | `ChatMessageArea.vue` |
 | 朗读开关 | `autoSpeakEnabled` localStorage 持久化 | `tts.ts` |
+| 朗读按钮 | AI 消息气泡外右下角悬浮，hover 变金色 | `ChatMessageArea.vue` |
+| 语音反馈 | 识别成功/未识别/录音未就绪三种 ElMessage 提示 | `ChatMessageArea.vue` |
 
 ### 4. 移动端适配
 
@@ -124,6 +126,8 @@ client/src/
 
 **会话存储键**：`chatSessions_{userId}` / `chatSessions_anon`，按用户隔离
 
+> **Bug 修复**：新增对话刷新后欢迎消息消失 — `createNewSession()` 的欢迎消息仅存于 `messages.value`（内存），未持久化到后端。刷新后 `loadHistory()` 从 API 获空数组覆盖。修复：`loadHistory()` 检测后端返回空且会话在本地列表时，重新生成欢迎消息。
+
 ---
 
 ## 路由
@@ -154,4 +158,4 @@ client/src/
 
 ---
 
-*最后更新: 2026-05-02 | v0.6.0*
+*最后更新: 2026-05-02 | v0.6.1*
