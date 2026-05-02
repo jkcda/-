@@ -10,7 +10,7 @@ import config from '../config/index.js'
 
 const router = express.Router()
 
-// POST /api/ai/chat - AI对话（流式输出，支持多模态文件 + RAG 知识库）
+// POST /api/ai/chat - AI对话（统一入口：文本/多模态流式 + 文生图）
 router.post('/chat', async (req, res) => {
   try {
     const { message, sessionId, userId, files, kbId, webSearch, nexusMode, maxVideoFrames, model } = req.body
@@ -23,7 +23,52 @@ router.post('/chat', async (req, res) => {
       return ApiResponse.badRequest(res, '请提供会话ID')
     }
 
-    // 设置 SSE 响应头
+    // 检测是否为文生图模型
+    const modelCfg = config.ai.models.find(m => m.id === (model || config.ai.defaultModel))
+    if (modelCfg?.type === 'image') {
+      // 文生图模型：不走 SSE 流式，直接返回图片
+      try {
+        await ChatHistoryModel.create(sessionId, userId || null, 'user', message)
+
+        if (modelCfg.provider === 'volcengine') {
+          const resp = await fetch(
+            `${config.ai.volcengine.baseURL}/api/v3/images/generations`,
+            {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${config.ai.volcengine.apiKey}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                model: modelCfg.id,
+                prompt: message,
+                sequential_image_generation: 'disabled',
+                response_format: 'url',
+                size: '2K',
+                stream: false,
+                watermark: true
+              })
+            }
+          )
+          if (!resp.ok) {
+            return ApiResponse.internalServerError(res, `图片生成失败 (${resp.status})`)
+          }
+          const data = await resp.json()
+          const imageUrl = data?.data?.[0]?.url
+          if (imageUrl) {
+            await ChatHistoryModel.create(sessionId, userId || null, 'assistant', `![生成图片](${imageUrl})`)
+            return ApiResponse.success(res, { imageUrl, type: 'image' }, '图片生成成功')
+          }
+          return ApiResponse.internalServerError(res, '图片生成返回为空')
+        }
+        return ApiResponse.internalServerError(res, '该供应商暂不支持文生图')
+      } catch (e: any) {
+        console.error('[Chat] 生图失败:', e.message)
+        return ApiResponse.internalServerError(res, '图片生成失败', e.message)
+      }
+    }
+
+    // 文本/多模态模型：SSE 流式
     res.setHeader('Content-Type', 'text/event-stream')
     res.setHeader('Cache-Control', 'no-cache')
     res.setHeader('Connection', 'keep-alive')
@@ -37,7 +82,7 @@ router.post('/chat', async (req, res) => {
         files && files.length > 0 ? files : undefined,
         kbId || undefined,
         webSearch === true,
-        nexusMode !== false,  // default true (Nexus mode)
+        nexusMode !== false,
         maxVideoFrames || undefined,
         model || undefined
       )
@@ -191,7 +236,7 @@ router.get('/models', (_req, res) => {
 // POST /api/ai/image - 文生图（多供应商）
 router.post('/image', async (req, res) => {
   try {
-    const { prompt, model } = req.body
+    const { prompt, model, sessionId, userId } = req.body
     if (!prompt) return ApiResponse.badRequest(res, '请提供图片描述')
 
     const modelId = model || 'doubao-seedream-4-5-251128'
@@ -199,6 +244,15 @@ router.post('/image', async (req, res) => {
     const provider = modelCfg?.provider || 'volcengine'
 
     console.log(`[ImageGen] 供应商: ${provider}, 模型: ${modelId}, prompt: "${prompt.slice(0, 80)}..."`)
+
+    // 保存用户 prompt 到数据库
+    if (sessionId) {
+      try {
+        await ChatHistoryModel.create(sessionId, userId || null, 'user', prompt)
+      } catch (e: any) {
+        console.error('[ImageGen] 保存用户消息失败:', e.message)
+      }
+    }
 
     if (provider === 'volcengine') {
       // 火山引擎 ARK API
@@ -230,15 +284,19 @@ router.post('/image', async (req, res) => {
 
       const data = await resp.json()
       console.log('[ImageGen] 火山引擎响应:', JSON.stringify(data).slice(0, 300))
-      // 火山引擎返回格式: { data: [{ url: "..." }] }
       const imageUrl = data?.data?.[0]?.url
       if (imageUrl) {
+        // 保存生成结果到数据库
+        if (sessionId) {
+          try {
+            await ChatHistoryModel.create(sessionId, userId || null, 'assistant', `[生成图片](${imageUrl})`)
+          } catch {}
+        }
         return ApiResponse.success(res, { imageUrl }, '图片生成成功')
       }
       return ApiResponse.internalServerError(res, '图片生成返回为空')
     }
 
-    // ModelScope（预留）
     ApiResponse.internalServerError(res, '该供应商暂不支持文生图')
   } catch (error: any) {
     console.error('[ImageGen] 失败:', error.message)

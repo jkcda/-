@@ -23,13 +23,30 @@
       </el-button>
     </div>
 
+    <!-- 图片预览弹窗 -->
+    <el-dialog v-model="previewVisible" title="图片预览" :width="previewWidth" destroy-on-close center @closed="previewUrl = ''">
+      <div class="preview-body">
+        <div class="preview-toolbar">
+          <el-button size="small" :icon="ZoomIn" circle @click="previewScale = Math.min(3, previewScale + 0.25)" />
+          <el-button size="small" :icon="ZoomOut" circle @click="previewScale = Math.max(0.25, previewScale - 0.25)" />
+          <el-button size="small" :icon="RefreshLeft" circle @click="previewScale = 1" />
+          <el-button size="small" type="primary" @click="downloadImage(previewUrl)">
+            <el-icon style="margin-right:4px"><Download /></el-icon>导出下载
+          </el-button>
+        </div>
+        <div class="preview-image-wrap" @wheel.prevent="onPreviewWheel">
+          <img :src="previewUrl" :style="{ transform: `scale(${previewScale})` }" class="preview-image" />
+        </div>
+      </div>
+    </el-dialog>
+
     <div v-if="!currentSessionId" class="chat-empty-state">
       <img :src="'/images/character-avatar.png'" alt="AI" class="empty-avatar" />
       <p class="empty-title">奈克瑟 NEXUS</p>
       <p class="empty-desc">在左侧创建或选择一个对话，开始同步情报。</p>
     </div>
 
-    <div v-else class="chat-messages" ref="messagesContainer">
+    <div v-else class="chat-messages" ref="messagesContainer" @click="onMessageClick">
       <div v-if="loadingHistory" class="loading-history">
         加载历史对话中...
       </div>
@@ -75,7 +92,7 @@
               :key="fi"
               class="message-file-item"
             >
-              <img v-if="file.type.startsWith('image/')" :src="file.url" class="msg-image" />
+              <img v-if="file.type.startsWith('image/')" :src="file.url" class="msg-image" @click="openPreview(file.url)" />
               <a v-else :href="file.url" target="_blank" class="msg-doc">
                 <el-icon><Document /></el-icon>
                 {{ file.name }}
@@ -166,7 +183,7 @@
           <el-option
             v-for="m in modelList"
             :key="m.id"
-            :label="`${m.name} · ${m.type === 'image' ? '生图' : m.type === 'vision' ? '视觉' : '文本'}`"
+            :label="`${m.name} · ${m.type === 'image' ? '生图' : m.type === 'multimodal' ? '多模态' : m.type === 'vision' ? '视觉' : '文本'}`"
             :value="m.id"
           />
         </el-select>
@@ -281,9 +298,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, onMounted } from 'vue'
+import { ref, computed, nextTick, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { PictureFilled, FolderOpened, Document, Close, ArrowDown, Menu, VideoCameraFilled, Microphone, Headset } from '@element-plus/icons-vue'
+import { PictureFilled, FolderOpened, Document, Close, ArrowDown, Menu, VideoCameraFilled, Microphone, Headset, ZoomIn, ZoomOut, RefreshLeft, Download } from '@element-plus/icons-vue'
 import { marked } from 'marked'
 import { useVoiceRecording, uploadVoiceForTranscription } from '@/utils/voiceRecording'
 import { speak, autoSpeakEnabled, toggleAutoSpeak, voices, selectedVoiceId, selectVoice, loadVoices } from '@/utils/tts'
@@ -353,6 +370,48 @@ interface SelectedFile {
 }
 
 const selectedFiles = ref<SelectedFile[]>([])
+
+// 图片预览
+const previewVisible = ref(false)
+const previewUrl = ref('')
+const previewScale = ref(1)
+const isMobilePreview = ref(window.innerWidth < 768)
+const previewWidth = computed(() => isMobilePreview.value ? '95%' : '70%')
+
+function openPreview(url: string) {
+  previewUrl.value = url
+  previewScale.value = 1
+  previewVisible.value = true
+}
+
+function onMessageClick(e: MouseEvent) {
+  const target = e.target as HTMLElement
+  if (target.tagName === 'IMG' && target.closest('.message-content')) {
+    const src = target.getAttribute('src')
+    if (src) openPreview(src)
+  }
+}
+
+function onPreviewWheel(e: WheelEvent) {
+  const delta = e.deltaY > 0 ? -0.1 : 0.1
+  previewScale.value = Math.max(0.25, Math.min(3, previewScale.value + delta))
+}
+
+async function downloadImage(url: string) {
+  try {
+    const resp = await fetch(url)
+    const blob = await resp.blob()
+    const objUrl = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = objUrl
+    a.download = `nexus-image-${Date.now()}.${blob.type.split('/')[1] || 'png'}`
+    a.click()
+    URL.revokeObjectURL(objUrl)
+    ElMessage.success('下载成功')
+  } catch {
+    window.open(url, '_blank')
+  }
+}
 
 // Voice recording
 const { isRecording, duration: recordingDuration, audioBlob,
@@ -671,11 +730,62 @@ defineExpose({ scrollToBottom })
 }
 
 .msg-image {
-  max-width: 200px;
-  max-height: 200px;
+  max-width: 180px;
+  max-height: 180px;
   border-radius: var(--radius-sm);
   cursor: pointer;
   border: var(--border-thin) var(--color-border);
+  object-fit: cover;
+  transition: transform 0.15s;
+}
+
+.msg-image:hover {
+  transform: scale(1.05);
+  border-color: var(--color-magic-gold);
+}
+
+/* Markdown 渲染的图片也限制尺寸 */
+.message-content :deep(img) {
+  max-width: 240px;
+  max-height: 240px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  object-fit: cover;
+  transition: transform 0.15s;
+}
+
+.message-content :deep(img):hover {
+  transform: scale(1.05);
+}
+
+/* 图片预览弹窗 */
+.preview-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.preview-toolbar {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+}
+
+.preview-image-wrap {
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  max-height: 70vh;
+}
+
+.preview-image {
+  max-width: 100%;
+  max-height: 65vh;
+  object-fit: contain;
+  transition: transform 0.2s;
+  border-radius: var(--radius-md);
 }
 
 .msg-doc {

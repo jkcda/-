@@ -30,7 +30,7 @@
       :modelList="modelList"
       :selectedModel="selectedModel"
       @update:nexusMode="nexusMode = $event"
-      @update:selectedModel="selectedModel = $event"
+      @update:selectedModel="onModelChange($event)"
       @send="sendMessage"
       @clearHistory="clearHistory"
       @update:selectedKbId="selectedKbId = $event"
@@ -81,7 +81,7 @@ const sessionList = ref<SessionItem[]>([])
 const kbList = ref<KnowledgeBase[]>([])
 const selectedKbId = ref<number | null>(null)
 const nexusMode = ref(true)
-const selectedModel = ref<string>('')
+const selectedModel = ref<string>(localStorage.getItem('nexusSelectedModel') || '')
 const modelList = ref<{ id: string; name: string; type: string; desc: string }[]>([])
 
 const isMobile = ref(window.innerWidth < 768)
@@ -186,7 +186,11 @@ const loadModelList = async () => {
     const data = await res.json()
     if (data.success) {
       modelList.value = data.result.models
-      if (!selectedModel.value && modelList.value.length > 0) {
+      // 恢复上次选择的模型，否则用默认
+      const saved = localStorage.getItem('nexusSelectedModel')
+      if (saved && modelList.value.some(m => m.id === saved)) {
+        selectedModel.value = saved
+      } else if (!selectedModel.value && modelList.value.length > 0) {
         selectedModel.value = modelList.value[0]!.id
       }
     }
@@ -395,6 +399,11 @@ const stopTypewriter = () => {
   typingMessageIndex.value = -1
 }
 
+function onModelChange(val: string) {
+  selectedModel.value = val
+  localStorage.setItem('nexusSelectedModel', val)
+}
+
 const currentModelType = () => {
   const m = modelList.value.find(m => m.id === selectedModel.value)
   return m?.type || 'multimodal'
@@ -432,44 +441,11 @@ const sendMessage = async (payload: { content: string; files: File[]; webSearch:
   isLoading.value = true
   await messageAreaRef.value?.scrollToBottom()
 
-  // 文生图模型走单独接口
-  if (currentModelType() === 'image') {
-    try {
-      const imgResp = await fetch('/api/ai/image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: content,
-          model: selectedModel.value
-        })
-      })
-      if (!imgResp.ok) throw new Error('图片生成失败')
-
-      const contentType = imgResp.headers.get('content-type') || ''
-      if (contentType.startsWith('image/')) {
-        const blob = await imgResp.blob()
-        const imageUrl = URL.createObjectURL(blob)
-        messages.value.push({ role: 'assistant', content: `![生成图片](${imageUrl})` })
-      } else {
-        const data = await imgResp.json()
-        if (data.success && data.result?.imageUrl) {
-          messages.value.push({ role: 'assistant', content: `![生成图片](${data.result.imageUrl})` })
-        } else {
-          throw new Error(data.message || '图片生成失败')
-        }
-      }
-    } catch (e: any) {
-      ElMessage.error(e.message || '图片生成失败')
-    }
-    isLoading.value = false
-    addIntimacy()
-    return
-  }
-
   try {
     const userInfo = userStore.getUserInfo()
     const userId = userInfo?.id || null
 
+    const isImageModel = currentModelType() === 'image'
     const response = await fetch('/api/ai/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -488,6 +464,21 @@ const sendMessage = async (payload: { content: string; files: File[]; webSearch:
     })
 
     if (!response.ok) throw new Error('网络请求失败')
+
+    // 文生图模型返回 JSON，非 SSE
+    if (isImageModel) {
+      const data = await response.json()
+      if (data.success && data.result?.imageUrl) {
+        messages.value.push({ role: 'assistant', content: `![生成图片](${data.result.imageUrl})` })
+      } else {
+        throw new Error(data.message || '图片生成失败')
+      }
+      isLoading.value = false
+      messageAreaRef.value?.scrollToBottom()
+      refreshSessionMeta()
+      addIntimacy()
+      return
+    }
 
     messages.value.push({ role: 'assistant', content: '' })
     const msgIndex = messages.value.length - 1

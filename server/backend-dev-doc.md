@@ -593,7 +593,11 @@ function buildContext(messages, maxChars = 2000) {
 > - **PDF 解析失败**（已修复）：最初使用 `pdf-parse` v2.4.5 ESM 版本，该版本仅导出 `PDFParse` 类，直接调用 `load()` 报错 `getDocument - no url parameter`，无法正常工作。解决：降级至 v1.1.1（CJS），通过 `createRequire` 加载，使用简洁的 `pdfParse(buffer) → { text }` API。
 > - **DOCX/DOC 无法解析**（已修复）：初始实现只返回占位文本 `[文档: 文件已上传，请根据文件名进行回答]`，未真正提取文件内容，导致 AI 回复"无法直接解析二进制内容"。解决：DOCX 引入 `mammoth` 库解析 Word 文档 XML 结构提取文本；DOC 为旧版 .doc 二进制格式，JS 生态无可靠解析器，前端返回明确提示引导用户另存为 DOCX。
 
-**模型切换：** 请求体支持 `model` 参数，指定模型 ID。后端根据模型的 `provider` 字段自动选择 API 供应商（ModelScope / 火山引擎）。文生图模型走独立接口。
+**模型切换：** 请求体支持 `model` 参数。后端根据 `model.type` 自动路由：
+- `text/multimodal/vision` → SSE 流式（Anthropic SDK）
+- `image` → 火山引擎 ARK API → JSON 返回 `{ imageUrl }`
+
+所有消息（含生图 prompt 和结果）统一保存至 MySQL。
 
 ---
 
@@ -614,24 +618,16 @@ function buildContext(messages, maxChars = 2000) {
 }
 ```
 
-#### 2.1.2 文生图（火山引擎 Seedream）
+#### 2.1.2 文生图（统一在 `/api/ai/chat` 内）
 
-**接口地址:** `POST /api/ai/image`
+文生图不单独设接口，统一走 `POST /api/ai/chat`，后端检测 `model.type === 'image'` 时：
 
-**请求参数：**
-```json
-{
-  "prompt": "星际穿越，黑洞里冲出一辆复古列车...",
-  "model": "doubao-seedream-4-5-251128"
-}
-```
+1. 保存用户 prompt 到 MySQL
+2. 调用火山引擎 ARK `/api/v3/images/generations`（`doubao-seedream-4-5-251128`）
+3. 保存图片 URL 到 MySQL
+4. 返回 JSON：`{ success: true, result: { imageUrl: "..." } }`
 
-**处理流程：** 前端检测 `model.type === 'image'` → `POST /api/ai/image` → 后端按 `provider: 'volcengine'` 路由 → 火山引擎 ARK `/api/v3/images/generations` → 返回图片 URL → 前端 Markdown 图片渲染
-
-**成功响应 (200):**
-```json
-{ "success": true, "message": "图片生成成功", "result": { "imageUrl": "https://..." } }
-```
+前端 JSON 解析后以 Markdown `![生成图片](url)` 渲染。点击图片可弹出预览弹窗（缩放 + 导出下载）。
 
 ---
 
@@ -2865,4 +2861,4 @@ hotfix/xxx (紧急修复)
 
 ---
 
-*本文档最后更新于 2026-05-03 | RAG 架构 v6.0 | 多供应商模型切换(ModelScope+火山引擎Seedream) + 文生图API + 模型列表端点 + 联网搜索优化*
+*本文档最后更新于 2026-05-03 | RAG 架构 v6.1 | 统一/api/ai/chat接口(文本SSE+生图JSON) + 模型localStorage持久化 + 图片预览导出 + 联网搜索优化*

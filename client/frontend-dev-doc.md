@@ -55,11 +55,18 @@ client/src/
 
 ### 0. 模型切换
 
-输入区左侧模型下拉框，按 `type` 自动路由：
-- `text/multimodal` → `POST /api/ai/chat` SSE 流式
-- `image` → `POST /api/ai/image` 生图 → Markdown 图片渲染
+输入区左侧模型下拉框（170px），标签格式 `模型名 · 类型`：
+- `多模态`：Qwen3.5-397B
+- `文本`：DeepSeek-V4 / GLM-5.1 / GLM-5 / DeepSeek-R1
+- `生图`：Seedream 4.5（火山引擎）
 
-默认加载 `GET /api/ai/models` 返回的模型列表，含供应商标签（魔搭 / 火山引擎）。
+**统一接口**：所有模型走 `POST /api/ai/chat`，后端按 `model.type` 自动路由：
+- `text/multimodal/vision` → SSE 流式
+- `image` → 火山引擎 ARK API → JSON 返回图片 URL
+
+**持久化**：`localStorage('nexusSelectedModel')` 保存选择，刷新不丢失。
+
+**供应商**：ModelScope（魔搭，文本模型）/ 火山引擎 ARK（Seedream 文生图）
 
 ### 1. 奈克瑟角色系统
 
@@ -101,7 +108,19 @@ client/src/
 | 朗读按钮 | AI 消息气泡外右下角悬浮，hover 变金色 | `ChatMessageArea.vue` |
 | 语音反馈 | 识别成功/未识别/录音未就绪三种 ElMessage 提示 | `ChatMessageArea.vue` |
 
-### 4. 移动端适配
+### 4. 图片预览与导出
+
+**聊天窗口内**：上传图片缩至 180×180，Markdown 图片缩至 240×240，`object-fit: cover`，hover 微放大 + 金色边框。
+
+**点击预览弹窗**（`el-dialog`）：
+- 点击图片 → 弹窗放大预览，支持鼠标滚轮缩放（0.25x ~ 3x）
+- 工具栏：放大 / 缩小 / 还原 / 导出下载
+- 下载：fetch blob → `<a download>` 保留原始格式，跨域图片降级为 `window.open`
+- 移动端弹窗宽度 95%
+
+**实现位置**：`ChatMessageArea.vue` — `openPreview()` / `onMessageClick()`（委托点击）/ `downloadImage()` / `onPreviewWheel()`
+
+### 5. 移动端适配
 
 768px 断点：侧边栏 → fixed 抽屉、汉堡菜单、消息气泡放宽至 90%、表格横滚
 
@@ -114,8 +133,7 @@ client/src/
 | 用户注册 | POST | `/api/user/register` | |
 | 用户登录 | POST | `/api/user/login` | 返回 JWT |
 | 模型列表 | GET | `/api/ai/models` | 返回可用模型及供应商/类型 |
-| AI 对话 | POST | `/api/ai/chat` | SSE 流式，支持 files/kbId/webSearch/nexusMode/model |
-| 文生图 | POST | `/api/ai/image` | 火山引擎 Seedream，前端自动路由 |
+| AI 对话 | POST | `/api/ai/chat` | 统一入口：SSE 流式（文本）/ JSON（生图），支持 model 切换 |
 | 对话历史 | GET | `/api/ai/history` | |
 | 删除历史 | DELETE | `/api/ai/history` | 同步清除 RAG 记忆 |
 | 文件上传 | POST | `/api/upload` | multipart |
@@ -167,4 +185,4 @@ client/src/
 
 ---
 
-*最后更新: 2026-05-03 | v0.8.0 — 多供应商模型切换(ModelScope文本+火山引擎Seedream文生图) + 多模型支持*
+*最后更新: 2026-05-03 | v0.9.0 — 统一对话接口(文本+生图) + 模型localStorage持久化 + 图片预览导出 + 模型类型标签修正*
