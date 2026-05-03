@@ -88,7 +88,9 @@ function createTools(opts: { userId?: number | null; kbId?: number | null; permi
         if (!resp.ok) return `图片生成失败 (HTTP ${resp.status})`
         const data = await resp.json() as any
         const imageUrl = data?.data?.[0]?.url
-        return imageUrl ? `![生成图片](${imageUrl})` : '图片生成返回为空'
+        if (!imageUrl) return '图片生成失败：API 返回为空'
+        // 返回 markdown 图片语法，LLM 会在最终回复中展示
+        return `图片生成成功！请在回复中展示：\n![生成图片](${imageUrl})`
       }, {
         name: 'generate_image',
         description: '根据文字描述生成图片。用户需要配图、插图、海报等时使用。支持指定宽高比。',
