@@ -2941,4 +2941,4 @@ hotfix/xxx (紧急修复)
 
 ---
 
-*本文档最后更新于 2026-05-03 | v7.1 | LangChain Agent(41工具) + MCP 37工具(filesystem/playwright) + 时间注入 + 来源强制标注 + 内容审核友好提示 + 可视化MCP配置面板*
+*本文档最后更新于 2026-05-03 | v7.2 | LangChain Agent(41工具) + MCP 37工具 + 优雅降级(未初始化不阻塞) + 时间注入 + 来源标注 + MCP配置API*
