@@ -521,19 +521,6 @@ const sendMessage = async (payload: { content: string; files: File[]; webSearch:
         if (event.type === 'webSearch' && event.sources) {
           pendingWebSources.push(...event.sources)
         }
-        if (event.type === 'tool_call') {
-          const toolNameMap: Record<string, string> = {
-            search_web: '正在搜索网络...',
-            query_knowledge_base: '正在检索知识库...',
-            recall_memory: '正在回忆历史对话...',
-            generate_image: '正在生成图片...',
-          }
-          const label = toolNameMap[event.tool || ''] || `正在使用 ${event.tool || '工具'}...`
-          const lastMsg = messages.value[msgIndex]
-          if (lastMsg) {
-            lastMsg.content = (lastMsg.content || '') + `\n\n*${label}*\n\n`
-          }
-        }
       }
     )
   } catch (error: any) {
