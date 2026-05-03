@@ -143,7 +143,6 @@ const config = {
       { id: 'ZhipuAI/GLM-5.1',               name: 'GLM-5.1',       type: 'text',        provider: 'modelscope' },
       { id: 'ZhipuAI/GLM-5',                 name: 'GLM-5',         type: 'text',        provider: 'modelscope' },
       { id: 'deepseek-ai/DeepSeek-R1-0528',  name: 'DeepSeek-R1',   type: 'text',        provider: 'modelscope' },
-      { id: 'doubao-seedream-4-5-251128',     name: 'Seedream 4.5',  type: 'image',       provider: 'volcengine' },
     ],
     // 图片宽高比配置（文生图模型可切换比例）
     imageRatios: [
@@ -639,7 +638,7 @@ function buildContext(messages, maxChars = 2000) {
   }
 }
 ```
-> Seedream 4.5 模型仍在列表中但不再触发特殊路由 — 生图已统一为 Agent 工具。
+> Seedream 4.5 已从模型列表移除 — 所有文本模型均可通过 Agent 的 `generate_image` 工具生成图片。
 ```
 
 #### 2.1.2 Agent 工具调用机制

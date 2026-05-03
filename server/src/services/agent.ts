@@ -131,7 +131,7 @@ export interface AgentConfig {
  */
 export function createChatAgent(cfg: AgentConfig) {
   const chatModel = new ChatOpenAI({
-    model: cfg.model || config.ai.models.find(m => m.type !== 'image')?.id || config.ai.defaultModel,
+    model: cfg.model || config.ai.defaultModel,
     apiKey: config.ai.modelscope.apiKey,
     configuration: { baseURL: 'https://api-inference.modelscope.cn/v1' },
     maxTokens: config.ai.maxTokens,

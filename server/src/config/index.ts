@@ -48,9 +48,7 @@ const config = {
       { id: 'ZhipuAI/GLM-5.1',                name: 'GLM-5.1',        type: 'text' as const,        provider: 'modelscope' as const, desc: '744B MoE 文本' },
       { id: 'ZhipuAI/GLM-5',                  name: 'GLM-5',          type: 'text' as const,        provider: 'modelscope' as const, desc: '555B MoE 文本' },
       { id: 'deepseek-ai/DeepSeek-R1-0528',   name: 'DeepSeek-R1',    type: 'text' as const,        provider: 'modelscope' as const, desc: '推理增强' },
-      // --- 火山引擎 文生图 ---
-      { id: 'doubao-seedream-4-5-251128',      name: 'Seedream 4.5',   type: 'image' as const,       provider: 'volcengine' as const, desc: '火山引擎 文生图' },
-    ] as { id: string; name: string; type: 'text' | 'multimodal' | 'vision' | 'image'; provider: 'modelscope' | 'volcengine'; desc: string }[],
+    ] as { id: string; name: string; type: 'text' | 'multimodal' | 'vision'; provider: 'modelscope' | 'volcengine'; desc: string }[],
     // 图片宽高比配置（Seedream 4.5 等文生图模型）
     imageRatios: [
       { label: '1:1 正方形',   value: '2048x2048' },
