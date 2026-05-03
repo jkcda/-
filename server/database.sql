@@ -12,6 +12,8 @@ CREATE TABLE IF NOT EXISTS `users` (
   `email` VARCHAR(100) NOT NULL UNIQUE COMMENT '邮箱',
   `password` VARCHAR(255) NOT NULL COMMENT '密码（加密后）',
   `role` ENUM('admin', 'user') DEFAULT 'user' COMMENT '用户角色：admin 管理员，user 普通用户',
+  `email_verified` TINYINT(1) DEFAULT 0 COMMENT '邮箱是否已验证',
+  `verification_token` VARCHAR(100) NULL COMMENT '邮箱验证令牌',
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户表';
@@ -24,14 +26,20 @@ CREATE TABLE IF NOT EXISTS `chat_history` (
   `role` ENUM('user', 'assistant') NOT NULL COMMENT '角色：user 用户，assistant 助手',
   `content` TEXT NOT NULL COMMENT '对话内容',
   `files` JSON NULL COMMENT '附件列表 [{name, url, type}]',
+  `kb_id` INT NULL COMMENT '关联的知识库 ID',
+  `retrieved_chunks` JSON NULL COMMENT '检索到的分块摘要 [{source, score}]',
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   INDEX `idx_session_id` (`session_id`),
   INDEX `idx_user_id` (`user_id`),
   FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='对话历史表';
 
--- 如果表已存在，执行以下语句添加 files 列
+-- 如果表已存在，执行以下语句迁移
 -- ALTER TABLE chat_history ADD COLUMN `files` JSON NULL COMMENT '附件列表' AFTER `content`;
+-- ALTER TABLE chat_history ADD COLUMN `kb_id` INT NULL COMMENT '关联的知识库 ID' AFTER `files`;
+-- ALTER TABLE chat_history ADD COLUMN `retrieved_chunks` JSON NULL COMMENT '检索到的分块摘要' AFTER `kb_id`;
+-- ALTER TABLE users ADD COLUMN `email_verified` TINYINT(1) DEFAULT 0;
+-- ALTER TABLE users ADD COLUMN `verification_token` VARCHAR(100) NULL;
 
 -- ============================================
 -- RAG 知识库相关表
@@ -82,9 +90,6 @@ CREATE TABLE IF NOT EXISTS `kb_chunks` (
   INDEX `idx_kb_chunk_kb_id` (`kb_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='知识库分块表';
 
--- chat_history 新增 RAG 字段（如果表已存在）
--- ALTER TABLE chat_history ADD COLUMN `kb_id` INT NULL COMMENT '关联的知识库 ID' AFTER `files`;
--- ALTER TABLE chat_history ADD COLUMN `retrieved_chunks` JSON NULL COMMENT '检索到的分块摘要' AFTER `kb_id`;
 
 -- 示例数据（可选，用于测试）
 -- INSERT INTO users (username, email, password, role) VALUES 
