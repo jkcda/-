@@ -1,4 +1,6 @@
 import express from 'express'
+import fs from 'fs'
+import path from 'path'
 import { chatWithAIStream } from '../services/ai.js'
 import { ChatHistoryModel } from '../models/chatHistory.js'
 import { commitMemoryPair, forgetSession, forgetAllMemories } from '../services/memoryService.js'
@@ -157,7 +159,7 @@ router.get('/history', async (req, res) => {
   }
 })
 
-// DELETE /api/ai/history - 删除对话历史
+// DELETE /api/ai/history - 删除对话历史（含关联文件）
 router.delete('/history', async (req, res) => {
   try {
     const { sessionId, userId } = req.query
@@ -166,10 +168,28 @@ router.delete('/history', async (req, res) => {
       return ApiResponse.badRequest(res, '请提供会话ID')
     }
 
+    // 删除关联的上传文件
+    try {
+      const history = await ChatHistoryModel.getBySessionIdAndUserId(
+        sessionId as string,
+        userId ? Number(userId) : null
+      )
+      for (const msg of history) {
+        if (msg.files) {
+          const files = typeof msg.files === 'string' ? JSON.parse(msg.files) : msg.files
+          for (const f of (files as any[] || [])) {
+            if (f.url) {
+              const filePath = path.join(process.cwd(), f.url)
+              fs.unlink(filePath, () => {})
+            }
+          }
+        }
+      }
+    } catch {}
+
     await ChatHistoryModel.deleteBySessionId(sessionId as string)
     clearSessionCache(sessionId as string)
 
-    // 同步清除 RAG 记忆
     let memoryCleared = false
     if (userId) {
       try {
@@ -178,7 +198,7 @@ router.delete('/history', async (req, res) => {
       } catch {}
     }
 
-    ApiResponse.success(res, null, memoryCleared ? '对话历史已清空（含 RAG 记忆）' : '对话历史已清空')
+    ApiResponse.success(res, null, memoryCleared ? '对话历史已清空（含文件和RAG记忆）' : '对话历史已清空')
   } catch (error: any) {
     ApiResponse.internalServerError(res, '服务器错误', error.message)
   }
