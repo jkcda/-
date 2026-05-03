@@ -2,7 +2,7 @@
 
 ## 📋 项目概述
 
-本项目是基于 **Node.js + Express + TypeScript** 构建的 AI 智能对话系统后端服务。采用 RESTful API 设计，提供用户认证、AI 对话（流式输出）、对话历史管理、知识库 RAG 检索增强生成、**RAG 增强长期记忆**等核心功能。**多供应商 AI**：ModelScope（文本/多模态）+ 火山引擎 ARK（文生图 Seedream），前端可切换模型。LangChain.js + LanceDB 实现文档向量检索，自研 MemoryService 实现跨会话语义记忆。**LangChain Agent 工具调度**：AI 自主编排搜索/知识库/记忆/生图等工具，前端开关从"触发器"升级为"权限门"。**视频上传与分析**：FFmpeg 帧提取 + Whisper ASR 语音转写 + Qwen3.5-397B VL 模型综合分析。**联网搜索**：Tavily API + DuckDuckGo 兜底。
+本项目是基于 **Node.js + Express + TypeScript** 构建的 AI 智能对话系统后端服务。采用 RESTful API 设计，提供用户认证、AI 对话（流式输出）、对话历史管理、知识库 RAG 检索增强生成、**RAG 增强长期记忆**等核心功能。**多供应商 AI**：ModelScope（文本/多模态）+ 火山引擎 ARK（文生图 Seedream），前端可切换模型。LangChain.js + LanceDB 实现文档向量检索，自研 MemoryService 实现跨会话语义记忆。**LangChain Agent 工具调度**：AI 自主编排搜索/知识库/记忆/生图/文件系统/浏览器等 41 个工具，前端开关从"触发器"升级为"权限门"。**MCP 协议扩展**：接入 Model Context Protocol，37 个社区工具零代码复用（文件系统 14 + Playwright 浏览器 23）。**视频上传与分析**：FFmpeg 帧提取 + Whisper ASR 语音转写 + Qwen3.5-397B VL 模型综合分析。**联网搜索**：Tavily API + DuckDuckGo 兜底，搜索结果强制标注来源。
 
 ### 技术栈
 
@@ -14,6 +14,7 @@
 - **密码加密**: bcryptjs
 - **AI 服务**: OpenAI SDK (兼容 ModelScope /v1 端点) + Anthropic SDK (多模态)
 - **Agent 框架**: LangChain.js (@langchain/openai + createAgent) — 工具自主编排
+- **MCP 协议**: @langchain/mcp-adapters — 接入社区工具生态（文件系统/浏览器等）
 - **RAG 框架**: LangChain.js (文本分块、Embedding 封装)
 - **向量数据库**: LanceDB (嵌入式向量存储，文件持久化)
 - **Embedding**: Qwen3-Embedding-0.6B (1024 维, 32K 上下文) via ModelScope
@@ -57,9 +58,11 @@ server/
 │   │   ├── upload.ts               # 文件上传路由
 │   │   ├── knowledgeBase.ts        # 知识库路由
 │   │   └── voice.ts                # 语音路由（STT 转写 + TTS 合成）
+│   │   ├── mcp.ts                  # MCP 路由（状态查询 + 开关切换）
 │   ├── services/
 │   │   ├── ai.ts                   # AI 服务层（多模态管线 + Agent 调度入口）
 │   │   ├── agent.ts                # Agent 服务（LangChain 工具定义 + SSE 流式循环）
+│   │   ├── mcp.ts                  # MCP 客户端（MultiServerMCPClient 管理 stdio 连接）
 │   │   ├── embedding.ts            # Embedding 向量化服务（openai SDK → ModelScope）
 │   │   ├── vectorStore.ts          # LanceDB 向量存储服务
 │   │   ├── documentPipeline.ts     # 文档摄入管道（解析→分块→嵌入）
@@ -645,14 +648,29 @@ function buildContext(messages, maxChars = 2000) {
 
 AI 对话统一由 LangChain Agent 调度。Agent 根据用户意图自主选择工具：
 
-| 工具名 | 对应功能 | 触发条件 |
-|--------|---------|---------|
-| `search_web` | 联网搜索（Tavily/DuckDuckGo） | 前端 `webSearch` 开关开启 |
+**手写工具（4 个）：**
+
+| 工具名 | 功能 | 触发条件 |
+|--------|------|---------|
+| `search_web` | 联网搜索（Tavily/DuckDuckGo），返回来源 URL | 前端 `webSearch` 开关开启 |
 | `query_knowledge_base` | 知识库 RAG 检索 | 前端选择 KB |
 | `recall_memory` | 长期记忆召回 | 用户已登录 |
-| `generate_image` | 文生图（Seedream 4.5 + 宽高比） | 始终可用 |
+| `generate_image` | 文生图（Seedream 4.5 + 8 种宽高比） | 始终可用 |
 
-**前端开关语义变化：** 从"是否执行某操作"变为"是否允许 AI 使用该工具"。AI 自主决定何时调用、调用顺序、参数内容。例如用户说"搜新闻并配图"→ Agent 自动先调 `search_web` 再调 `generate_image`。
+**MCP 工具（37 个，通过 @langchain/mcp-adapters 接入）：**
+
+| Server | 工具数 | 功能 |
+|--------|--------|------|
+| `filesystem` | 14 | 读写/搜索/编辑/目录树/创建目录 |
+| `playwright` | 23 | 打开网页/点击/输入/截图/执行 JS |
+
+**前端开关语义变化：** 从"是否执行某操作"变为"是否允许 AI 使用该工具"。AI 自主决定何时调用、调用顺序、参数内容。
+
+**System Prompt 特性：**
+- 动态注入当前日期（精确到日），指导搜索关键词自动追加日期
+- 时间敏感规则：过期内容禁止标注"即将"，自动标注"已发生"
+- 来源标注规则：联网信息 [1][2] 编号 + 末尾情报来源列表；知识库 [📚]；记忆 [🧠]
+- 内容审核拦截（DataInspectionFailed）自动转换为友好中文提示
 
 ---
 
@@ -999,6 +1017,43 @@ TTS 已从后端移除，改用浏览器原生 `SpeechSynthesis` API（`client/s
 - 优点：免费、本地可用、中文神经语音质量好、无网络依赖
 - 语音列表由浏览器提供，前端自动过滤男声并映射友好名称（晓晓、云希等）
 - 遗留端点 `GET /api/voice/voices` 和 `POST /api/voice/tts` 已不再被前端调用
+
+---
+
+### 3.4 MCP 配置模块 (`/api/mcp`)
+
+#### 3.4.1 获取 MCP 状态
+
+**接口地址:** `GET /api/mcp/status`
+
+**成功响应 (200):**
+```json
+{
+  "success": true,
+  "result": {
+    "servers": [
+      { "name": "filesystem", "label": "文件系统", "icon": "📁", "enabled": true, "toolCount": 14 },
+      { "name": "playwright", "label": "Playwright 浏览器", "icon": "🎭", "enabled": true, "toolCount": 23 }
+    ],
+    "totalTools": 37,
+    "connected": true
+  }
+}
+```
+
+#### 3.4.2 切换 MCP Server
+
+**接口地址:** `POST /api/mcp/toggle`
+
+**请求参数：**
+```json
+{ "name": "playwright", "enabled": false }
+```
+
+**成功响应 (200):**
+```json
+{ "success": true, "result": { "name": "playwright", "enabled": false, "note": "Server 状态变更将在下次服务重启后生效" } }
+```
 
 ---
 
@@ -2886,4 +2941,4 @@ hotfix/xxx (紧急修复)
 
 ---
 
-*本文档最后更新于 2026-05-03 | RAG 架构 v7.0 | LangChain Agent 工具自主编排(search/kb/memory/image) + 前端开关→权限门 + 生图变Tool + SSE 统一流式 + 多模态路径保留*
+*本文档最后更新于 2026-05-03 | v7.1 | LangChain Agent(41工具) + MCP 37工具(filesystem/playwright) + 时间注入 + 来源强制标注 + 内容审核友好提示 + 可视化MCP配置面板*
