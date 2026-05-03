@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import Layout from '@/views/Layout/index.vue'
+import AuthLayout from '@/views/Auth/AuthLayout.vue'
 import Login from '@/views/Login/login.vue'
 import Register from '@/views/Register/Register.vue'
 import Home from '@/views/Home/home.vue'
@@ -61,18 +62,32 @@ const router = createRouter({
         }
       ]
     },
+    // 认证页面（登录/注册）— 背景图 + 左侧介绍 + 右侧表单
     {
-      path: '/login',
-      name: 'Login',
-      component: Login,
-      meta: { title: '登录' }
+      path: '/auth',
+      component: AuthLayout,
+      children: [
+        {
+          path: 'login',
+          name: 'Login',
+          component: Login,
+          meta: { title: '登录' }
+        },
+        {
+          path: 'register',
+          name: 'Register',
+          component: Register,
+          meta: { title: '注册' }
+        },
+        {
+          path: '',
+          redirect: '/auth/login'
+        }
+      ]
     },
-    {
-      path: '/register',
-      name: 'Register',
-      component: Register,
-      meta: { title: '注册' }
-    }
+    // 旧路由重定向
+    { path: '/login', redirect: '/auth/login' },
+    { path: '/register', redirect: '/auth/register' },
   ],
 })
 
@@ -83,14 +98,14 @@ router.beforeEach((to, from, next) => {
   const userInfoStr = localStorage.getItem('userInfo')
 
   // 定义不需要登录就能访问的页面
-  const publicPages = ['/login', '/register', '/front/home']
+  const publicPages = ['/auth/login', '/auth/register', '/login', '/register', '/front/home']
 
   // 检查当前页面是否需要登录
   const requiresAuth = !publicPages.includes(to.path)
 
   // 如果页面需要登录但用户未登录
   if (requiresAuth && !token) {
-    return next('/login')
+    return next('/auth/login')
   }
 
   // 检查是否需要管理员权限
@@ -103,10 +118,10 @@ router.beforeEach((to, from, next) => {
           return next('/front/home')
         }
       } catch {
-        return next('/login')
+        return next('/auth/login')
       }
     } else {
-      return next('/login')
+      return next('/auth/login')
     }
   }
 

@@ -10,7 +10,7 @@
       <img :src="'/images/character-avatar.png'" class="nexus-avatar" />
       <div class="nexus-info">
         <span class="nexus-name">奈克瑟 NEXUS</span>
-        <span class="nexus-level">{{ intimacyRank }}</span>
+        <span class="nexus-level">跨宇宙魔法情报员</span>
       </div>
     </div>
     <div class="session-list">
@@ -91,11 +91,7 @@ interface McpServer {
   toolCount: number
 }
 
-import { loadIntimacy, getIntimacyRank, getWelcomeLine } from '@/utils/intimacy'
-
-const intimacy = computed(() => loadIntimacy())
-const intimacyRank = computed(() => getIntimacyRank(intimacy.value))
-const welcomeLine = computed(() => getWelcomeLine(intimacy.value))
+const welcomeLine = computed(() => '✦ 指挥官，数据之海已同步。开始新的对话吧。')
 
 // MCP state
 const mcpExpanded = ref(false)

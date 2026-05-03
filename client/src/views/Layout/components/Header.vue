@@ -82,7 +82,7 @@ const handleLogout = async () => {
     await logout()
   } catch {}
   userStore.clearUserInfo()
-  router.push('/login')
+  router.push('/auth/login')
   ElMessage.success('退出登录成功')
   logoutLoading.value = false
 }

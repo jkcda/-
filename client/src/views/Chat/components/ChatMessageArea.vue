@@ -112,12 +112,12 @@
       </div>
       <div v-if="isLoading && typingMessageIndex === -1" class="message assistant">
         <div class="message-content typing-indicator">
+          <img
+            :src="loadingImage"
+            class="loading-image"
+            alt="loading"
+          />
           <span class="loading-text">{{ loadingText }}</span>
-          <div class="typing-dots">
-            <span class="dot"></span>
-            <span class="dot"></span>
-            <span class="dot"></span>
-          </div>
         </div>
       </div>
     </div>
@@ -398,6 +398,11 @@ const loadingText = computed(() => {
     composing: '正在整理情报...',
   }
   return map[props.loadingStage] || '正在解析情报...'
+})
+
+const loadingImage = computed(() => {
+  if (props.loadingStage === 'searching') return '/images/searching.png'
+  return '/images/thinking.png'
 })
 
 function openPreview(url: string) {
@@ -997,6 +1002,20 @@ defineExpose({ scrollToBottom })
 }
 
 /* 打字指示器 — 金色星尘 */
+.loading-image {
+  width: 100px;
+  height: 100px;
+  margin: 0 auto 8px;
+  display: block;
+  object-fit: contain;
+  animation: floatUpDown 2s ease-in-out infinite;
+}
+
+@keyframes floatUpDown {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
 .typing-indicator {
   display: flex;
   flex-direction: column;

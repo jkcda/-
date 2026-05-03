@@ -50,7 +50,13 @@ import { Fold } from '@element-plus/icons-vue'
 import { getChatHistory, deleteChatHistory, getSessions, uploadFile } from '@/apis/ai'
 import { getKnowledgeBases, type KnowledgeBase } from '@/apis/knowledgeBase'
 import { handleSSE } from '@/utils/sse'
-import { addIntimacy, loadIntimacy, getWelcomeLine, getTimeGreeting } from '@/utils/intimacy'
+function getGreeting() {
+  const h = new Date().getHours()
+  if (h < 6) return '夜深了，指挥官还在工作啊。'
+  if (h < 12) return '早安，指挥官。'
+  if (h < 18) return '午后好，指挥官。'
+  return '晚安，指挥官。'
+}
 import { autoSpeakEnabled, speak } from '@/utils/tts'
 import { useUserStore } from '@/stores/userStore'
 import ChatSidebar from './components/ChatSidebar.vue'
@@ -245,8 +251,8 @@ const initCurrentSession = async () => {
 
 const createNewSession = (switchTo = true) => {
   const newId = generateSessionId()
-  const welcomeText = getWelcomeLine()
-  const greeting = getTimeGreeting()
+  const welcomeText = '✦ 新对话已就绪，指挥官。'
+  const greeting = getGreeting()
 
   const newSession: SessionItem = {
     id: newId,
@@ -334,7 +340,7 @@ const loadHistory = async () => {
         if (sess) {
           messages.value = [{
             role: 'assistant',
-            content: `${getTimeGreeting()}\n\n${sess.preview || getWelcomeLine()}`
+            content: `${getGreeting()}\n\n${sess.preview || '✦ 新对话已就绪'}`
           }]
         } else {
           messages.value = []
@@ -511,7 +517,6 @@ const sendMessage = async (payload: { content: string; files: File[] }) => {
         isLoading.value = false
         messageAreaRef.value?.scrollToBottom()
         refreshSessionMeta()
-        addIntimacy()
         // Auto-speak
         if (autoSpeakEnabled.value) {
           const lastMsg = messages.value[msgIndex]

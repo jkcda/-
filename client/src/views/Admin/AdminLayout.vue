@@ -122,7 +122,7 @@ const handleLogout = async () => {
     // 接口失败（如 token 已过期）仍继续清除本地状态
   }
   userStore.clearUserInfo()
-  router.push('/login')
+  router.push('/auth/login')
   ElMessage.success('退出登录成功')
 }
 </script>

@@ -1,8 +1,5 @@
 <template>
-  <div class="login-container">
-    <div class="login-form-wrapper">
-      <!-- 登录表单卡片 -->
-      <el-card class="login-card rune-corner" shadow="hover">
+  <el-card class="auth-card rune-corner" shadow="hover">
         <!-- 卡片头部：标题 + 管理员登录切换 -->
         <template #header>
           <div class="card-header">
@@ -61,7 +58,7 @@
           <!-- 注册账号 -->
           <el-form-item>
             <div class="register-link">
-              <router-link to="/register">注册账号</router-link>
+              <router-link to="/auth/register">注册账号</router-link>
             </div>
           </el-form-item>
           
@@ -88,9 +85,7 @@
             </div>
           </div>
         </el-form>
-      </el-card>
-    </div>
-  </div>
+  </el-card>
 </template>
 
 <script setup lang="ts">
@@ -198,27 +193,14 @@ const handleLogin = async () => {
 </script>
 
 <style scoped lang="scss">
-.login-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
-  overflow-y: auto;
-  background: var(--color-bg-deep);
-  padding: 20px;
-}
-
-.login-form-wrapper {
+.auth-card {
   width: 100%;
-  max-width: 400px;
-}
-
-.login-card {
+  max-width: 380px;
   border-radius: var(--radius-sm);
   overflow: hidden;
-  box-shadow: var(--shadow-dialog);
-  border: var(--border-game) var(--color-border);
-  background: var(--color-bg-card);
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(212, 175, 55, 0.2);
+  background: rgba(20, 20, 50, 0.9);
 }
 
 .card-header {
@@ -330,16 +312,7 @@ const handleLogin = async () => {
   }
 }
 
-@media (max-width: 768px) {
-  .login-container { padding: 16px; }
-  .login-form-wrapper { max-width: 100%; }
-  .card-header { flex-direction: column; align-items: flex-start; gap: 12px; }
-  .login-title h2 { font-size: 14px; }
-}
-
 @media (max-width: 480px) {
-  .login-container { align-items: flex-start; padding: 40px 12px; }
-  .login-form { padding: 0 12px 12px; }
-  .admin-switch { width: 100%; }
+  .auth-card { max-width: 100%; }
 }
 </style>

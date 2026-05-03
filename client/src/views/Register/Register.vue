@@ -1,8 +1,5 @@
 <template>
-  <div class="register-container">
-    <div class="register-form-wrapper">
-      <!-- 注册表单卡片 -->
-      <el-card class="register-card rune-corner" shadow="hover">
+  <el-card class="auth-card rune-corner" shadow="hover">
         <!-- 标题 -->
         <template #header>
           <div class="register-title">
@@ -82,9 +79,7 @@
             <el-link type="primary" @click="goToLogin">立即登录</el-link>
           </div>
         </el-form>
-      </el-card>
-    </div>
-  </div>
+  </el-card>
 </template>
 
 <script setup lang="ts">
@@ -169,7 +164,7 @@ const handleRegister = async () => {
     
     // 跳转到登录页
     setTimeout(() => {
-      router.push('/login')
+      router.push('/auth/login')
     }, 1000)
     
   } catch (error: any) {
@@ -189,32 +184,19 @@ const handleRegister = async () => {
 
 // 跳转到登录页
 const goToLogin = () => {
-  router.push('/login')
+  router.push('/auth/login')
 }
 </script>
 
 <style scoped lang="scss">
-.register-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
-  overflow-y: auto;
-  background: var(--color-bg-deep);
-  padding: 20px;
-}
-
-.register-form-wrapper {
+.auth-card {
   width: 100%;
-  max-width: 400px;
-}
-
-.register-card {
+  max-width: 380px;
   border-radius: var(--radius-sm);
   overflow: hidden;
-  box-shadow: var(--shadow-dialog);
-  border: var(--border-game) var(--color-border);
-  background: var(--color-bg-card);
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(212, 175, 55, 0.2);
+  background: rgba(20, 20, 50, 0.9);
 }
 
 .register-title {
@@ -261,14 +243,7 @@ const goToLogin = () => {
   }
 }
 
-@media (max-width: 768px) {
-  .register-container { padding: 16px; }
-  .register-form-wrapper { max-width: 100%; }
-  .register-title h2 { font-size: 14px; }
-}
-
 @media (max-width: 480px) {
-  .register-container { align-items: flex-start; padding: 40px 12px; }
-  .register-form { padding: 0 12px 12px; }
+  .auth-card { max-width: 100%; }
 }
 </style>

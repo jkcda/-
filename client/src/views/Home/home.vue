@@ -130,12 +130,12 @@ const goToChat = () => {
 
 // 跳转到注册页面
 const goToRegister = () => {
-  router.push('/register')
+  router.push('/auth/register')
 }
 
 // 跳转到登录页面
 const goToLogin = () => {
-  router.push('/login')
+  router.push('/auth/login')
 }
 </script>
 
