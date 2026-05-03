@@ -12,6 +12,8 @@ export interface SSEEvent {
   type?: string
   content?: string
   error?: string
+  tool?: string
+  imageUrl?: string
   sources?: { title: string; url: string; snippet: string }[]
   chunks?: { source: string; score: number }[]
 }
