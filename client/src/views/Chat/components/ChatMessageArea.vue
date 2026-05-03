@@ -183,12 +183,12 @@
           <el-option
             v-for="m in modelList"
             :key="m.id"
-            :label="`${m.name} · ${m.type === 'image' ? '生图' : m.type === 'multimodal' ? '多模态' : m.type === 'vision' ? '视觉' : '文本'}`"
+            :label="`${m.name} · ${m.type === 'multimodal' ? '多模态' : m.type === 'vision' ? '视觉' : '文本'}`"
             :value="m.id"
           />
         </el-select>
         <el-select
-          v-if="modelList.find(m => m.id === selectedModel)?.type === 'image' && imageRatios.length > 0"
+          v-if="imageRatios.length > 0"
           :model-value="selectedImageRatio"
           size="small"
           style="width: 150px; margin-left: 6px"

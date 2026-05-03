@@ -2,7 +2,7 @@
 
 ## 📋 项目概述
 
-本项目是基于 **Node.js + Express + TypeScript** 构建的 AI 智能对话系统后端服务。采用 RESTful API 设计，提供用户认证、AI 对话（流式输出）、对话历史管理、知识库 RAG 检索增强生成、**RAG 增强长期记忆**等核心功能。**多供应商 AI**：ModelScope（文本/多模态）+ 火山引擎 ARK（文生图 Seedream），前端可切换模型。LangChain.js + LanceDB 实现文档向量检索，自研 MemoryService 实现跨会话语义记忆。**视频上传与分析**：FFmpeg 帧提取 + Whisper ASR 语音转写 + Qwen3.5-397B VL 模型综合分析。**联网搜索**：Tavily API + DuckDuckGo 兜底。
+本项目是基于 **Node.js + Express + TypeScript** 构建的 AI 智能对话系统后端服务。采用 RESTful API 设计，提供用户认证、AI 对话（流式输出）、对话历史管理、知识库 RAG 检索增强生成、**RAG 增强长期记忆**等核心功能。**多供应商 AI**：ModelScope（文本/多模态）+ 火山引擎 ARK（文生图 Seedream），前端可切换模型。LangChain.js + LanceDB 实现文档向量检索，自研 MemoryService 实现跨会话语义记忆。**LangChain Agent 工具调度**：AI 自主编排搜索/知识库/记忆/生图等工具，前端开关从"触发器"升级为"权限门"。**视频上传与分析**：FFmpeg 帧提取 + Whisper ASR 语音转写 + Qwen3.5-397B VL 模型综合分析。**联网搜索**：Tavily API + DuckDuckGo 兜底。
 
 ### 技术栈
 
@@ -12,7 +12,8 @@
 - **数据库**: MySQL (mysql2/promise)
 - **认证**: JWT (jsonwebtoken)
 - **密码加密**: bcryptjs
-- **AI 服务**: Anthropic SDK (@anthropic-ai/sdk)
+- **AI 服务**: OpenAI SDK (兼容 ModelScope /v1 端点) + Anthropic SDK (多模态)
+- **Agent 框架**: LangChain.js (@langchain/openai + createAgent) — 工具自主编排
 - **RAG 框架**: LangChain.js (文本分块、Embedding 封装)
 - **向量数据库**: LanceDB (嵌入式向量存储，文件持久化)
 - **Embedding**: Qwen3-Embedding-0.6B (1024 维, 32K 上下文) via ModelScope
@@ -57,7 +58,8 @@ server/
 │   │   ├── knowledgeBase.ts        # 知识库路由
 │   │   └── voice.ts                # 语音路由（STT 转写 + TTS 合成）
 │   ├── services/
-│   │   ├── ai.ts                   # AI 服务层（含 RAG 集成 + 记忆注入）
+│   │   ├── ai.ts                   # AI 服务层（多模态管线 + Agent 调度入口）
+│   │   ├── agent.ts                # Agent 服务（LangChain 工具定义 + SSE 流式循环）
 │   │   ├── embedding.ts            # Embedding 向量化服务（openai SDK → ModelScope）
 │   │   ├── vectorStore.ts          # LanceDB 向量存储服务
 │   │   ├── documentPipeline.ts     # 文档摄入管道（解析→分块→嵌入）
@@ -117,12 +119,17 @@ const config = {
   
   // AI 配置（多供应商）
   ai: {
-    // ModelScope 魔搭社区
+    // ModelScope 魔搭社区（Anthropic 兼容端点 — 多模态）
     modelscope: {
       apiKey: process.env.DASHSCOPE_API_KEY || '',
       baseURL: 'https://api-inference.modelscope.cn',
     },
-    // 火山引擎 ARK（文生图）
+    // ModelScope OpenAI 兼容端点（Agent 工具调用）
+    openai: {
+      baseURL: 'https://api-inference.modelscope.cn/v1',
+      apiKey: process.env.DASHSCOPE_API_KEY || '',
+    },
+    // 火山引擎 ARK（文生图 — Seedream 4.5）
     volcengine: {
       apiKey: process.env.ARK_API_KEY || '',
       baseURL: 'https://ark.cn-beijing.volces.com',
@@ -515,21 +522,25 @@ Authorization: Bearer <token>
 
 ### 2. AI 对话模块 (`/api/ai`)
 
-#### 2.1 AI 对话（流式输出）
+#### 2.1 AI 对话（Agent 流式输出）
 
 **接口地址:** `POST /api/ai/chat`
 
 **Content-Type:** `text/event-stream` (SSE 流式响应)
 
+**架构:** 文本消息由 LangChain Agent 统一调度 — AI 自主决定调用哪些工具（搜索/知识库/记忆/生图），前端开关控制工具白名单。多模态上传（图片/视频）保留原生 Anciptic 管线。
+
 **请求参数：**
 ```json
 {
-  "message": "你好，请介绍一下自己",
+  "message": "帮我搜今天AI新闻然后生成一张配图",
   "sessionId": "session_1700000000_abc123",
   "userId": 1,
-  "files": [
-    { "name": "photo.jpg", "url": "/uploads/photo_17000000.jpg", "type": "image/jpeg" }
-  ]
+  "files": [],
+  "kbId": 1,
+  "webSearch": true,
+  "nexusMode": true,
+  "model": "Qwen/Qwen3.5-397B-A17B"
 }
 ```
 
@@ -538,30 +549,28 @@ Authorization: Bearer <token>
 - `sessionId`: 必填，会话标识符
 - `userId`: 可选，用户 ID（已登录用户）
 - `files`: 可选，上传的附件列表（先调用 `/api/upload` 上传后获得 URL）
-- `kbId`: 可选，知识库 ID（启用 RAG 检索增强，从指定知识库中检索相关分块注入 prompt）
-- `size`: 可选，图片生成尺寸（仅文生图模型时有效），如 `'2560x1440'`（16:9）、`'2048x2048'`（1:1）等，支持 8 种预设宽高比，默认 `'2560x1440'`
-- `webSearch`: 可选，布尔值，启用联网搜索（默认 false）
+- `kbId`: 可选，知识库 ID（Agent 白名单中启用 `query_knowledge_base` 工具）
+- `webSearch`: 可选，布尔值（Agent 白名单中启用 `search_web` 工具）
+- `nexusMode`: 可选，布尔值（注入/移除奈克瑟角色 System Prompt）
+- `model`: 可选，文本模型 ID（仅文本模型，生图已变为工具调用）
 
-**SSE 非内容事件（在内容流之前推送）：**
+**SSE 事件类型：**
 
-1. **联网搜索结果**（`webSearch: true` 时）：
+| 事件 | 格式 | 说明 |
+|------|------|------|
+| 文本流 | `data: {"content":"你"}` | 逐 token 推送 |
+| 工具调用 | `data: {"type":"tool_call","tool":"search_web","args":{...}}` | Agent 发起工具调用 |
+| 工具结果 | `data: {"type":"tool_result","tool":"search_web"}` | 工具执行完成 |
+| 联网结果 | `data: {"type":"webSearch","sources":[...]}` | 多模态路径保留 |
+| 结束标记 | `data: [DONE]` | 流结束 |
+
+**示例 — Agent 多工具对话：**
 ```
-data: {"type":"webSearch","sources":[{"title":"标题","url":"https://...","snippet":"摘要"}]}
-```
-
-2. **RAG 检索提示**（`kbId` 启用知识库时）：
-```
-data: {"type":"retrieval","chunks":[{"source":"report.pdf","score":0.92}]}
-```
-
-**SSE 响应格式：**
-```
-data: {"content":"你"}
-
-data: {"content":"好"}
-
-data: {"content":"！"}
-
+data: {"type":"tool_call","tool":"search_web","args":{"query":"今天AI新闻"}}
+data: {"type":"tool_result","tool":"search_web"}
+data: {"content":"✦ 指挥官，"}
+data: {"content":"数据之海"}
+data: {"content":"已为您捕捉..."}
 data: [DONE]
 ```
 
@@ -606,11 +615,7 @@ function buildContext(messages, maxChars = 2000) {
 > - **PDF 解析失败**（已修复）：最初使用 `pdf-parse` v2.4.5 ESM 版本，该版本仅导出 `PDFParse` 类，直接调用 `load()` 报错 `getDocument - no url parameter`，无法正常工作。解决：降级至 v1.1.1（CJS），通过 `createRequire` 加载，使用简洁的 `pdfParse(buffer) → { text }` API。
 > - **DOCX/DOC 无法解析**（已修复）：初始实现只返回占位文本 `[文档: 文件已上传，请根据文件名进行回答]`，未真正提取文件内容，导致 AI 回复"无法直接解析二进制内容"。解决：DOCX 引入 `mammoth` 库解析 Word 文档 XML 结构提取文本；DOC 为旧版 .doc 二进制格式，JS 生态无可靠解析器，前端返回明确提示引导用户另存为 DOCX。
 
-**模型切换：** 请求体支持 `model` 参数。后端根据 `model.type` 自动路由：
-- `text/multimodal/vision` → SSE 流式（Anthropic SDK）
-- `image` → 火山引擎 ARK API → JSON 返回 `{ imageUrl }`
-
-所有消息（含生图 prompt 和结果）统一保存至 MySQL。
+**模型切换：** 请求体 `model` 参数指定文本 LLM（Qwen3.5 / DeepSeek-V4 / GLM-5.1 等）。文生图不再通过模型切换触发 — Seedream 4.5 已封装为 Agent 的 `generate_image` 工具，AI 自主决定何时调用。所有消息统一通过 SSE 流式返回。
 
 ---
 
@@ -625,26 +630,30 @@ function buildContext(messages, maxChars = 2000) {
   "result": {
     "models": [
       { "id": "Qwen/Qwen3.5-397B-A17B", "name": "Qwen3.5-397B", "type": "multimodal", "provider": "modelscope", "desc": "397B MoE 多模态（默认）" },
-      { "id": "doubao-seedream-4-5-251128", "name": "Seedream 4.5", "type": "image", "provider": "volcengine", "desc": "火山引擎 文生图" }
+      { "id": "deepseek-ai/DeepSeek-V4-Flash", "name": "DeepSeek-V4", "type": "text", "provider": "modelscope", "desc": "文本推理" }
     ],
     "imageRatios": [
-      { "label": "1:1 正方形", "value": "2048x2048" },
-      { "label": "16:9 宽屏", "value": "2560x1440" }
+      { "label": "16:9 宽屏", "value": "2560x1440" },
+      { "label": "1:1 正方形", "value": "2048x2048" }
     ]
   }
 }
 ```
+> Seedream 4.5 模型仍在列表中但不再触发特殊路由 — 生图已统一为 Agent 工具。
+```
 
-#### 2.1.2 文生图（统一在 `/api/ai/chat` 内）
+#### 2.1.2 Agent 工具调用机制
 
-文生图不单独设接口，统一走 `POST /api/ai/chat`，后端检测 `model.type === 'image'` 时：
+AI 对话统一由 LangChain Agent 调度。Agent 根据用户意图自主选择工具：
 
-1. 保存用户 prompt 到 MySQL
-2. 调用火山引擎 ARK `/api/v3/images/generations`（`doubao-seedream-4-5-251128`）
-3. 保存图片 URL 到 MySQL
-4. 返回 JSON：`{ success: true, result: { imageUrl: "..." } }`
+| 工具名 | 对应功能 | 触发条件 |
+|--------|---------|---------|
+| `search_web` | 联网搜索（Tavily/DuckDuckGo） | 前端 `webSearch` 开关开启 |
+| `query_knowledge_base` | 知识库 RAG 检索 | 前端选择 KB |
+| `recall_memory` | 长期记忆召回 | 用户已登录 |
+| `generate_image` | 文生图（Seedream 4.5 + 宽高比） | 始终可用 |
 
-前端 JSON 解析后以 Markdown `![生成图片](url)` 渲染。点击图片可弹出预览弹窗（缩放 + 导出下载）。
+**前端开关语义变化：** 从"是否执行某操作"变为"是否允许 AI 使用该工具"。AI 自主决定何时调用、调用顺序、参数内容。例如用户说"搜新闻并配图"→ Agent 自动先调 `search_web` 再调 `generate_image`。
 
 ---
 
@@ -2878,4 +2887,4 @@ hotfix/xxx (紧急修复)
 
 ---
 
-*本文档最后更新于 2026-05-03 | RAG 架构 v6.2 | 统一/api/ai/chat接口(文本SSE+生图JSON) + 模型localStorage持久化 + 图片预览导出 + 联网搜索优化 + 生图宽高比选择(8档预设)*
+*本文档最后更新于 2026-05-03 | RAG 架构 v7.0 | LangChain Agent 工具自主编排(search/kb/memory/image) + 前端开关→权限门 + 生图变Tool + SSE 统一流式 + 多模态路径保留*

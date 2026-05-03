@@ -4,11 +4,9 @@ import config from '../config/index.js'
 import fs from 'fs'
 import path from 'path'
 import { parseDocument } from './documentPipeline.js'
-import { retrieveFromKB, retrieveFromFileChunks } from './ragChain.js'
-import { recallMemory, holdUserMessage } from './memoryService.js'
+import { holdUserMessage } from './memoryService.js'
 import { processVideo } from './videoProcessor.js'
-import { searchWeb } from './webSearch.js'
-import type { RAGContext } from './ragChain.js'
+import { agentStream, type AgentSSEEvent } from './agent.js'
 
 function getClient(provider: 'modelscope' | 'volcengine' = 'modelscope') {
   const cfg = provider === 'volcengine' ? config.ai.volcengine : config.ai.modelscope
@@ -177,107 +175,51 @@ export async function chatWithAIStream(
       files: h.files ? (typeof h.files === 'string' ? JSON.parse(h.files) : h.files) : undefined
     }))
 
-    // RAG 检索（知识库 + 记忆），并行执行以降低延迟
-    let ragContext: RAGContext = { chunks: [], promptAddition: '' }
-    const context = buildContext(historyMessages)
+    await ChatHistoryModel.create(sessionId, userId, 'user', message, files ? JSON.stringify(files) : undefined)
 
-    const [kbResult, memoryContext, webResult] = await Promise.all([
-      kbId ? retrieveFromKB(message, kbId, context, config.rag.topK, undefined, sessionId) : Promise.resolve(null),
-      userId ? recallMemory(userId, message) : Promise.resolve(''),
-      webSearchEnabled ? searchWeb(message) : Promise.resolve({ text: '', sources: [] })
-    ])
-    const webContext = webResult.text
-    const webSources = webResult.sources
-
-    if (kbResult) ragContext = kbResult
-
-    if (files && files.length > 0) {
-      const docFiles = files.filter(f => !f.type.startsWith('image/') && !f.type.startsWith('video/'))
-      if (docFiles.length > 0) {
-        const { chunkFileForChat } = await import('./documentPipeline.js')
-        let allChunks: any[] = []
-        for (const f of docFiles) {
-          const chunks = await chunkFileForChat(f.url, f.type, f.name)
-          allChunks = allChunks.concat(chunks)
-        }
-        const fileRag = await retrieveFromFileChunks(message, allChunks)
-        if (fileRag.promptAddition) {
-          ragContext.promptAddition += '\n' + fileRag.promptAddition
-          ragContext.chunks = ragContext.chunks.concat(fileRag.chunks)
-        }
-      }
-    }
-    const prefix = webContext + memoryContext + (ragContext.promptAddition || '')
-    const combinedPrefix = prefix
-      ? prefix + '\n--- 以下是当前对话 ---\n'
-      : ''
-    const fullPrompt = `${combinedPrefix}${context}用户: ${message}\n助手:`
-
-    const filesJson = files ? JSON.stringify(files) : undefined
-    const retrievedJson = ragContext.chunks.length > 0
-      ? JSON.stringify(ragContext.chunks.map(c => ({ source: c.source, score: c.score })))
-      : undefined
-    await ChatHistoryModel.create(sessionId, userId, 'user', message, filesJson)
-
-    // 暂存用户消息，等 AI 回复后成对写入记忆库
     if (userId) {
       holdUserMessage(userId, sessionId, message)
     }
 
-    let messages: Anthropic.MessageParam[]
+    const hasMedia = files && files.some(f => f.type.startsWith('image/') || f.type.startsWith('video/'))
 
-    if (files && files.some(f => f.type.startsWith('image/') || f.type.startsWith('video/'))) {
-      // 多模态消息：图片/视频帧用 content-block，文本用 RAG 增强后的 prompt
-      const historyBlocks: Anthropic.MessageParam[] = []
-      let contextText = ''
-      for (let i = historyMessages.length - 1; i >= 0; i--) {
-        const m = historyMessages[i]
-        const role = m.role === 'user' ? '用户' : '助手'
-        contextText = `${role}: ${m.content}\n` + contextText
-      }
+    if (hasMedia) {
+      // 多模态消息：图片/视频走原有 Anciptic 多模态管线
+      const contextText = historyMessages.map(m => `${m.role === 'user' ? '用户' : '助手'}: ${m.content}`).join('\n')
+      const multimodalMsg = await buildMultimodalContent(message, files!, maxVideoFrames || 600)
 
-      const multimodalPrefix = webContext + memoryContext + (ragContext.promptAddition || '')
-      const systemText = multimodalPrefix
-        ? `${multimodalPrefix}\n--- 以下是对话历史 ---\n${contextText}`
-        : contextText
+      const isFirstMessage = historyMessages.length === 0
+      const systemPrompt = nexusMode
+        ? (isFirstMessage ? NEXUS_SYSTEM_PROMPT + '\n\n' + firstMessageSystemPrompt : NEXUS_SYSTEM_PROMPT)
+        : undefined
 
-      if (systemText) {
-        historyBlocks.push({ role: 'user', content: `以下是历史对话:\n${systemText}` })
-      }
+      const modelId = model || config.ai.defaultModel
+      const modelCfg = config.ai.models.find(m => m.id === modelId)
+      const activeClient = getClient(modelCfg?.provider || 'modelscope')
 
-      const multimodalMsg = await buildMultimodalContent(message, files, maxVideoFrames || 600)
-      messages = [...historyBlocks, multimodalMsg]
-    } else {
-      messages = [
-        { role: 'user', content: fullPrompt }
-      ]
+      const historyBlocks: Anthropic.MessageParam[] = contextText
+        ? [{ role: 'user' as const, content: `以下是历史对话:\n${contextText}` }]
+        : []
+      const messages: Anthropic.MessageParam[] = [...historyBlocks, multimodalMsg]
+
+      const stream = await activeClient.messages.stream({
+        model: modelId,
+        max_tokens: config.ai.maxTokens,
+        ...(systemPrompt ? { system: systemPrompt } : {}),
+        messages,
+      })
+
+      return { stream, sessionId, agentMode: false as const }
     }
 
-    const isFirstMessage = historyMessages.length === 0
-    const systemPrompt = nexusMode
-      ? (isFirstMessage
-          ? NEXUS_SYSTEM_PROMPT + '\n\n' + firstMessageSystemPrompt
-          : NEXUS_SYSTEM_PROMPT)
-      : undefined
+    // 纯文本消息：LangChain Agent 统一调度
+    const events = agentStream(
+      { userId, kbId, model, nexusMode, permissions: { webSearch: webSearchEnabled, kbRetrieval: !!kbId, memory: !!userId, imageGeneration: true } },
+      historyMessages,
+      message
+    )
 
-    const modelId = model || config.ai.defaultModel
-    const modelCfg = config.ai.models.find(m => m.id === modelId)
-    const provider = modelCfg?.provider || 'modelscope'
-    const activeClient = getClient(provider)
-
-    const stream = await activeClient.messages.stream({
-      model: modelId,
-      max_tokens: config.ai.maxTokens,
-      ...(systemPrompt ? { system: systemPrompt } : {}),
-      messages
-    })
-
-    return {
-      stream,
-      sessionId,
-      retrievedChunks: ragContext.chunks.length > 0 ? ragContext.chunks : undefined,
-      webSources: webSources.length > 0 ? webSources : undefined
-    }
+    return { stream: events, sessionId, agentMode: true as const }
   } catch (error: any) {
     throw new Error(`AI流式调用失败: ${error.message}`)
   }

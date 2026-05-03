@@ -10,10 +10,10 @@ import config from '../config/index.js'
 
 const router = express.Router()
 
-// POST /api/ai/chat - AI对话（统一入口：文本/多模态流式 + 文生图）
+// POST /api/ai/chat - AI对话（统一入口：Agent 工具调用 + 多模态流式）
 router.post('/chat', async (req, res) => {
   try {
-    const { message, sessionId, userId, files, kbId, webSearch, nexusMode, maxVideoFrames, model, size } = req.body
+    const { message, sessionId, userId, files, kbId, webSearch, nexusMode, maxVideoFrames, model } = req.body
 
     if (!message && (!files || files.length === 0)) {
       return ApiResponse.badRequest(res, '请输入消息内容或上传文件')
@@ -23,59 +23,14 @@ router.post('/chat', async (req, res) => {
       return ApiResponse.badRequest(res, '请提供会话ID')
     }
 
-    // 检测是否为文生图模型
-    const modelCfg = config.ai.models.find(m => m.id === (model || config.ai.defaultModel))
-    if (modelCfg?.type === 'image') {
-      // 文生图模型：不走 SSE 流式，直接返回图片
-      try {
-        await ChatHistoryModel.create(sessionId, userId || null, 'user', message)
-
-        if (modelCfg.provider === 'volcengine') {
-          const resp = await fetch(
-            `${config.ai.volcengine.baseURL}/api/v3/images/generations`,
-            {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${config.ai.volcengine.apiKey}`,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                model: modelCfg.id,
-                prompt: message,
-                sequential_image_generation: 'disabled',
-                response_format: 'url',
-                size: size || config.ai.defaultImageRatio,
-                stream: false,
-                watermark: true
-              })
-            }
-          )
-          if (!resp.ok) {
-            return ApiResponse.internalServerError(res, `图片生成失败 (${resp.status})`)
-          }
-          const data = await resp.json()
-          const imageUrl = data?.data?.[0]?.url
-          if (imageUrl) {
-            await ChatHistoryModel.create(sessionId, userId || null, 'assistant', `![生成图片](${imageUrl})`)
-            return ApiResponse.success(res, { imageUrl, type: 'image' }, '图片生成成功')
-          }
-          return ApiResponse.internalServerError(res, '图片生成返回为空')
-        }
-        return ApiResponse.internalServerError(res, '该供应商暂不支持文生图')
-      } catch (e: any) {
-        console.error('[Chat] 生图失败:', e.message)
-        return ApiResponse.internalServerError(res, '图片生成失败', e.message)
-      }
-    }
-
-    // 文本/多模态模型：SSE 流式
+    // SSE 流式
     res.setHeader('Content-Type', 'text/event-stream')
     res.setHeader('Cache-Control', 'no-cache')
     res.setHeader('Connection', 'keep-alive')
     res.setHeader('Access-Control-Allow-Origin', '*')
 
     try {
-      const { stream, sessionId: returnedSessionId, retrievedChunks, webSources } = await chatWithAIStream(
+      const { stream, sessionId: returnedSessionId, agentMode } = await chatWithAIStream(
         message || '',
         sessionId,
         userId,
@@ -87,51 +42,53 @@ router.post('/chat', async (req, res) => {
         model || undefined
       )
 
-      // 发送联网搜索结果
-      if (webSources && webSources.length > 0) {
-        res.write(`data: ${JSON.stringify({ type: 'webSearch', sources: webSources })}
-
-`)
-      }
-
-      // 发送检索状态提示
-      if (retrievedChunks && retrievedChunks.length > 0) {
-        res.write(`data: ${JSON.stringify({ type: 'retrieval', chunks: retrievedChunks })}
-
-`)
-      }
-
       let assistantContent = ''
 
-      // 流式输出
-      for await (const event of stream) {
-        if (event.type === 'content_block_delta') {
-          const content = (event.delta as any)?.text
-          if (content) {
-            assistantContent += content
-            res.write(`data: ${JSON.stringify({ content })}
-
-`)
+      if (agentMode) {
+        // Agent 流式：事件已结构化，直接发射 SSE
+        for await (const event of stream) {
+          switch (event.type) {
+            case 'content':
+              assistantContent += event.content || ''
+              res.write(`data: ${JSON.stringify({ content: event.content })}\n\n`)
+              break
+            case 'tool_call':
+              res.write(`data: ${JSON.stringify({ type: 'tool_call', tool: event.tool, args: event.args })}\n\n`)
+              break
+            case 'tool_result':
+              res.write(`data: ${JSON.stringify({ type: 'tool_result', tool: event.tool })}\n\n`)
+              break
+            case 'done':
+              break
+            case 'error':
+              res.write(`data: ${JSON.stringify({ error: event.error })}\n\n`)
+              break
+          }
+        }
+      } else {
+        // 多模态：原有 Anciptic SDK 流式
+        for await (const event of stream) {
+          if (event.type === 'content_block_delta') {
+            const content = (event.delta as any)?.text
+            if (content) {
+              assistantContent += content
+              res.write(`data: ${JSON.stringify({ content })}\n\n`)
+            }
           }
         }
       }
 
-      // 保存助手消息（含检索来源）
+      // 保存助手消息
       if (assistantContent) {
-        const retrievedJson = retrievedChunks && retrievedChunks.length > 0
-          ? JSON.stringify(retrievedChunks)
-          : undefined
         await ChatHistoryModel.create(
           returnedSessionId,
           userId || null,
           'assistant',
           assistantContent,
           undefined,
-          kbId || undefined,
-          retrievedJson
+          kbId || undefined
         )
 
-        // 与暂存的用户消息配对写入记忆库
         if (userId) {
           commitMemoryPair(userId, returnedSessionId, assistantContent).catch(() => {})
         }

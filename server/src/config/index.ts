@@ -63,6 +63,11 @@ const config = {
       { label: '21:9 超宽屏',  value: '3024x1296' },
     ] as { label: string; value: string }[],
     defaultImageRatio: '2560x1440',
+    // OpenAI 兼容端点（用于 LangChain Agent 工具调用）
+    openai: {
+      baseURL: 'https://api-inference.modelscope.cn/v1',
+      apiKey: process.env.DASHSCOPE_API_KEY || '',
+    },
   },
   
   // 上下文配置

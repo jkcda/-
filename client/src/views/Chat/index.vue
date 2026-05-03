@@ -424,11 +424,6 @@ function onImageRatioChange(val: string) {
   localStorage.setItem('nexusImageRatio', val)
 }
 
-const currentModelType = () => {
-  const m = modelList.value.find(m => m.id === selectedModel.value)
-  return m?.type || 'multimodal'
-}
-
 const sendMessage = async (payload: { content: string; files: File[]; webSearch: boolean }) => {
   const { content, files, webSearch } = payload
   if (!currentSessionId.value) {
@@ -465,7 +460,6 @@ const sendMessage = async (payload: { content: string; files: File[]; webSearch:
     const userInfo = userStore.getUserInfo()
     const userId = userInfo?.id || null
 
-    const isImageModel = currentModelType() === 'image'
     const response = await fetch('/api/ai/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -478,28 +472,12 @@ const sendMessage = async (payload: { content: string; files: File[]; webSearch:
         webSearch: webSearch || undefined,
         nexusMode: nexusMode.value,
         model: selectedModel.value || undefined,
-        size: isImageModel ? selectedImageRatio.value : undefined,
         // 联网+视频时限制帧数防请求爆炸
         maxVideoFrames: webSearch && uploadedFiles.some(f => f.type.startsWith('video/')) ? 40 : undefined
       })
     })
 
     if (!response.ok) throw new Error('网络请求失败')
-
-    // 文生图模型返回 JSON，非 SSE
-    if (isImageModel) {
-      const data = await response.json()
-      if (data.success && data.result?.imageUrl) {
-        messages.value.push({ role: 'assistant', content: `![生成图片](${data.result.imageUrl})` })
-      } else {
-        throw new Error(data.message || '图片生成失败')
-      }
-      isLoading.value = false
-      messageAreaRef.value?.scrollToBottom()
-      refreshSessionMeta()
-      addIntimacy()
-      return
-    }
 
     messages.value.push({ role: 'assistant', content: '' })
     const msgIndex = messages.value.length - 1
@@ -542,6 +520,19 @@ const sendMessage = async (payload: { content: string; files: File[]; webSearch:
       (event) => {
         if (event.type === 'webSearch' && event.sources) {
           pendingWebSources.push(...event.sources)
+        }
+        if (event.type === 'tool_call') {
+          const toolNameMap: Record<string, string> = {
+            search_web: '正在搜索网络...',
+            query_knowledge_base: '正在检索知识库...',
+            recall_memory: '正在回忆历史对话...',
+            generate_image: '正在生成图片...',
+          }
+          const label = toolNameMap[event.tool || ''] || `正在使用 ${event.tool || '工具'}...`
+          const lastMsg = messages.value[msgIndex]
+          if (lastMsg) {
+            lastMsg.content = (lastMsg.content || '') + `\n\n*${label}*\n\n`
+          }
         }
       }
     )

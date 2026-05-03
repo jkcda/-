@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-Vue 3 + TypeScript + Vite 全栈 AI 对话系统前端。**奈克瑟 NEXUS** 角色化界面，含亲密度成长系统、语音输入/播报、联网搜索、知识库 RAG、多模态上传。移动端全面适配。
+Vue 3 + TypeScript + Vite 全栈 AI 对话系统前端。**奈克瑟 NEXUS** 角色化界面，含亲密度成长系统、语音输入/播报、Agent 工具状态提示、联网搜索、知识库 RAG、多模态上传。移动端全面适配。
 
 ### 技术栈
 
@@ -53,22 +53,30 @@ client/src/
 
 ## 核心功能
 
-### 0. 模型切换
+### 0. 模型切换与 Agent 工具
 
 输入区左侧模型下拉框（170px），标签格式 `模型名 · 类型`：
 - `多模态`：Qwen3.5-397B
 - `文本`：DeepSeek-V4 / GLM-5.1 / GLM-5 / DeepSeek-R1
-- `生图`：Seedream 4.5（火山引擎）
 
-**统一接口**：所有模型走 `POST /api/ai/chat`，后端按 `model.type` 自动路由：
-- `text/multimodal/vision` → SSE 流式
-- `image` → 火山引擎 ARK API → JSON 返回图片 URL
+**Agent 统一调度**：所有消息走 `POST /api/ai/chat` SSE 流式，不再有生图 JSON 分支。AI 自主决定调用工具（`search_web` / `query_knowledge_base` / `recall_memory` / `generate_image`）。
 
-**持久化**：`localStorage('nexusSelectedModel')` 保存选择，刷新不丢失。
+**持久化**：`localStorage('nexusSelectedModel')` 保存模型选择，`localStorage('nexusImageRatio')` 保存默认宽高比。
 
-**供应商**：ModelScope（魔搭，文本模型）/ 火山引擎 ARK（Seedream 文生图）
+**供应商**：ModelScope（魔搭，文本模型 → OpenAI 兼容端点）/ 火山引擎 ARK（Seedream 文生图工具）
 
-**宽高比选择**：选择生图模型（Seedream 4.5）后，模型下拉框旁出现宽高比选择器（150px），仅当模型 type==='image' 时可见。支持 8 个预设：1:1、4:3、3:4、16:9（默认）、9:16、3:2、2:3、21:9，对应具体像素尺寸透传至火山引擎 ARK API。选择值通过 `localStorage('nexusImageRatio')` 持久化，刷新不丢失。
+**宽高比选择**：常驻在模型下拉框旁（150px），作为 `generate_image` 工具的默认参数。支持 8 个预设：1:1、4:3、3:4、16:9（默认）、9:16、3:2、2:3、21:9。
+
+**工具状态提示**：Agent 调用工具时，消息区显示工具调用状态（"正在搜索网络..."、"正在生成图片..."等），工具完成后自动移除提示文本。
+
+**开关语义变化**：
+
+| 开关 | 旧语义 | 新语义 |
+|------|--------|--------|
+| 联网 | 必定调用 webSearch | 允许 AI 使用 search_web 工具 |
+| 知识库 | 必定检索该 KB | 允许 AI 使用 query_knowledge_base 工具 |
+| 宽高比 | 生图模型时固定传入 | generate_image 工具的默认偏好 |
+| 奈克瑟/朗读 | 不变 | 不变 |
 
 ### 1. 奈克瑟角色系统
 
@@ -187,4 +195,4 @@ client/src/
 
 ---
 
-*最后更新: 2026-05-03 | v0.9.1 — 统一对话接口(文本+生图) + 模型localStorage持久化 + 图片预览导出 + 模型类型标签修正 + 生图宽高比选择器*
+*最后更新: 2026-05-03 | v1.0.0 — LangChain Agent 工具自主编排 + 前端开关→权限门 + 生图变Tool + SSE统一流式 + 工具状态提示 + 宽高比常驻*
