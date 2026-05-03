@@ -167,12 +167,6 @@
             />
           </el-select>
         </template>
-        <el-switch
-          v-model="webSearchEnabled"
-          size="small"
-          active-text="联网"
-          style="margin-left: 8px"
-        />
         <el-select
           v-if="modelList.length > 0"
           :model-value="selectedModel"
@@ -364,7 +358,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  send: [payload: { content: string; files: File[]; webSearch: boolean }]
+  send: [payload: { content: string; files: File[] }]
   clearHistory: []
   toggleSidebar: []
   'update:selectedKbId': [value: number | null]
@@ -374,7 +368,6 @@ const emit = defineEmits<{
 }>()
 
 const inputMessage = ref('')
-const webSearchEnabled = ref(false)
 const messagesContainer = ref<HTMLElement>()
 const imageInputRef = ref<HTMLInputElement>()
 const docInputRef = ref<HTMLInputElement>()
@@ -555,7 +548,7 @@ function handleSend() {
 
   if (!content && files.length === 0) return
 
-  emit('send', { content, files, webSearch: webSearchEnabled.value })
+  emit('send', { content, files })
   inputMessage.value = ''
 
   // Clear selected files

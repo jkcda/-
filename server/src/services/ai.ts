@@ -214,7 +214,7 @@ export async function chatWithAIStream(
 
     // 纯文本消息：LangChain Agent 统一调度
     const events = agentStream(
-      { userId, kbId, model, nexusMode, permissions: { webSearch: webSearchEnabled, kbRetrieval: !!kbId, memory: !!userId, imageGeneration: true } },
+      { userId, kbId, model, nexusMode, permissions: { kbRetrieval: !!kbId, memory: !!userId, imageGeneration: true } },
       historyMessages,
       message
     )

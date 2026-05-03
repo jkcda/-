@@ -426,8 +426,8 @@ function onImageRatioChange(val: string) {
   localStorage.setItem('nexusImageRatio', val)
 }
 
-const sendMessage = async (payload: { content: string; files: File[]; webSearch: boolean }) => {
-  const { content, files, webSearch } = payload
+const sendMessage = async (payload: { content: string; files: File[] }) => {
+  const { content, files } = payload
   if (!currentSessionId.value) {
     createNewSession()
   }
@@ -472,11 +472,9 @@ const sendMessage = async (payload: { content: string; files: File[]; webSearch:
         userId,
         files: uploadedFiles.length > 0 ? uploadedFiles : undefined,
         kbId: selectedKbId.value || undefined,
-        webSearch: webSearch || undefined,
         nexusMode: nexusMode.value,
         model: selectedModel.value || undefined,
-        // 联网+视频时限制帧数防请求爆炸
-        maxVideoFrames: webSearch && uploadedFiles.some(f => f.type.startsWith('video/')) ? 40 : undefined
+        maxVideoFrames: uploadedFiles.some(f => f.type.startsWith('video/')) ? 40 : undefined
       })
     })
 

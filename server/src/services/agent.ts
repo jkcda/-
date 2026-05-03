@@ -15,9 +15,9 @@ import { getMcpTools } from './mcp.js'
 function createTools(opts: { userId?: number | null; kbId?: number | null; permissions: AgentPermissions; defaultImageRatio?: string }) {
   const tools: any[] = [] // Zod v4 + LangChain type compat — runtime verified
 
-  if (opts.permissions.webSearch !== false) {
-    tools.push(
-      tool(async ({ query }: { query: string }) => {
+  // search_web 始终可用，Agent 自主决定是否需要搜索
+  tools.push(
+    tool(async ({ query }: { query: string }) => {
         const result: WebSearchResult = await searchWeb(query)
         const sources = result.sources.map((s, i) => ({ index: i + 1, title: s.title, url: s.url, snippet: s.snippet }))
         return JSON.stringify({ text: result.text, sources, _note: '请在回复中标注来源编号并在末尾列出情报来源' })
@@ -29,7 +29,6 @@ function createTools(opts: { userId?: number | null; kbId?: number | null; permi
         }),
       })
     )
-  }
 
   if (opts.permissions.kbRetrieval !== false && opts.kbId) {
     tools.push(
@@ -110,7 +109,6 @@ function createTools(opts: { userId?: number | null; kbId?: number | null; permi
  * 用户可通过前端开关控制的工具权限
  */
 export interface AgentPermissions {
-  webSearch?: boolean          // 联网搜索（默认开启）
   kbRetrieval?: boolean        // 知识库检索（默认开启）
   memory?: boolean             // 长期记忆（默认开启）
   imageGeneration?: boolean    // 文生图（默认开启）
