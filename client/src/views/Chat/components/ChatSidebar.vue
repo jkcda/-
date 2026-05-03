@@ -39,11 +39,42 @@
         <p class="empty-hint">点击上方按钮开始对话</p>
       </div>
     </div>
+
+    <!-- MCP 工具配置 -->
+    <div class="mcp-panel">
+      <div class="mcp-header" @click="mcpExpanded = !mcpExpanded">
+        <span class="mcp-title">🔌 MCP 工具</span>
+        <span class="mcp-total">{{ mcpServers.filter(s => s.enabled).length }}/{{ mcpServers.length }} 在线</span>
+        <el-icon :class="{ rotated: mcpExpanded }"><ArrowRight /></el-icon>
+      </div>
+      <div v-if="mcpExpanded" class="mcp-list">
+        <div
+          v-for="srv in mcpServers"
+          :key="srv.name"
+          class="mcp-item"
+        >
+          <div class="mcp-item-info">
+            <span class="mcp-icon">{{ srv.icon }}</span>
+            <div class="mcp-item-detail">
+              <span class="mcp-label">{{ srv.label }}</span>
+              <span class="mcp-tools">{{ srv.toolCount }} 个工具</span>
+            </div>
+          </div>
+          <el-switch
+            :model-value="srv.enabled"
+            size="small"
+            @change="(val: boolean) => handleToggle(srv.name, val)"
+          />
+        </div>
+        <div class="mcp-restart-hint" v-if="toggleNote">{{ toggleNote }}</div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { Plus, Delete } from '@element-plus/icons-vue'
+import { Plus, Delete, ArrowRight } from '@element-plus/icons-vue'
+import { ref, computed, onMounted } from 'vue'
 
 interface SessionItem {
   id: string
@@ -52,12 +83,57 @@ interface SessionItem {
   lastActiveAt: string
 }
 
-import { computed } from 'vue'
+interface McpServer {
+  name: string
+  label: string
+  icon: string
+  enabled: boolean
+  toolCount: number
+}
+
 import { loadIntimacy, getIntimacyRank, getWelcomeLine } from '@/utils/intimacy'
 
 const intimacy = computed(() => loadIntimacy())
 const intimacyRank = computed(() => getIntimacyRank(intimacy.value))
 const welcomeLine = computed(() => getWelcomeLine(intimacy.value))
+
+// MCP state
+const mcpExpanded = ref(false)
+const mcpServers = ref<McpServer[]>([])
+const toggleNote = ref('')
+
+async function fetchMcpStatus() {
+  try {
+    const res = await fetch('/api/mcp/status')
+    const data = await res.json()
+    if (data.success) {
+      mcpServers.value = data.result.servers
+    }
+  } catch { /* 静默失败 */ }
+}
+
+async function handleToggle(name: string, enabled: boolean) {
+  try {
+    const res = await fetch('/api/mcp/toggle', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, enabled }),
+    })
+    const data = await res.json()
+    if (data.success) {
+      toggleNote.value = data.result.note || '变更将在服务重启后生效'
+      setTimeout(() => toggleNote.value = '', 4000)
+      // 乐观更新
+      const srv = mcpServers.value.find(s => s.name === name)
+      if (srv) srv.enabled = enabled
+    }
+  } catch {
+    toggleNote.value = '操作失败，请检查服务状态'
+    setTimeout(() => toggleNote.value = '', 3000)
+  }
+}
+
+onMounted(() => fetchMcpStatus())
 
 defineProps<{
   sessionList: SessionItem[]
@@ -209,6 +285,106 @@ defineEmits<{
 .empty-hint {
   font-size: 12px;
   color: var(--color-text-muted);
+}
+
+.mcp-panel {
+  border-top: var(--border-thin) var(--color-border);
+  padding: 8px 12px;
+  flex-shrink: 0;
+}
+
+.mcp-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  padding: 6px 4px;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+}
+
+.mcp-header:hover {
+  background: var(--color-primary-light);
+}
+
+.mcp-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  flex: 0 0 auto;
+}
+
+.mcp-total {
+  font-size: 10px;
+  color: var(--color-magic-gold);
+  flex: 1;
+  text-align: right;
+  margin-right: 4px;
+}
+
+.mcp-header .el-icon {
+  font-size: 12px;
+  transition: transform 0.2s;
+  color: var(--color-text-muted);
+}
+
+.mcp-header .el-icon.rotated {
+  transform: rotate(90deg);
+}
+
+.mcp-list {
+  padding: 4px 0;
+}
+
+.mcp-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 4px;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+}
+
+.mcp-item:hover {
+  background: var(--color-primary-light);
+}
+
+.mcp-item-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.mcp-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.mcp-item-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.mcp-label {
+  font-size: 12px;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+}
+
+.mcp-tools {
+  font-size: 10px;
+  color: var(--color-text-muted);
+}
+
+.mcp-restart-hint {
+  font-size: 10px;
+  color: var(--color-magic-gold);
+  text-align: center;
+  padding: 4px;
+  margin-top: 4px;
 }
 
 @media (max-width: 768px) {
