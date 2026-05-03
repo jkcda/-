@@ -1,53 +1,106 @@
 import { MultiServerMCPClient } from '@langchain/mcp-adapters'
 
 let mcpClient: MultiServerMCPClient | null = null
+const disabledServers = new Set<string>()
 
-/**
- * 初始化 MCP 客户端，连接所有 MCP Server
- * 文件系统：操作项目文件（读写/搜索/目录）
- * Playwright：浏览器自动化（打开网页/填表单/截图）
- */
+interface McpServerConfig {
+  name: string
+  label: string
+  icon: string
+  transport: 'stdio'
+  command: string
+  args: string[]
+}
+
+const serverConfigs: McpServerConfig[] = [
+  {
+    name: 'filesystem',
+    label: '文件系统',
+    icon: '📁',
+    transport: 'stdio',
+    command: 'npx',
+    args: ['-y', '@modelcontextprotocol/server-filesystem', 'C:/Users/ak195/Desktop/aiconnent'],
+  },
+  {
+    name: 'playwright',
+    label: 'Playwright 浏览器',
+    icon: '🎭',
+    transport: 'stdio',
+    command: 'npx',
+    args: ['-y', '@playwright/mcp'],
+  },
+]
+
 export async function initMCP() {
   if (mcpClient) return mcpClient
 
   mcpClient = new MultiServerMCPClient({
-    throwOnLoadError: false,       // 单个 Server 加载失败不影响其他
-    prefixToolNameWithServerName: true, // tool 名加 server_ 前缀避免冲突
+    throwOnLoadError: false,
+    prefixToolNameWithServerName: true,
 
-    mcpServers: {
-      filesystem: {
-        transport: 'stdio',
-        command: 'npx',
-        args: ['-y', '@modelcontextprotocol/server-filesystem', 'C:/Users/ak195/Desktop/aiconnent'],
-      },
-      playwright: {
-        transport: 'stdio',
-        command: 'npx',
-        args: ['-y', '@playwright/mcp'],
-      },
-    },
+    mcpServers: Object.fromEntries(
+      serverConfigs
+        .filter(s => !disabledServers.has(s.name))
+        .map(s => [s.name, { transport: s.transport, command: s.command, args: s.args }])
+    ),
   })
 
-  await mcpClient.initializeConnections()
-  console.log('[MCP] All servers connected')
+  if (Object.keys(mcpClient as any).length) {
+    await mcpClient.initializeConnections()
+    console.log('[MCP] Servers connected')
+  }
   return mcpClient
 }
 
-/**
- * 获取所有 MCP 工具（LangChain Tool 格式，可直接传入 createAgent）
- */
 export async function getMcpTools() {
   if (!mcpClient) throw new Error('MCP not initialized. Call initMCP() first.')
   return mcpClient.getTools()
 }
 
-/**
- * 关闭所有 MCP 连接
- */
+/** 获取 MCP 状态：每个 server 的名称、标签、图标、是否启用、工具数 */
+export async function getMcpStatus() {
+  const status: {
+    name: string; label: string; icon: string; enabled: boolean; toolCount: number
+  }[] = []
+
+  const toolMap = mcpClient
+    ? await mcpClient.getTools().then(tools => {
+        const map = new Map<string, number>()
+        for (const t of tools) {
+          const name = (t as any).name || ''
+          const server = name.split('__')[0] || 'unknown'
+          map.set(server, (map.get(server) || 0) + 1)
+        }
+        return map
+      })
+    : new Map<string, number>()
+
+  for (const cfg of serverConfigs) {
+    status.push({
+      name: cfg.name,
+      label: cfg.label,
+      icon: cfg.icon,
+      enabled: !disabledServers.has(cfg.name),
+      toolCount: toolMap.get(cfg.name) || 0,
+    })
+  }
+
+  return status
+}
+
+/** 启用/禁用 MCP Server（需重启服务生效） */
+export function toggleMcpServer(name: string, enabled: boolean) {
+  if (enabled) {
+    disabledServers.delete(name)
+  } else {
+    disabledServers.add(name)
+  }
+  return { name, enabled, note: 'Server 状态变更将在下次服务重启后生效' }
+}
+
 export async function closeMCP() {
   if (mcpClient) {
     await mcpClient.close()
     mcpClient = null
-    console.log('[MCP] All connections closed')
   }
 }
