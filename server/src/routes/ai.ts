@@ -13,7 +13,7 @@ const router = express.Router()
 // POST /api/ai/chat - AI对话（统一入口：文本/多模态流式 + 文生图）
 router.post('/chat', async (req, res) => {
   try {
-    const { message, sessionId, userId, files, kbId, webSearch, nexusMode, maxVideoFrames, model } = req.body
+    const { message, sessionId, userId, files, kbId, webSearch, nexusMode, maxVideoFrames, model, size } = req.body
 
     if (!message && (!files || files.length === 0)) {
       return ApiResponse.badRequest(res, '请输入消息内容或上传文件')
@@ -44,7 +44,7 @@ router.post('/chat', async (req, res) => {
                 prompt: message,
                 sequential_image_generation: 'disabled',
                 response_format: 'url',
-                size: '2K',
+                size: size || config.ai.defaultImageRatio,
                 stream: false,
                 watermark: true
               })
@@ -230,13 +230,13 @@ router.delete('/memory', authMiddleware as any, adminMiddleware as any, async (r
 
 // GET /api/ai/models - 获取可用模型列表
 router.get('/models', (_req, res) => {
-  ApiResponse.success(res, { models: config.ai.models }, '获取模型列表成功')
+  ApiResponse.success(res, { models: config.ai.models, imageRatios: config.ai.imageRatios }, '获取模型列表成功')
 })
 
 // POST /api/ai/image - 文生图（多供应商）
 router.post('/image', async (req, res) => {
   try {
-    const { prompt, model, sessionId, userId } = req.body
+    const { prompt, model, sessionId, userId, size } = req.body
     if (!prompt) return ApiResponse.badRequest(res, '请提供图片描述')
 
     const modelId = model || 'doubao-seedream-4-5-251128'
@@ -269,7 +269,7 @@ router.post('/image', async (req, res) => {
             prompt,
             sequential_image_generation: 'disabled',
             response_format: 'url',
-            size: '2K',
+            size: size || config.ai.defaultImageRatio,
             stream: false,
             watermark: true
           })

@@ -29,8 +29,11 @@
       :nexusMode="nexusMode"
       :modelList="modelList"
       :selectedModel="selectedModel"
+      :imageRatios="imageRatios"
+      :selectedImageRatio="selectedImageRatio"
       @update:nexusMode="nexusMode = $event"
       @update:selectedModel="onModelChange($event)"
+      @update:selectedImageRatio="onImageRatioChange($event)"
       @send="sendMessage"
       @clearHistory="clearHistory"
       @update:selectedKbId="selectedKbId = $event"
@@ -83,6 +86,8 @@ const selectedKbId = ref<number | null>(null)
 const nexusMode = ref(true)
 const selectedModel = ref<string>(localStorage.getItem('nexusSelectedModel') || '')
 const modelList = ref<{ id: string; name: string; type: string; desc: string }[]>([])
+const imageRatios = ref<{ label: string; value: string }[]>([])
+const selectedImageRatio = ref<string>(localStorage.getItem('nexusImageRatio') || '')
 
 const isMobile = ref(window.innerWidth < 768)
 
@@ -186,6 +191,16 @@ const loadModelList = async () => {
     const data = await res.json()
     if (data.success) {
       modelList.value = data.result.models
+      // 加载图片宽高比配置
+      if (data.result.imageRatios) {
+        imageRatios.value = data.result.imageRatios
+        const savedRatio = localStorage.getItem('nexusImageRatio')
+        if (savedRatio && imageRatios.value.some(r => r.value === savedRatio)) {
+          selectedImageRatio.value = savedRatio
+        } else if (imageRatios.value.length > 0) {
+          selectedImageRatio.value = imageRatios.value[0]!.value
+        }
+      }
       // 恢复上次选择的模型，否则用默认
       const saved = localStorage.getItem('nexusSelectedModel')
       if (saved && modelList.value.some(m => m.id === saved)) {
@@ -404,6 +419,11 @@ function onModelChange(val: string) {
   localStorage.setItem('nexusSelectedModel', val)
 }
 
+function onImageRatioChange(val: string) {
+  selectedImageRatio.value = val
+  localStorage.setItem('nexusImageRatio', val)
+}
+
 const currentModelType = () => {
   const m = modelList.value.find(m => m.id === selectedModel.value)
   return m?.type || 'multimodal'
@@ -458,6 +478,7 @@ const sendMessage = async (payload: { content: string; files: File[]; webSearch:
         webSearch: webSearch || undefined,
         nexusMode: nexusMode.value,
         model: selectedModel.value || undefined,
+        size: isImageModel ? selectedImageRatio.value : undefined,
         // 联网+视频时限制帧数防请求爆炸
         maxVideoFrames: webSearch && uploadedFiles.some(f => f.type.startsWith('video/')) ? 40 : undefined
       })

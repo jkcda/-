@@ -137,7 +137,19 @@ const config = {
       { id: 'ZhipuAI/GLM-5',                 name: 'GLM-5',         type: 'text',        provider: 'modelscope' },
       { id: 'deepseek-ai/DeepSeek-R1-0528',  name: 'DeepSeek-R1',   type: 'text',        provider: 'modelscope' },
       { id: 'doubao-seedream-4-5-251128',     name: 'Seedream 4.5',  type: 'image',       provider: 'volcengine' },
-    ]
+    ],
+    // 图片宽高比配置（文生图模型可切换比例）
+    imageRatios: [
+      { label: '1:1 正方形',   value: '2048x2048' },
+      { label: '4:3 横版',     value: '2304x1728' },
+      { label: '3:4 竖版',     value: '1728x2304' },
+      { label: '16:9 宽屏',    value: '2560x1440' },
+      { label: '9:16 手机',    value: '1440x2560' },
+      { label: '3:2 经典摄影', value: '2496x1664' },
+      { label: '2:3 竖版摄影', value: '1664x2496' },
+      { label: '21:9 超宽屏',  value: '3024x1296' },
+    ],
+    defaultImageRatio: '2560x1440', // 默认 16:9 宽屏
   },
   
   // 上下文配置
@@ -527,6 +539,7 @@ Authorization: Bearer <token>
 - `userId`: 可选，用户 ID（已登录用户）
 - `files`: 可选，上传的附件列表（先调用 `/api/upload` 上传后获得 URL）
 - `kbId`: 可选，知识库 ID（启用 RAG 检索增强，从指定知识库中检索相关分块注入 prompt）
+- `size`: 可选，图片生成尺寸（仅文生图模型时有效），如 `'2560x1440'`（16:9）、`'2048x2048'`（1:1）等，支持 8 种预设宽高比，默认 `'2560x1440'`
 - `webSearch`: 可选，布尔值，启用联网搜索（默认 false）
 
 **SSE 非内容事件（在内容流之前推送）：**
@@ -613,6 +626,10 @@ function buildContext(messages, maxChars = 2000) {
     "models": [
       { "id": "Qwen/Qwen3.5-397B-A17B", "name": "Qwen3.5-397B", "type": "multimodal", "provider": "modelscope", "desc": "397B MoE 多模态（默认）" },
       { "id": "doubao-seedream-4-5-251128", "name": "Seedream 4.5", "type": "image", "provider": "volcengine", "desc": "火山引擎 文生图" }
+    ],
+    "imageRatios": [
+      { "label": "1:1 正方形", "value": "2048x2048" },
+      { "label": "16:9 宽屏", "value": "2560x1440" }
     ]
   }
 }
@@ -2861,4 +2878,4 @@ hotfix/xxx (紧急修复)
 
 ---
 
-*本文档最后更新于 2026-05-03 | RAG 架构 v6.1 | 统一/api/ai/chat接口(文本SSE+生图JSON) + 模型localStorage持久化 + 图片预览导出 + 联网搜索优化*
+*本文档最后更新于 2026-05-03 | RAG 架构 v6.2 | 统一/api/ai/chat接口(文本SSE+生图JSON) + 模型localStorage持久化 + 图片预览导出 + 联网搜索优化 + 生图宽高比选择(8档预设)*

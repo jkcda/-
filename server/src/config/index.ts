@@ -50,7 +50,19 @@ const config = {
       { id: 'deepseek-ai/DeepSeek-R1-0528',   name: 'DeepSeek-R1',    type: 'text' as const,        provider: 'modelscope' as const, desc: '推理增强' },
       // --- 火山引擎 文生图 ---
       { id: 'doubao-seedream-4-5-251128',      name: 'Seedream 4.5',   type: 'image' as const,       provider: 'volcengine' as const, desc: '火山引擎 文生图' },
-    ] as { id: string; name: string; type: 'text' | 'multimodal' | 'vision' | 'image'; provider: 'modelscope' | 'volcengine'; desc: string }[]
+    ] as { id: string; name: string; type: 'text' | 'multimodal' | 'vision' | 'image'; provider: 'modelscope' | 'volcengine'; desc: string }[],
+    // 图片宽高比配置（Seedream 4.5 等文生图模型）
+    imageRatios: [
+      { label: '1:1 正方形',   value: '2048x2048' },
+      { label: '4:3 横版',     value: '2304x1728' },
+      { label: '3:4 竖版',     value: '1728x2304' },
+      { label: '16:9 宽屏',    value: '2560x1440' },
+      { label: '9:16 手机',    value: '1440x2560' },
+      { label: '3:2 经典摄影', value: '2496x1664' },
+      { label: '2:3 竖版摄影', value: '1664x2496' },
+      { label: '21:9 超宽屏',  value: '3024x1296' },
+    ] as { label: string; value: string }[],
+    defaultImageRatio: '2560x1440',
   },
   
   // 上下文配置

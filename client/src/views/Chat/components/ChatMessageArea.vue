@@ -187,6 +187,20 @@
             :value="m.id"
           />
         </el-select>
+        <el-select
+          v-if="modelList.find(m => m.id === selectedModel)?.type === 'image' && imageRatios.length > 0"
+          :model-value="selectedImageRatio"
+          size="small"
+          style="width: 150px; margin-left: 6px"
+          @update:model-value="$emit('update:selectedImageRatio', $event ?? '')"
+        >
+          <el-option
+            v-for="r in imageRatios"
+            :key="r.value"
+            :label="r.label"
+            :value="r.value"
+          />
+        </el-select>
         <el-switch
           :model-value="nexusMode"
           size="small"
@@ -344,6 +358,8 @@ const props = defineProps<{
   nexusMode: boolean
   modelList: { id: string; name: string; type: string; desc: string }[]
   selectedModel: string
+  imageRatios: { label: string; value: string }[]
+  selectedImageRatio: string
 }>()
 
 const emit = defineEmits<{
@@ -353,6 +369,7 @@ const emit = defineEmits<{
   'update:selectedKbId': [value: number | null]
   'update:nexusMode': [value: boolean]
   'update:selectedModel': [value: string]
+  'update:selectedImageRatio': [value: string]
 }>()
 
 const inputMessage = ref('')
