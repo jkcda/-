@@ -6,6 +6,7 @@ import { clearSessionCache } from '../services/ragChain.js'
 import { ApiResponse } from '../utils/response.js'
 import { authMiddleware } from '../middleware/auth.js'
 import { adminMiddleware } from '../middleware/admin.js'
+import { UserModel } from '../models/user.js'
 import config from '../config/index.js'
 
 const router = express.Router()
@@ -30,6 +31,15 @@ router.post('/chat', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*')
 
     try {
+      // 查询用户角色（管理员可用 admin_* 工具）
+      let userRole: string | undefined
+      if (userId) {
+        try {
+          const u = await UserModel.findById(Number(userId))
+          userRole = u?.role
+        } catch {}
+      }
+
       const { stream, sessionId: returnedSessionId, agentMode } = await chatWithAIStream(
         message || '',
         sessionId,
@@ -39,7 +49,8 @@ router.post('/chat', async (req, res) => {
         true, // webSearch — Agent 自主决定，不再由前端开关控制
         nexusMode !== false,
         maxVideoFrames || undefined,
-        model || undefined
+        model || undefined,
+        userRole
       )
 
       let assistantContent = ''

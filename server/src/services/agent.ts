@@ -5,14 +5,18 @@ import { z } from 'zod'
 import config from '../config/index.js'
 import { searchWeb, type WebSearchResult } from './webSearch.js'
 import { retrieveFromKB } from './ragChain.js'
-import { recallMemory } from './memoryService.js'
+import { recallMemory, forgetAllMemories } from './memoryService.js'
 import { getMcpTools } from './mcp.js'
+import { UserModel } from '../models/user.js'
+import { ChatHistoryModel } from '../models/chatHistory.js'
+import pool from '../utils/db.js'
+import bcrypt from 'bcryptjs'
 
 /**
  * 创建可用工具列表
  * 每个工具直接包装现有 service 函数，零修改
  */
-function createTools(opts: { userId?: number | null; kbId?: number | null; permissions: AgentPermissions; defaultImageRatio?: string }) {
+function createTools(opts: { userId?: number | null; kbId?: number | null; permissions: AgentPermissions; defaultImageRatio?: string; userRole?: string }) {
   const tools: any[] = [] // Zod v4 + LangChain type compat — runtime verified
 
   // search_web 始终可用，Agent 自主决定是否需要搜索
@@ -102,6 +106,72 @@ function createTools(opts: { userId?: number | null; kbId?: number | null; permi
     )
   }
 
+  // 管理员工具（仅 admin 角色可见）
+  if (opts.userRole === 'admin') {
+    tools.push(
+      tool(async () => {
+        const [rows] = await pool.execute('SELECT id, username, email, role, created_at FROM users ORDER BY created_at DESC')
+        return JSON.stringify(rows)
+      }, {
+        name: 'admin_list_users',
+        description: '列出系统所有用户（仅管理员可用）',
+        schema: z.object({}),
+      })
+    )
+
+    tools.push(
+      tool(async ({ userId }: { userId: number }) => {
+        const user = await UserModel.findById(userId)
+        if (!user) return `用户 ID ${userId} 不存在`
+        await pool.execute('DELETE FROM users WHERE id = ?', [userId])
+        return `用户 ${user.username} (ID:${userId}) 已删除`
+      }, {
+        name: 'admin_delete_user',
+        description: '删除指定用户（仅管理员可用）',
+        schema: z.object({
+          userId: z.number().describe('要删除的用户 ID'),
+        }),
+      })
+    )
+
+    tools.push(
+      tool(async () => {
+        const stats = await ChatHistoryModel.getUserChatStats()
+        return JSON.stringify(stats)
+      }, {
+        name: 'admin_chat_stats',
+        description: '获取所有用户的对话统计数据：会话数、消息数、最后活跃时间（仅管理员可用）',
+        schema: z.object({}),
+      })
+    )
+
+    tools.push(
+      tool(async ({ userId }: { userId: number }) => {
+        const history = await ChatHistoryModel.getByUserId(userId)
+        return JSON.stringify(history.slice(-50)) // 最近 50 条
+      }, {
+        name: 'admin_user_history',
+        description: '查看指定用户的对话历史（仅管理员可用）',
+        schema: z.object({
+          userId: z.number().describe('目标用户 ID'),
+        }),
+      })
+    )
+
+    tools.push(
+      tool(async ({ userId }: { userId: number }) => {
+        await forgetAllMemories(userId)
+        return `用户 ${userId} 的 RAG 记忆已全部清空`
+      }, {
+        name: 'admin_clear_memory',
+        description: '清空指定用户的全部 RAG 长期记忆（仅管理员可用）',
+        schema: z.object({
+          userId: z.number().describe('目标用户 ID'),
+        }),
+      })
+    )
+  }
+
   return tools
 }
 
@@ -124,6 +194,7 @@ export interface AgentConfig {
   nexusMode?: boolean
   permissions?: AgentPermissions
   defaultImageRatio?: string
+  userRole?: string
 }
 
 /**
@@ -138,6 +209,7 @@ export async function createChatAgent(cfg: AgentConfig) {
     kbId: cfg.kbId,
     permissions: cfg.permissions || {},
     defaultImageRatio: cfg.defaultImageRatio,
+    userRole: cfg.userRole,
   }), ...mcpTools]
 
   const chatModel = new ChatOpenAI({

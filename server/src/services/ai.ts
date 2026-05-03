@@ -165,7 +165,8 @@ export async function chatWithAIStream(
   webSearchEnabled: boolean = false,
   nexusMode: boolean = true,
   maxVideoFrames?: number,
-  model?: string
+  model?: string,
+  userRole?: string
 ) {
   try {
     const history = await ChatHistoryModel.getBySessionIdAndUserId(sessionId, userId)
@@ -214,7 +215,7 @@ export async function chatWithAIStream(
 
     // 纯文本消息：LangChain Agent 统一调度
     const events = agentStream(
-      { userId, kbId, model, nexusMode, permissions: { kbRetrieval: !!kbId, memory: !!userId, imageGeneration: true } },
+      { userId, kbId, model, nexusMode, userRole, permissions: { kbRetrieval: !!kbId, memory: !!userId, imageGeneration: true } },
       historyMessages,
       message
     )
