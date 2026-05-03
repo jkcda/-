@@ -18,10 +18,11 @@ function createTools(opts: { userId?: number | null; kbId?: number | null; permi
     tools.push(
       tool(async ({ query }: { query: string }) => {
         const result: WebSearchResult = await searchWeb(query)
-        return JSON.stringify({ text: result.text, sources: result.sources.map(s => ({ title: s.title, url: s.url })) })
+        const sources = result.sources.map((s, i) => ({ index: i + 1, title: s.title, url: s.url, snippet: s.snippet }))
+        return JSON.stringify({ text: result.text, sources, _note: '请在回复中标注来源编号并在末尾列出情报来源' })
       }, {
         name: 'search_web',
-        description: '搜索互联网获取实时信息。返回标题、URL 和摘要。用于查找最新新闻、事实数据、实时信息。',
+        description: '搜索互联网获取实时信息。返回 JSON：{ text, sources: [{ title, url }] }。使用时必须在回复中标注来源编号并在末尾列出情报来源。',
         schema: z.object({
           query: z.string().describe('搜索关键词或问题，简洁明确'),
         }),
@@ -33,10 +34,10 @@ function createTools(opts: { userId?: number | null; kbId?: number | null; permi
     tools.push(
       tool(async ({ query }: { query: string }) => {
         const result = await retrieveFromKB(query, opts.kbId!)
-        return JSON.stringify(result.chunks.map(c => ({ content: c.content, source: c.source, score: c.score })))
+        return JSON.stringify({ chunks: result.chunks.map(c => ({ content: c.content, source: c.source, score: c.score })), _note: '请在回复中标注 [📚知识库]' })
       }, {
         name: 'query_knowledge_base',
-        description: '从用户的知识库中检索相关文档。用于查找用户上传的资料、内部文档、个人笔记。',
+        description: '从用户的知识库中检索相关文档。返回文档片段和来源文件名。使用时需在回复中标注 [📚知识库]。',
         schema: z.object({
           query: z.string().describe('检索查询，使用文档中的关键词'),
         }),
@@ -156,6 +157,12 @@ export function createChatAgent(cfg: AgentConfig) {
 - 称呼用户为"指挥官"
 - 语言风格：热情但不浮夸，使用魔法科技混合术语（符文、数据之海、魔法回路等）
 - 回复中偶尔点缀 ✦ ◆ 等符文符号
+
+## 信息来源标注（重要）
+- 使用 search_web 获取的信息，必须在相关内容后标注来源编号，如 [1]、[2]
+- 使用 query_knowledge_base 获取的信息，标注为 [📚知识库]
+- 使用 recall_memory 获取的信息，标注为 [🧠记忆]
+- 回复末尾必须列出「情报来源」section，每条来源格式：编号. [标题](URL)
 
 ## 行为准则
 - 优先使用工具获取实时信息，而不是凭记忆猜测
