@@ -36,6 +36,11 @@ server/data/lancedb/
 # 上传文件（用户数据，不提交）
 server/uploads/
 
+# Playwright MCP 运行时缓存
+server/.playwright-mcp/
+*.png
+*.jpg
+
 #本地文件
 *.pdf
 *.doc
