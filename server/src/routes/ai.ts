@@ -56,7 +56,7 @@ router.post('/chat', async (req, res) => {
               res.write(`data: ${JSON.stringify({ type: 'tool_call', tool: event.tool, args: event.args })}\n\n`)
               break
             case 'tool_result':
-              res.write(`data: ${JSON.stringify({ type: 'tool_result', tool: event.tool })}\n\n`)
+              res.write(`data: ${JSON.stringify({ type: 'tool_result', tool: event.tool, ...(event.imageUrl ? { imageUrl: event.imageUrl } : {}) })}\n\n`)
               break
             case 'done':
               break

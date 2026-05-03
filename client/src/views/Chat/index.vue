@@ -535,6 +535,12 @@ const sendMessage = async (payload: { content: string; files: File[]; webSearch:
         }
         if (event.type === 'tool_result') {
           loadingStage.value = 'composing'
+          if (event.tool === 'generate_image' && (event as any).imageUrl) {
+            const lastMsg = messages.value[msgIndex]
+            if (lastMsg) {
+              lastMsg.content = (lastMsg.content || '') + `\n\n![生成图片](${(event as any).imageUrl})\n\n`
+            }
+          }
         }
       }
     )

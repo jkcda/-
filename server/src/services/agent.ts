@@ -89,8 +89,7 @@ function createTools(opts: { userId?: number | null; kbId?: number | null; permi
         const data = await resp.json() as any
         const imageUrl = data?.data?.[0]?.url
         if (!imageUrl) return '图片生成失败：API 返回为空'
-        // 返回 markdown 图片语法，LLM 会在最终回复中展示
-        return `图片生成成功！请在回复中展示：\n![生成图片](${imageUrl})`
+        return JSON.stringify({ imageUrl, prompt, ratio: ratio || '16:9' })
       }, {
         name: 'generate_image',
         description: '根据文字描述生成图片。用户需要配图、插图、海报等时使用。支持指定宽高比。',
@@ -182,6 +181,7 @@ export interface AgentSSEEvent {
   tool?: string
   args?: Record<string, any>
   result?: string
+  imageUrl?: string
   error?: string
 }
 
@@ -228,10 +228,18 @@ export async function* agentStream(
           const name = event.name || 'unknown'
           const output = (event.data as any)?.output
           const outputStr = typeof output === 'string' ? output : JSON.stringify(output)
+          let imageUrl: string | undefined
+          if (name === 'generate_image') {
+            try {
+              const parsed = typeof output === 'string' ? JSON.parse(output) : output
+              imageUrl = parsed?.imageUrl
+            } catch {}
+          }
           yield {
             type: 'tool_result',
             tool: name,
             result: outputStr,
+            ...(imageUrl ? { imageUrl } : {}),
           }
           break
         }
