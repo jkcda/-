@@ -112,7 +112,7 @@
       </div>
       <div v-if="isLoading && typingMessageIndex === -1" class="message assistant">
         <div class="message-content typing-indicator">
-          <span class="loading-text">{{ webSearchEnabled ? '正在穿越数据之海...' : '正在解析情报...' }}</span>
+          <span class="loading-text">{{ loadingText }}</span>
           <div class="typing-dots">
             <span class="dot"></span>
             <span class="dot"></span>
@@ -360,6 +360,7 @@ const props = defineProps<{
   selectedModel: string
   imageRatios: { label: string; value: string }[]
   selectedImageRatio: string
+  loadingStage: string
 }>()
 
 const emit = defineEmits<{
@@ -394,6 +395,17 @@ const previewUrl = ref('')
 const previewScale = ref(1)
 const isMobilePreview = ref(window.innerWidth < 768)
 const previewWidth = computed(() => isMobilePreview.value ? '95%' : '70%')
+
+const loadingText = computed(() => {
+  const map: Record<string, string> = {
+    searching: '正在穿越数据之海...',
+    retrieving_kb: '正在检索知识库...',
+    recalling: '正在同步记忆回路...',
+    generating_image: '正在绘制魔法画像...',
+    composing: '正在整理情报...',
+  }
+  return map[props.loadingStage] || '正在解析情报...'
+})
 
 function openPreview(url: string) {
   previewUrl.value = url

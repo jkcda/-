@@ -31,6 +31,7 @@
       :selectedModel="selectedModel"
       :imageRatios="imageRatios"
       :selectedImageRatio="selectedImageRatio"
+      :loadingStage="loadingStage"
       @update:nexusMode="nexusMode = $event"
       @update:selectedModel="onModelChange($event)"
       @update:selectedImageRatio="onImageRatioChange($event)"
@@ -87,6 +88,7 @@ const nexusMode = ref(true)
 const selectedModel = ref<string>(localStorage.getItem('nexusSelectedModel') || '')
 const modelList = ref<{ id: string; name: string; type: string; desc: string }[]>([])
 const imageRatios = ref<{ label: string; value: string }[]>([])
+const loadingStage = ref<string>('thinking')
 const selectedImageRatio = ref<string>(localStorage.getItem('nexusImageRatio') || '')
 
 const isMobile = ref(window.innerWidth < 768)
@@ -454,6 +456,7 @@ const sendMessage = async (payload: { content: string; files: File[]; webSearch:
 
   messages.value.push({ role: 'user', content: content || '', files: uploadedFiles.length > 0 ? uploadedFiles : undefined })
   isLoading.value = true
+  loadingStage.value = 'thinking'
   await messageAreaRef.value?.scrollToBottom()
 
   try {
@@ -520,6 +523,18 @@ const sendMessage = async (payload: { content: string; files: File[]; webSearch:
       (event) => {
         if (event.type === 'webSearch' && event.sources) {
           pendingWebSources.push(...event.sources)
+        }
+        if (event.type === 'tool_call') {
+          const stageMap: Record<string, string> = {
+            search_web: 'searching',
+            query_knowledge_base: 'retrieving_kb',
+            recall_memory: 'recalling',
+            generate_image: 'generating_image',
+          }
+          loadingStage.value = stageMap[event.tool || ''] || 'thinking'
+        }
+        if (event.type === 'tool_result') {
+          loadingStage.value = 'composing'
         }
       }
     )
