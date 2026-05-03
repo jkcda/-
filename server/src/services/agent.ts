@@ -6,6 +6,7 @@ import config from '../config/index.js'
 import { searchWeb, type WebSearchResult } from './webSearch.js'
 import { retrieveFromKB } from './ragChain.js'
 import { recallMemory } from './memoryService.js'
+import { getMcpTools } from './mcp.js'
 
 /**
  * 创建可用工具列表
@@ -131,21 +132,22 @@ export interface AgentConfig {
  * 创建 AI Agent 实例
  * 根据用户权限和上下文配置可用工具
  */
-export function createChatAgent(cfg: AgentConfig) {
+export async function createChatAgent(cfg: AgentConfig) {
+  // 加载 MCP 工具（文件系统 + Playwright）+ 手写工具
+  const mcpTools = await getMcpTools()
+  const allTools = [...createTools({
+    userId: cfg.userId,
+    kbId: cfg.kbId,
+    permissions: cfg.permissions || {},
+    defaultImageRatio: cfg.defaultImageRatio,
+  }), ...mcpTools]
+
   const chatModel = new ChatOpenAI({
     model: cfg.model || config.ai.defaultModel,
     apiKey: config.ai.modelscope.apiKey,
     configuration: { baseURL: 'https://api-inference.modelscope.cn/v1' },
     maxTokens: config.ai.maxTokens,
     temperature: 0.7,
-  })
-
-  const permissions = cfg.permissions || {}
-  const tools = createTools({
-    userId: cfg.userId,
-    kbId: cfg.kbId,
-    permissions,
-    defaultImageRatio: cfg.defaultImageRatio,
   })
 
   const now = new Date()
@@ -186,7 +188,7 @@ export function createChatAgent(cfg: AgentConfig) {
 
   return createAgent({
     model: chatModel,
-    tools: tools as any, // Zod v4 schema types vs LangChain InteropZodObject — runtime compatible
+    tools: allTools as any,
     ...(systemPrompt ? { systemPrompt } : {}),
   })
 }
@@ -214,7 +216,7 @@ export async function* agentStream(
   messages: { role: 'user' | 'assistant'; content: string }[],
   userInput: string
 ): AsyncGenerator<AgentSSEEvent> {
-  const agent = createChatAgent(cfg)
+  const agent = await createChatAgent(cfg)
 
   const langchainMessages = [
     ...messages.map(m =>

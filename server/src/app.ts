@@ -58,6 +58,12 @@ import('./services/videoProcessor.js').then(m => {
   m.preloadTranscriber()
 }).catch(() => {})
 
+// 初始化 MCP 连接（文件系统 + Playwright）
+import('./services/mcp.js').then(m => {
+  console.log('[MCP] Connecting to MCP servers...')
+  m.initMCP()
+}).catch(() => {})
+
 // 启动
 const PORT = config.server.port
 app.listen(PORT, () => {
