@@ -54,7 +54,11 @@ export async function handleSSE(
             if (parsed.content) {
               onContent(parsed.content)
             } else if (parsed.error) {
-              throw new Error(parsed.error)
+              let errMsg: string = parsed.error
+              if (errMsg.includes('DataInspectionFailed') || errMsg.includes('inappropriate')) {
+                errMsg = '内容审核拦截：回复包含敏感内容，请重新措辞后重试。'
+              }
+              throw new Error(errMsg)
             } else if (parsed.type) {
               onEvent?.(parsed as SSEEvent)
             }
