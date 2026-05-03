@@ -1,13 +1,16 @@
 import express from 'express'
-import { register, login, getUserInfo } from '../controllers/user.js'
+import { register, login, getUserInfo, verifyEmail } from '../controllers/user.js'
 import { authMiddleware } from '../middleware/auth.js'
 import { ChatHistoryModel } from '../models/chatHistory.js'
 import { ApiResponse } from '../utils/response.js'
 
 const router = express.Router()
 
-// POST /api/user/register - 用户注册
+// POST /api/user/register - 用户注册（发送验证邮件）
 router.post('/register', register)
+
+// GET /api/user/verify-email - 验证邮箱
+router.get('/verify-email', verifyEmail)
 
 // POST /api/user/login - 用户登录
 router.post('/login', login)

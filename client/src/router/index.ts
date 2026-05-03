@@ -4,6 +4,7 @@ import Layout from '@/views/Layout/index.vue'
 import AuthLayout from '@/views/Auth/AuthLayout.vue'
 import Login from '@/views/Login/login.vue'
 import Register from '@/views/Register/Register.vue'
+import VerifyEmail from '@/views/Auth/VerifyEmail.vue'
 import Home from '@/views/Home/home.vue'
 import Chat from '@/views/Chat/index.vue'
 import KnowledgeBase from '@/views/KnowledgeBase/index.vue'
@@ -85,6 +86,11 @@ const router = createRouter({
         }
       ]
     },
+    {
+      path: '/verify',
+      component: VerifyEmail,
+      meta: { title: '邮箱验证' }
+    },
     // 旧路由重定向
     { path: '/login', redirect: '/auth/login' },
     { path: '/register', redirect: '/auth/register' },
@@ -98,7 +104,7 @@ router.beforeEach((to, from, next) => {
   const userInfoStr = localStorage.getItem('userInfo')
 
   // 定义不需要登录就能访问的页面
-  const publicPages = ['/auth/login', '/auth/register', '/login', '/register', '/front/home']
+  const publicPages = ['/auth/login', '/auth/register', '/verify', '/login', '/register', '/front/home']
 
   // 检查当前页面是否需要登录
   const requiresAuth = !publicPages.includes(to.path)

@@ -155,6 +155,16 @@ const config = {
     maxFileSize: 10 * 1024 * 1024     // 音频文件最大 10MB
   },
 
+  // 邮件配置（QQ邮箱 SMTP）
+  email: {
+    host: 'smtp.qq.com',
+    port: 465,
+    secure: true,
+    user: process.env.EMAIL_USER || '',
+    pass: process.env.EMAIL_PASS || '', // QQ邮箱授权码，非登录密码
+    from: process.env.EMAIL_FROM || process.env.EMAIL_USER || '',
+  },
+
   // 联网搜索配置
   webSearch: {
     enabled: true,
