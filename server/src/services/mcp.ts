@@ -53,8 +53,12 @@ export async function initMCP() {
 }
 
 export async function getMcpTools() {
-  if (!mcpClient) throw new Error('MCP not initialized. Call initMCP() first.')
-  return mcpClient.getTools()
+  if (!mcpClient) return [] // MCP 尚未初始化完成，返回空工具列表等待连接
+  try {
+    return await mcpClient.getTools()
+  } catch {
+    return [] // 连接异常时降级，不影响核心对话
+  }
 }
 
 /** 获取 MCP 状态：每个 server 的名称、标签、图标、是否启用、工具数 */
