@@ -185,7 +185,7 @@ export async function chatWithAIStream(
     const hasMedia = files && files.some(f => f.type.startsWith('image/') || f.type.startsWith('video/'))
 
     if (hasMedia) {
-      // 多模态消息：图片/视频走原有 Anciptic 多模态管线
+      // 多模态消息：图片/视频走原有 Anthropic 多模态管线
       const contextText = historyMessages.map(m => `${m.role === 'user' ? '用户' : '助手'}: ${m.content}`).join('\n')
       const multimodalMsg = await buildMultimodalContent(message, files!, maxVideoFrames || 600)
 
@@ -213,11 +213,32 @@ export async function chatWithAIStream(
       return { stream, sessionId, agentMode: false as const }
     }
 
-    // 纯文本消息：LangChain Agent 统一调度
+    // 预解析文档文件，将内容注入消息，避免 Agent 用 MCP 工具乱扫 PDF 二进制
+    let documentContext = ''
+    if (files && files.length > 0) {
+      const docFiles = files.filter(f =>
+        f.type.startsWith('text/') ||
+        f.type === 'application/pdf' ||
+        f.type === 'application/msword' ||
+        f.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      )
+      for (const file of docFiles) {
+        try {
+          const docText = await parseDocument(file.url, file.type)
+          documentContext += `\n\n--- 文件: ${file.name} ---\n${docText}\n--- 文件结束 ---\n`
+        } catch { /* 解析失败则跳过 */ }
+      }
+    }
+
+    const agentMessage = documentContext
+      ? `以下是上传的文档内容:\n${documentContext}\n\n用户问题: ${message}`
+      : message
+
+    // Agent 管线（纯文本 / 含文档）
     const events = agentStream(
       { userId, kbId, model, nexusMode, userRole, permissions: { kbRetrieval: !!kbId, memory: !!userId, imageGeneration: true } },
       historyMessages,
-      message
+      agentMessage
     )
 
     return { stream: events, sessionId, agentMode: true as const }
