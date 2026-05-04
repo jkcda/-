@@ -7,6 +7,7 @@ import { parseDocument } from './documentPipeline.js'
 import { holdUserMessage } from './memoryService.js'
 import { processVideo } from './videoProcessor.js'
 import { agentStream, type AgentSSEEvent } from './agent.js'
+import { searchWeb } from './webSearch.js'
 
 function getClient(provider: 'modelscope' | 'volcengine' = 'modelscope') {
   const cfg = provider === 'volcengine' ? config.ai.volcengine : config.ai.modelscope
@@ -94,7 +95,8 @@ function imageToBase64(filePath: string): { data: string; mediaType: string } {
 async function buildMultimodalContent(
   message: string,
   files: UploadedFile[],
-  maxVideoFrames: number = 600
+  maxVideoFrames: number = 600,
+  webSearchText?: string
 ): Promise<Anthropic.MessageParam> {
   const contentBlocks: any[] = []
 
@@ -121,6 +123,7 @@ async function buildMultimodalContent(
   const textParts = [message]
   if (videoTranscript) textParts.push(videoTranscript)
   if (documentContext) textParts.push(`以下是上传的文档内容:\n${documentContext}`)
+  if (webSearchText) textParts.push(webSearchText)
   const promptSuffix = videoFrames.length > 0
     ? '\n\n以上是视频的关键帧截图，请结合画面和语音转写内容进行综合分析。'
     : documentContext ? '\n请根据文档内容和用户问题进行回答。' : ''
@@ -185,9 +188,24 @@ export async function chatWithAIStream(
     const hasMedia = files && files.some(f => f.type.startsWith('image/') || f.type.startsWith('video/'))
 
     if (hasMedia) {
-      // 多模态消息：图片/视频走原有 Anthropic 多模态管线
+      // 多模态消息：图片/视频走 Anthropic 多模态管线
+      const hasVideo = files!.some(f => f.type.startsWith('video/'))
+
+      // 视频 + 联网：并行处理视频和搜索，降低帧数腾出 token 空间
+      const effectiveFrames = hasVideo && webSearchEnabled
+        ? Math.min(maxVideoFrames || 600, 300)
+        : (maxVideoFrames || 600)
+
+      let webSearchText: string | undefined
+      if (hasVideo && webSearchEnabled && message.trim()) {
+        const [searchResult] = await Promise.allSettled([
+          searchWeb(message)
+        ])
+        webSearchText = searchResult.status === 'fulfilled' ? searchResult.value.text : undefined
+      }
+
       const contextText = historyMessages.map(m => `${m.role === 'user' ? '用户' : '助手'}: ${m.content}`).join('\n')
-      const multimodalMsg = await buildMultimodalContent(message, files!, maxVideoFrames || 600)
+      const multimodalMsg = await buildMultimodalContent(message, files!, effectiveFrames, webSearchText)
 
       const isFirstMessage = historyMessages.length === 0
       const systemPrompt = nexusMode
