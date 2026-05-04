@@ -191,13 +191,14 @@ export async function chatWithAIStream(
       // 多模态消息：图片/视频走 Anthropic 多模态管线
       const hasVideo = files!.some(f => f.type.startsWith('video/'))
 
-      // 视频 + 联网：并行处理视频和搜索，降低帧数腾出 token 空间
-      const effectiveFrames = hasVideo && webSearchEnabled
+      // 视频 + 联网：仅当用户消息含搜索意图关键词时才触发，帧数从600降至300
+      const searchIntent = /搜索|搜一下|搜搜|查一下|查找|查查|最新|实时|新闻|今天|现在|当前|近期|最近|刚刚/.test(message)
+      const effectiveFrames = hasVideo && searchIntent
         ? Math.min(maxVideoFrames || 600, 300)
         : (maxVideoFrames || 600)
 
       let webSearchText: string | undefined
-      if (hasVideo && webSearchEnabled && message.trim()) {
+      if (hasVideo && searchIntent && message.trim()) {
         const [searchResult] = await Promise.allSettled([
           searchWeb(message)
         ])
