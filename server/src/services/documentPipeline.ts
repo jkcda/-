@@ -10,7 +10,7 @@ const pdfParse: (buf: Buffer) => Promise<{ text: string }> = require('pdf-parse'
 
 // 解析文档为纯文本（从 ai.ts 提取）
 export async function parseDocument(filePath: string, mimeType: string): Promise<string> {
-  const absolutePath = path.resolve(filePath)
+  const absolutePath = path.join(process.cwd(), filePath)
 
   switch (mimeType) {
     case 'text/plain':
