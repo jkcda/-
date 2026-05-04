@@ -59,13 +59,16 @@ export async function handleSSE(
               let errMsg: string = parsed.error
               if (errMsg.includes('DataInspectionFailed') || errMsg.includes('inappropriate')) {
                 errMsg = '内容审核拦截：回复包含敏感内容，请重新措辞后重试。'
+              } else if (errMsg.includes('terminated') || errMsg.includes('abort')) {
+                errMsg = '连接中断，请重试。如上传图片过大，请压缩后再试。'
               }
-              throw new Error(errMsg)
+              onError(new Error(errMsg))
+              return
             } else if (parsed.type) {
               onEvent?.(parsed as SSEEvent)
             }
           } catch (e) {
-            console.error('解析 SSE 数据失败:', e)
+            // JSON 解析失败，跳过该行继续处理
           }
         }
       }

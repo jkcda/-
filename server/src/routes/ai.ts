@@ -110,7 +110,13 @@ router.post('/chat', async (req, res) => {
       res.write('data: [DONE]\n\n')
       res.end()
     } catch (error: any) {
-      res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`)
+      let errMsg: string = error.message || '未知错误'
+      if (errMsg.includes('terminated') || errMsg.includes('abort')) {
+        errMsg = '连接中断，请重试。如上传图片过大，请压缩后再试。'
+      } else if (errMsg.includes('DataInspectionFailed') || errMsg.includes('inappropriate')) {
+        errMsg = '内容审核拦截：回复因包含敏感内容被服务商拦截，请重新措辞后重试。'
+      }
+      res.write(`data: ${JSON.stringify({ error: errMsg })}\n\n`)
       res.end()
     }
   } catch (error: any) {

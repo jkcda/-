@@ -19,7 +19,7 @@ const serverConfigs: McpServerConfig[] = [
     icon: '📁',
     transport: 'stdio',
     command: 'npx',
-    args: ['-y', '@modelcontextprotocol/server-filesystem', 'C:/Users/ak195/Desktop/aiconnent'],
+    args: ['-y', '@modelcontextprotocol/server-filesystem', process.env.MCP_FS_DIR || './'],
   },
   {
     name: 'playwright',
