@@ -41,11 +41,11 @@ server/.playwright-mcp/
 *.png
 *.jpg
 
-#本地文件
+# 本地文件
 *.pdf
 *.doc
 *.docx
 *.txt
-*.md
-backend-dev-doc.md
-frontend-dev-doc.md
+# 开发文档（本地维护，不上传）
+client/frontend-dev-doc.md
+server/backend-dev-doc.md
