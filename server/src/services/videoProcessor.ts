@@ -14,6 +14,16 @@ let _transcriberLoadError: string | null = null
 async function getTranscriber() {
   if (_transcriber) return _transcriber
   if (_transcriberLoadError) throw new Error(_transcriberLoadError)
+
+  // 低配服务器（空闲内存<1.5GB）拒绝加载 Whisper 模型，避免 OOM 崩溃
+  const freeMem = Math.round(os.freemem() / (1024 * 1024))
+  if (freeMem < 1536) {
+    const msg = `服务器可用内存不足（${freeMem}MB < 1.5GB），已跳过语音转写`
+    _transcriberLoadError = msg
+    console.warn('[Whisper] ' + msg)
+    throw new Error(msg)
+  }
+
   if (_transcriberLoading) {
     // 等待已在进行的加载
     for (let i = 0; i < 60; i++) {
@@ -47,13 +57,21 @@ function extractFrames(videoPath: string): string[] {
   const out = path.join(tmpDir, 'f-%03d.jpg')
   try {
     execSync(
-      `"${ffmpegPath}" -i "${videoPath}" -vf "fps=${config.video.fps}" "${out}"`,
-      { timeout: 120000, stdio: 'pipe' }
+      `"${ffmpegPath}" -i "${videoPath}" -vf "fps=${config.video.fps},scale=480:-1" -threads 1 -q:v 5 "${out}"`,
+      { timeout: 60000, stdio: 'pipe' }
     )
   } catch { /* 帧提取完成 */ }
 
-  const frames = fs.readdirSync(tmpDir).filter(f => f.endsWith('.jpg')).sort()
-    .map(f => fs.readFileSync(path.join(tmpDir, f)).toString('base64'))
+  // 限制最多 40 帧，防止低配服务器内存溢出
+  const frameFiles = fs.readdirSync(tmpDir).filter(f => f.endsWith('.jpg')).sort()
+  const maxFrames = 40
+  const selected = frameFiles.length <= maxFrames
+    ? frameFiles
+    : frameFiles.filter((_, i) => i % Math.ceil(frameFiles.length / maxFrames) === 0)
+  const frames = selected.map(f => {
+    const data = fs.readFileSync(path.join(tmpDir, f)).toString('base64')
+    return data
+  })
   fs.rmSync(tmpDir, { recursive: true, force: true })
   return frames
 }
@@ -63,7 +81,7 @@ function extractAudio(videoPath: string): string | null {
   const out = path.join(tmpDir, 'audio.wav')
   try {
     execSync(
-      `"${ffmpegPath}" -i "${videoPath}" -vn -acodec pcm_s16le -ar 16000 -ac 1 -y "${out}"`,
+      `"${ffmpegPath}" -i "${videoPath}" -vn -acodec pcm_s16le -ar 16000 -ac 1 -threads 1 -y "${out}"`,
       { timeout: 30000, stdio: 'pipe' }
     )
   } catch { return null }
@@ -149,11 +167,38 @@ function parseWav(buffer: Buffer): { samples: Float32Array; sampleRate: number; 
   } catch { return null }
 }
 
+function getFreeMemoryMB(): number {
+  const free = os.freemem()
+  return Math.round(free / (1024 * 1024))
+}
+
+function getCpuCount(): number {
+  return os.cpus().length
+}
+
 export async function processVideo(videoUrl: string) {
   const filePath = path.join(process.cwd(), videoUrl)
   const frames = extractFrames(filePath)
-  const audio = extractAudio(filePath)
-  const transcript = audio ? await transcribeAudio(audio) : ''
-  if (audio) fs.rmSync(path.dirname(audio), { recursive: true, force: true })
+
+  // 低配服务器（≤2核或空闲内存<1GB）跳过 Whisper，避免 OOM 导致 502
+  const freeMem = getFreeMemoryMB()
+  const cpuCount = getCpuCount()
+  const isLowResource = cpuCount <= 2 || freeMem < 1024
+
+  if (isLowResource) {
+    console.log(`[Video] 服务器资源受限（CPU:${cpuCount}核, 空闲内存:${freeMem}MB），跳过语音转写，仅提取视频帧`)
+    return { frames, transcript: '' }
+  }
+
+  let transcript = ''
+  try {
+    const audio = extractAudio(filePath)
+    if (audio) {
+      transcript = await transcribeAudio(audio)
+      fs.rmSync(path.dirname(audio), { recursive: true, force: true })
+    }
+  } catch (e: any) {
+    console.error('[Video] 语音转写失败（不影响帧分析）:', e.message)
+  }
   return { frames, transcript }
 }

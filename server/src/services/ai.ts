@@ -109,14 +109,19 @@ async function buildMultimodalContent(
       const docText = await parseDocument(file.url, file.type)
       documentContext += `\n\n--- 文件: ${file.name} ---\n${docText}\n--- 文件结束 ---\n`
     } else if (file.type.startsWith('video/')) {
-      const result = await processVideo(file.url)
-      if (result.transcript) {
-        videoTranscript += `\n\n--- 视频语音转写: ${file.name} ---\n${result.transcript}\n--- 转写结束 ---\n`
+      try {
+        const result = await processVideo(file.url)
+        if (result.transcript) {
+          videoTranscript += `\n\n--- 视频语音转写: ${file.name} ---\n${result.transcript}\n--- 转写结束 ---\n`
+        }
+        const sampled = result.frames.length <= maxVideoFrames
+          ? result.frames
+          : Array.from({ length: maxVideoFrames }, (_, i) => result.frames[Math.floor(i * result.frames.length / maxVideoFrames)])
+        videoFrames.push(...sampled)
+      } catch (e: any) {
+        console.error(`[Video] 处理视频失败 (${file.name}):`, e.message)
+        // 视频处理失败不阻塞对话，继续处理其他文件
       }
-      const sampled = result.frames.length <= maxVideoFrames
-        ? result.frames
-        : Array.from({ length: maxVideoFrames }, (_, i) => result.frames[Math.floor(i * result.frames.length / maxVideoFrames)])
-      videoFrames.push(...sampled)
     }
   }
 
