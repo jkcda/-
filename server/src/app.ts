@@ -1,5 +1,6 @@
 import express from 'express'
 import cors from 'cors'
+import helmet from 'helmet'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import userRouter from './routes/user.js'
@@ -10,16 +11,39 @@ import knowledgeBaseRouter from './routes/knowledgeBase.js'
 import voiceRouter from './routes/voice.js'
 import mcpRouter from './routes/mcp.js'
 import config from './config/index.js'
+import { rateLimiter } from './utils/rateLimit.js'
 import fs from 'fs'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
+// JWT_SECRET 检查
+if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'default-secret-key') {
+  console.warn('⚠ 安全警告: JWT_SECRET 未配置或使用了默认值，生产环境必须修改！')
+}
+
 const app = express()
 
-// 中间件
-app.use(cors())
+// 安全中间件
+app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }))
+
+const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173')
+  .split(',').map(s => s.trim())
+app.use(cors({
+  origin: (origin, cb) => {
+    if (!origin || allowedOrigins.includes(origin)) return cb(null, true)
+    cb(new Error('CORS not allowed'))
+  },
+  credentials: true,
+}))
+
 app.use(express.json({ limit: '50mb' }))
+
+// 全局限流: 每 IP 每分钟 100 请求，ai/chat 接口另有限流
+app.use(rateLimiter({ windowMs: 60000, max: 100 }))
+
+// AI 对话接口额外限流: 每 IP 每30秒 5 次
+app.use('/api/ai/chat', rateLimiter({ windowMs: 30000, max: 5 }))
 
 // 静态文件服务 — 上传文件访问
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')))
@@ -60,7 +84,7 @@ import('./services/videoProcessor.js').then(m => {
   m.preloadTranscriber()
 }).catch(() => {})
 
-// 初始化 MCP 连接（文件系统 + Playwright）
+// 初始化 MCP 连接（Playwright 浏览器）
 import('./services/mcp.js').then(m => {
   console.log('[MCP] Connecting to MCP servers...')
   m.initMCP()

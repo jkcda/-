@@ -310,6 +310,7 @@ import { ref, computed, nextTick, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { PictureFilled, FolderOpened, Document, Close, ArrowDown, Menu, VideoCameraFilled, Microphone, Headset, ZoomIn, ZoomOut, RefreshLeft, Download } from '@element-plus/icons-vue'
 import { marked } from 'marked'
+import DOMPurify from 'dompurify'
 import { useVoiceRecording, uploadVoiceForTranscription } from '@/utils/voiceRecording'
 import { speak, autoSpeakEnabled, toggleAutoSpeak, voices, selectedVoiceId, selectVoice, loadVoices } from '@/utils/tts'
 
@@ -504,7 +505,8 @@ function onVoiceSelect(id: string) {
 
 function renderMarkdown(content: string): string {
   if (!content) return ''
-  return marked.parse(content) as string
+  const raw = marked.parse(content) as string
+  return DOMPurify.sanitize(raw, { ALLOWED_TAGS: ['h1','h2','h3','h4','h5','h6','p','br','b','strong','i','em','u','s','a','ul','ol','li','pre','code','blockquote','hr','img','table','thead','tbody','tr','th','td','span','div'], ALLOWED_ATTR: ['href','target','src','alt','class','id'] })
 }
 
 function addFiles(files: FileList | File[]) {

@@ -1,23 +1,32 @@
 import { Request, Response } from 'express'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
+import { z } from 'zod'
 import { UserModel } from '../models/user.js'
 import { ApiResponse } from '../utils/response.js'
 import { sendVerificationEmail } from '../services/emailService.js'
 import config from '../config/index.js'
 
+const registerSchema = z.object({
+  username: z.string().min(2).max(20).regex(/^[a-zA-Z0-9_\u4e00-\u9fa5]+$/,
+    '用户名只能包含中英文、数字和下划线'),
+  email: z.string().email('邮箱格式不正确').max(100),
+  password: z.string().min(6, '密码至少6位').max(100),
+})
+
+const loginSchema = z.object({
+  username: z.string().min(1, '请输入用户名'),
+  password: z.string().min(1, '请输入密码'),
+})
+
 // 注册接口（含邮箱验证）
 export const register = async (req: Request, res: Response) => {
   try {
-    const { username, email, password } = req.body
-
-    if (!username || !email || !password) {
-      return ApiResponse.badRequest(res, '请填写完整信息')
+    const parsed = registerSchema.safeParse(req.body)
+    if (!parsed.success) {
+      return ApiResponse.badRequest(res, parsed.error.issues[0]!.message)
     }
-
-    if (password.length < 6) {
-      return ApiResponse.badRequest(res, '密码长度不能少于 6 位')
-    }
+    const { username, email, password } = parsed.data
 
     const existingUser = await UserModel.findByUsername(username)
     if (existingUser) {
@@ -75,12 +84,11 @@ export const verifyEmail = async (req: Request, res: Response) => {
 // 登录接口
 export const login = async (req: Request, res: Response) => {
   try {
-    const { username, password } = req.body
-
-    // 验证必填字段
-    if (!username || !password) {
-      return ApiResponse.badRequest(res, '请填写完整信息')
+    const parsed = loginSchema.safeParse(req.body)
+    if (!parsed.success) {
+      return ApiResponse.badRequest(res, parsed.error.issues[0]!.message)
     }
+    const { username, password } = parsed.data
 
     // 查找用户
     const user = await UserModel.findByUsername(username)
