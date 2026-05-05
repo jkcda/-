@@ -97,10 +97,11 @@ client/src/
 ### 2. 对话系统
 
 **SSE 流式 + 打字机**：
-- `handleSSE()` 支持 `content`、`webSearch`、`retrieval` 三种事件
+- `handleSSE()` 缓冲区按 `\n\n` 分割保证 TCP 分片时消息完整性，`TextDecoder({ stream: true })` 防止中文截断
+- 支持 `content`、`tool_call`、`tool_result`、`webSearch`、`retrieval` 等多种 SSE 事件类型
 - 打字机缓冲区：30ms 逐字释放，积压 >200 字自动加速
-- 加载动画：Agent 阶段动态文案（解析情报→搜索/检索/记忆/生图→整理情报）
-- SSE 事件：新增 `tool_call` / `tool_result` 类型，生图结果携带 `imageUrl` 直接注入
+- 加载动画：Agent 阶段动态文案（解析情报→搜索/检索/记忆/生图→整理情报），`searching` 状态切换 `searching.png`
+- 生图结果携带 `imageUrl` 直接注入消息气泡
 
 **多模态上传**：图片/文档/视频 + Ctrl+V 粘贴
 
@@ -135,7 +136,7 @@ client/src/
 
 ### 5. 移动端适配
 
-768px 断点：侧边栏 → fixed 抽屉、汉堡菜单、消息气泡放宽至 90%、表格横滚
+768px 断点：侧边栏 → fixed 抽屉、汉堡菜单、消息气泡 85% 宽度、`overflow-x: hidden` 防止横向滑动、`<pre>` 限制 `max-width: calc(100vw - 56px)`、`overflow-wrap: anywhere` 强制断行。输入区 `flex-wrap` 换行适配小屏。
 
 ---
 
@@ -191,11 +192,12 @@ client/src/
 | 决策 | 理由 |
 |------|------|
 | SSE 而非 WebSocket | 单向推送够用、HTTP 更简单 |
+| SSE 缓冲区按 `\n\n` 分割 | TCP 分片导致 JSON 行不完整，手机网络更易触发，导致流式/状态切换失效 |
 | 打字机延迟 30ms | 平衡流畅度和性能 |
 | 移动端 fixed 抽屉 | 保留桌面折叠逻辑，移动端独立 |
-| Edge-TTS Python 子进程 | 微软 WebSocket API 鉴权不稳定 |
+| 移动端 overflow-x: hidden | 长代码块/URL 撑破容器宽度导致横向滑动 |
 | 语音 local 记忆 | 用户偏好跨会话保持 |
 
 ---
 
-*最后更新: 2026-05-03 | v1.1.0 — LangChain Agent(41工具) + MCP可视化面板 + 动态loading文案 + 来源强制标注 + 生图SSE直接注入 + 宽高比常驻*
+*最后更新: 2026-05-05 | v1.2.0 — SSE缓冲区解析修复(TCP分片) + 移动端横向滑动修复 + loading状态图searching切换*
