@@ -583,6 +583,7 @@ defineExpose({ scrollToBottom })
   display: flex;
   flex-direction: column;
   min-width: 0;
+  overflow: hidden;
   background: var(--color-bg-deep);
 }
 
@@ -621,6 +622,7 @@ defineExpose({ scrollToBottom })
 .chat-messages {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 20px;
 }
 
@@ -651,8 +653,11 @@ defineExpose({ scrollToBottom })
   padding: 12px 16px;
   border-radius: var(--radius-sm);
   word-wrap: break-word;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   line-height: 1.6;
   user-select: text;
+  min-width: 0;
 }
 
 /* Markdown 深度样式 */
@@ -681,10 +686,11 @@ defineExpose({ scrollToBottom })
   padding: 10px 12px;
   border-radius: var(--radius-sm);
   overflow-x: auto;
-  white-space: pre;
+  white-space: pre-wrap;
+  word-break: break-word;
   border: var(--border-thin) var(--color-border);
 }
-.message-content :deep(pre code) { background: none; padding: 0; }
+.message-content :deep(pre code) { background: none; padding: 0; white-space: pre-wrap; word-break: break-word; }
 .message-content :deep(blockquote) {
   border-left: 3px solid var(--color-magic-gold);
   padding-left: 10px;
@@ -1157,19 +1163,24 @@ defineExpose({ scrollToBottom })
 
   .chat-messages {
     padding: 12px;
+    overflow-x: hidden;
   }
 
   .message-content {
-    max-width: 90%;
+    max-width: 85%;
     padding: 8px 12px;
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
 
   .chat-input {
     padding: 10px 12px;
+    overflow-x: hidden;
   }
 
   .kb-selector-row {
     flex-wrap: wrap;
+    overflow-x: hidden;
   }
 
   .input-row {
@@ -1182,15 +1193,33 @@ defineExpose({ scrollToBottom })
 
   .text-input {
     min-width: 100%;
+    max-width: 100%;
   }
 
   .file-preview-bar {
     padding: 6px 12px;
+    overflow-x: auto;
   }
 
   .msg-image {
     max-width: 140px;
     max-height: 140px;
+  }
+
+  .message-content :deep(pre) {
+    max-width: calc(100vw - 56px);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .message-content :deep(img) {
+    max-width: 200px;
+    max-height: 200px;
+  }
+
+  .loading-image {
+    width: 80px;
+    height: 80px;
   }
 }
 </style>

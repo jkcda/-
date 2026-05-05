@@ -609,6 +609,7 @@ onBeforeUnmount(() => {
   display: flex;
   height: 100%;
   position: relative;
+  overflow: hidden;
 }
 
 .sidebar-toggle {
