@@ -57,21 +57,13 @@ function extractFrames(videoPath: string): string[] {
   const out = path.join(tmpDir, 'f-%03d.jpg')
   try {
     execSync(
-      `"${ffmpegPath}" -i "${videoPath}" -vf "fps=${config.video.fps},scale=480:-1" -threads 1 -q:v 5 "${out}"`,
-      { timeout: 60000, stdio: 'pipe' }
+      `"${ffmpegPath}" -i "${videoPath}" -vf "fps=${config.video.fps}" -threads 1 "${out}"`,
+      { timeout: 120000, stdio: 'pipe' }
     )
   } catch { /* 帧提取完成 */ }
 
-  // 限制最多 40 帧，防止低配服务器内存溢出
-  const frameFiles = fs.readdirSync(tmpDir).filter(f => f.endsWith('.jpg')).sort()
-  const maxFrames = 40
-  const selected = frameFiles.length <= maxFrames
-    ? frameFiles
-    : frameFiles.filter((_, i) => i % Math.ceil(frameFiles.length / maxFrames) === 0)
-  const frames = selected.map(f => {
-    const data = fs.readFileSync(path.join(tmpDir, f)).toString('base64')
-    return data
-  })
+  const frames = fs.readdirSync(tmpDir).filter(f => f.endsWith('.jpg')).sort()
+    .map(f => fs.readFileSync(path.join(tmpDir, f)).toString('base64'))
   fs.rmSync(tmpDir, { recursive: true, force: true })
   return frames
 }
@@ -178,15 +170,22 @@ function getCpuCount(): number {
 
 export async function processVideo(videoUrl: string) {
   const filePath = path.join(process.cwd(), videoUrl)
-  const frames = extractFrames(filePath)
+  let frames = extractFrames(filePath)
 
-  // 低配服务器（≤2核或空闲内存<1GB）跳过 Whisper，避免 OOM 导致 502
   const freeMem = getFreeMemoryMB()
   const cpuCount = getCpuCount()
   const isLowResource = cpuCount <= 2 || freeMem < 1024
 
+  // 低配服务器：限制帧数上限 60（≈30秒视频@2fps），防止 base64 帧数组 OOM
+  const LOW_RES_FRAME_CAP = 60
+  if (isLowResource && frames.length > LOW_RES_FRAME_CAP) {
+    console.log(`[Video] 低配服务器帧数限制: ${frames.length} → ${LOW_RES_FRAME_CAP}`)
+    frames = frames.filter((_, i) => i % Math.ceil(frames.length / LOW_RES_FRAME_CAP) === 0).slice(0, LOW_RES_FRAME_CAP)
+  }
+
+  // 低配服务器跳过 Whisper 语音转写，避免 OOM 导致 502
   if (isLowResource) {
-    console.log(`[Video] 服务器资源受限（CPU:${cpuCount}核, 空闲内存:${freeMem}MB），跳过语音转写，仅提取视频帧`)
+    console.log(`[Video] 服务器资源受限（CPU:${cpuCount}核, 空闲内存:${freeMem}MB），跳过语音转写`)
     return { frames, transcript: '' }
   }
 
