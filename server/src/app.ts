@@ -32,7 +32,7 @@ const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173')
 app.use(cors({
   origin: (origin, cb) => {
     if (!origin || allowedOrigins.includes(origin)) return cb(null, true)
-    cb(new Error('CORS not allowed'))
+    cb(null, false)
   },
   credentials: true,
 }))
