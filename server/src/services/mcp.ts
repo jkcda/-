@@ -14,14 +14,6 @@ interface McpServerConfig {
 
 const serverConfigs: McpServerConfig[] = [
   {
-    name: 'filesystem',
-    label: '文件系统',
-    icon: '📁',
-    transport: 'stdio',
-    command: 'npx',
-    args: ['-y', '@modelcontextprotocol/server-filesystem', process.env.MCP_FS_DIR || './'],
-  },
-  {
     name: 'playwright',
     label: 'Playwright 浏览器',
     icon: '🎭',

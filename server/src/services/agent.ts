@@ -253,7 +253,6 @@ export async function createChatAgent(cfg: AgentConfig) {
 - playwright__browser_navigate + playwright__browser_snapshot — 打开和读取具体网页。关键词："打开xxx网站/帮我看看xxx网页/去xxx官网"
 - playwright__browser_click / browser_type / browser_fill_form — 操作网页。关键词："点击/填写/登录"
 - playwright__browser_take_screenshot — 网页截图。关键词："截图"
-- filesystem__* — 读写本地项目文件。关键词："帮我写/修改/查看文件"
 - generate_image — 生成图片。关键词："画/生成/配图/海报"
 - recall_memory — 回忆历史对话。关键词："上次/之前/记得"
 - query_knowledge_base — 检索知识库文档
