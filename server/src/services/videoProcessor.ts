@@ -92,29 +92,29 @@ export async function preloadTranscriber(): Promise<void> {
 async function transcribeViaAPI(audioPath: string): Promise<string> {
   try {
     const buffer = fs.readFileSync(audioPath)
-    const base64 = buffer.toString('base64')
-    console.log(`[ASR-API] 调用 ModelScope API，音频 ${(buffer.length / 1024).toFixed(1)}KB`)
+    console.log(`[ASR-API] 调用 ModelScope，音频 ${(buffer.length / 1024).toFixed(1)}KB`)
+
+    // 用 multipart/form-data（OpenAI 标准格式）
+    const form = new FormData()
+    form.append('file', new Blob([buffer], { type: 'audio/wav' }), 'audio.wav')
+    form.append('model', 'iic/SenseVoiceSmall')
+
     const res = await fetch('https://api-inference.modelscope.cn/v1/audio/transcriptions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${getSetting('DASHSCOPE_API_KEY')}`,
-        'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        file: base64,
-        model: 'iic/SenseVoiceSmall',
-        language: 'zh'
-      })
+      body: form
     })
     if (!res.ok) {
       const err = await res.text().catch(() => '')
-      throw new Error(`ASR API 返回 ${res.status}: ${err.slice(0, 200)}`)
+      throw new Error(`ASR API ${res.status}: ${err.slice(0, 200)}`)
     }
     const data = await res.json() as { text?: string }
-    console.log(`[ASR-API] 转写完成: "${data.text?.slice(0, 50)}"`)
+    console.log(`[ASR-API] 完成: "${data.text?.slice(0, 50)}"`)
     return data.text?.trim() || ''
   } catch (e: any) {
-    console.error('[ASR-API] 转写失败:', e.message)
+    console.error('[ASR-API] 失败:', e.message)
     return ''
   }
 }
