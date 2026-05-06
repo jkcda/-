@@ -66,7 +66,7 @@ async function fetchSettings() {
   loading.value = true
   try {
     const res = await getSettings()
-    settings.value = (res as any).data?.settings || []
+    settings.value = (res as any).data?.result?.settings || []
   } catch {
     ElMessage.error('获取配置列表失败')
   } finally {
