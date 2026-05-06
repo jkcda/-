@@ -1,5 +1,4 @@
 import pool from '../utils/db.js'
-import crypto from 'crypto'
 
 export interface User {
   id?: number
@@ -8,51 +7,26 @@ export interface User {
   password: string
   role?: 'admin' | 'user'
   email_verified?: number
-  verification_token?: string
   created_at?: Date
 }
 
-// 确保表有验证字段（首次运行时自动 ALTER TABLE）
-let migrationDone = false
-async function ensureEmailColumns() {
-  if (migrationDone) return
-  try {
-    await pool.execute("ALTER TABLE users ADD COLUMN email_verified TINYINT(1) DEFAULT 0")
-  } catch {}
-  try {
-    await pool.execute("ALTER TABLE users ADD COLUMN verification_token VARCHAR(100) NULL")
-  } catch {}
-  migrationDone = true
-}
-
 export class UserModel {
-  // 创建用户（含6位验证码）
-  static async create(user: Omit<User, 'id' | 'created_at' | 'email_verified' | 'verification_token'>): Promise<{ id: number; code: string }> {
-    await ensureEmailColumns()
-    const code = String(Math.floor(100000 + Math.random() * 900000))
+  // 创建已验证用户（邮箱验证通过后调用）
+  static async createVerified(user: { username: string; email: string; password: string; role?: string }): Promise<number> {
     const [result] = await pool.execute(
-      'INSERT INTO users (username, email, password, role, email_verified, verification_token) VALUES (?, ?, ?, ?, 0, ?)',
-      [user.username, user.email, user.password, user.role || 'user', code]
+      'INSERT INTO users (username, email, password, role, email_verified) VALUES (?, ?, ?, ?, 1)',
+      [user.username, user.email, user.password, user.role || 'user']
     )
-    return { id: (result as any).insertId, code }
+    return (result as any).insertId
   }
 
-  // 验证邮箱（6位验证码，5分钟内有效）
-  static async verifyEmail(email: string, code: string): Promise<boolean> {
-    await ensureEmailColumns()
-    const [rows] = await pool.execute(
-      `SELECT id FROM users
-       WHERE email = ? AND verification_token = ? AND email_verified = 0
-         AND created_at > DATE_SUB(NOW(), INTERVAL 5 MINUTE)`,
-      [email, code]
+  // 管理员直接创建用户（跳过验证）
+  static async create(user: { username: string; email: string; password: string; role?: string }): Promise<number> {
+    const [result] = await pool.execute(
+      'INSERT INTO users (username, email, password, role, email_verified) VALUES (?, ?, ?, ?, 1)',
+      [user.username, user.email, user.password, user.role || 'user']
     )
-    const user = (rows as any[])[0]
-    if (!user) return false
-    await pool.execute(
-      'UPDATE users SET email_verified = 1, verification_token = NULL WHERE id = ?',
-      [user.id]
-    )
-    return true
+    return (result as any).insertId
   }
 
   static async findByUsername(username: string): Promise<User | null> {

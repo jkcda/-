@@ -105,6 +105,17 @@ CREATE TABLE IF NOT EXISTS `system_settings` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='系统配置表（API Key等）';
 
 
+-- 验证码临时存储表
+CREATE TABLE IF NOT EXISTS `verification_codes` (
+  `id` INT PRIMARY KEY AUTO_INCREMENT,
+  `email` VARCHAR(100) NOT NULL,
+  `code` VARCHAR(10) NOT NULL,
+  `username` VARCHAR(50) NOT NULL,
+  `password` VARCHAR(255) NOT NULL COMMENT '已加密密码',
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_vc_email` (`email`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='注册验证码临时存储（验证通过后移至users表）';
+
 -- 示例数据（可选，用于测试）
 -- INSERT INTO users (username, email, password, role) VALUES
 -- ('admin', 'admin@example.com', '$2a$10$example_hashed_password', 'admin'),

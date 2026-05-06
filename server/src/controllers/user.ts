@@ -6,7 +6,7 @@ import { UserModel } from '../models/user.js'
 import { ApiResponse } from '../utils/response.js'
 import { sendVerificationEmail } from '../services/emailService.js'
 import config, { getSetting } from '../config/index.js'
-import pool from '../utils/db.js'
+import { VerificationModel } from '../models/verificationCode.js'
 
 const registerSchema = z.object({
   username: z.string().min(2).max(20).regex(/^[a-zA-Z0-9_\u4e00-\u9fa5]+$/,
@@ -20,7 +20,7 @@ const loginSchema = z.object({
   password: z.string().min(1, '请输入密码'),
 })
 
-// 注册接口（含邮箱验证）
+// 注册接口（先发验证码，验证通过后才入库）
 export const register = async (req: Request, res: Response) => {
   try {
     const parsed = registerSchema.safeParse(req.body)
@@ -39,51 +39,50 @@ export const register = async (req: Request, res: Response) => {
       return ApiResponse.badRequest(res, '邮箱已被注册')
     }
 
+    // 密码加密
     const salt = await bcrypt.genSalt(10)
     const hashedPassword = await bcrypt.hash(password, salt)
 
-    const { id, code } = await UserModel.create({
-      username,
-      email,
-      password: hashedPassword,
-    })
+    // 暂存验证信息，不入 users 表
+    const code = await VerificationModel.create({ email, username, password: hashedPassword })
 
-    // 发送验证邮件（发送失败则注册失败）
+    // 发送验证邮件
     if (!getSetting('EMAIL_USER')) {
       return ApiResponse.internalServerError(res, '邮件服务未配置，请联系管理员')
     }
     try {
       await sendVerificationEmail(email, code)
     } catch (e: any) {
-      // 邮件发送失败，删除刚创建的用户
-      await pool.execute('DELETE FROM users WHERE id = ?', [id])
       return ApiResponse.internalServerError(res, '验证邮件发送失败，请稍后重试')
     }
 
-    return ApiResponse.created(res, {
-      id,
-      username,
-      email,
-    }, '注册成功，请查收邮箱验证码完成验证')
+    return ApiResponse.success(res, { email }, '验证码已发送，请查收邮箱')
   } catch (error: any) {
     console.error('注册错误:', error)
     return ApiResponse.internalServerError(res, '服务器错误', error.message)
   }
 }
 
-// 邮箱验证（6位验证码）
+// 邮箱验证（验证通过后创建用户）
 export const verifyEmail = async (req: Request, res: Response) => {
   try {
     const { email, code } = req.body
     if (!email || !code) {
       return ApiResponse.badRequest(res, '请提供邮箱和验证码')
     }
-    const ok = await UserModel.verifyEmail(email, code)
-    if (ok) {
-      return ApiResponse.success(res, null, '邮箱验证成功')
+    const pending = await VerificationModel.verify(email, code)
+    if (!pending) {
+      return ApiResponse.badRequest(res, '验证码错误或已过期')
     }
-    return ApiResponse.badRequest(res, '验证码错误或已过期')
+    // 验证通过 → 正式创建用户
+    await UserModel.createVerified({
+      username: pending.username,
+      email,
+      password: pending.password,
+    })
+    return ApiResponse.success(res, null, '邮箱验证成功，现在可以登录了')
   } catch (error: any) {
+    console.error('验证错误:', error)
     return ApiResponse.internalServerError(res, '验证失败', error.message)
   }
 }
