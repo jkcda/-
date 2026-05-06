@@ -12,7 +12,7 @@
     <div v-if="mobileMenuOpen" class="mobile-overlay" @click="mobileMenuOpen = false"></div>
 
     <div class="header-nav" :class="{ 'mobile-open': mobileMenuOpen }">
-      <router-link to="/" @click="mobileMenuOpen = false">首页</router-link>
+      <router-link to="/" exact @click="mobileMenuOpen = false">首页</router-link>
       <router-link to="/chat" @click="mobileMenuOpen = false">AI 对话</router-link>
       <router-link to="/knowledge-base" @click="mobileMenuOpen = false">知识库</router-link>
       <router-link v-if="isAdmin" to="/admin/dashboard" class="admin-link" @click="mobileMenuOpen = false">后台管理</router-link>
