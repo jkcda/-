@@ -12,7 +12,7 @@
     <div v-if="mobileMenuOpen" class="mobile-overlay" @click="mobileMenuOpen = false"></div>
 
     <div class="header-nav" :class="{ 'mobile-open': mobileMenuOpen }">
-      <router-link to="/" exact @click="mobileMenuOpen = false">首页</router-link>
+      <router-link to="/" @click="mobileMenuOpen = false">首页</router-link>
       <router-link to="/chat" @click="mobileMenuOpen = false">AI 对话</router-link>
       <router-link to="/knowledge-base" @click="mobileMenuOpen = false">知识库</router-link>
       <router-link v-if="isAdmin" to="/admin/dashboard" class="admin-link" @click="mobileMenuOpen = false">后台管理</router-link>
@@ -152,7 +152,7 @@ onMounted(() => {
   box-shadow: var(--shadow-glow);
 }
 
-.header-nav a.router-link-active {
+.header-nav a.router-link-exact-active {
   background: var(--color-primary);
   color: var(--color-silver);
   border-color: var(--color-primary);
@@ -168,7 +168,7 @@ onMounted(() => {
   box-shadow: var(--shadow-gold-glow) !important;
 }
 
-.admin-link.router-link-active {
+.admin-link.router-link-exact-active {
   background: var(--color-magic-gold) !important;
   color: #1a1a2e !important;
 }
