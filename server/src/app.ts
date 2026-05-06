@@ -10,7 +10,7 @@ import uploadRouter from './routes/upload.js'
 import knowledgeBaseRouter from './routes/knowledgeBase.js'
 import voiceRouter from './routes/voice.js'
 import mcpRouter from './routes/mcp.js'
-import config, { initDynamicConfig } from './config/index.js'
+import config, { initDynamicConfig, getSetting } from './config/index.js'
 import { rateLimiter } from './utils/rateLimit.js'
 import fs from 'fs'
 
@@ -21,8 +21,9 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 // JWT_SECRET 检查
-if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'default-secret-key') {
-  console.warn('⚠ 安全警告: JWT_SECRET 未配置或使用了默认值，生产环境必须修改！')
+const jwtSecret = getSetting('JWT_SECRET')
+if (!jwtSecret || jwtSecret === 'default-secret-key') {
+  console.warn('⚠ 安全警告: JWT_SECRET 未配置或使用了默认值，请在后台 /admin/api-keys 中修改！')
 }
 
 const app = express()

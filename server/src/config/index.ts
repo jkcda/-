@@ -14,6 +14,7 @@ const SETTING_KEYS = [
   'TAVILY_API_KEY',
   'EMAIL_USER',
   'EMAIL_PASS',
+  'JWT_SECRET',
 ] as const
 
 type SettingKey = (typeof SETTING_KEYS)[number]
@@ -28,6 +29,7 @@ const ENV_MAP: Record<SettingKey, string | undefined> = {
   TAVILY_API_KEY: process.env.TAVILY_API_KEY,
   EMAIL_USER: process.env.EMAIL_USER,
   EMAIL_PASS: process.env.EMAIL_PASS,
+  JWT_SECRET: process.env.JWT_SECRET,
 }
 
 /** 从数据库加载所有配置到内存（DB 有值则用 DB，否则 fallback 到环境变量） */
@@ -77,6 +79,7 @@ export function getMaskedSettings(): { key_name: string; description: string; ma
     TAVILY_API_KEY: 'Tavily API Key（联网搜索）',
     EMAIL_USER: 'QQ邮箱 SMTP 登录账号',
     EMAIL_PASS: 'QQ邮箱 SMTP 授权码',
+    JWT_SECRET: 'JWT 签名密钥（用于签发和验证登录凭证）',
   }
   return SETTING_KEYS.map(k => {
     const val = getSetting(k)
@@ -103,7 +106,9 @@ const config = {
 
   // JWT 配置
   jwt: {
-    secret: process.env.JWT_SECRET || 'default-secret-key',
+    get secret() {
+      return getSetting('JWT_SECRET') || 'default-secret-key'
+    },
     expiresIn: '7d'
   },
 
