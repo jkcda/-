@@ -15,6 +15,11 @@ export const getUserInfo = () => {
   return request.get('/user/info')
 }
 
+// 邮箱验证码验证
+export const verifyEmail = (data: { email: string; code: string }) => {
+  return request.post('/user/verify-email', data)
+}
+
 // 退出登录接口（清除对话历史）
 export const logout = () => {
   return request.post('/user/logout')

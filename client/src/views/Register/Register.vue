@@ -71,8 +71,8 @@ const handleRegister = async () => {
     await registerFormRef.value.validate()
     loading.value = true
     await registerApi({ username: registerForm.username, email: registerForm.email, password: registerForm.password })
-    ElMessage.success('注册成功！')
-    setTimeout(() => router.push('/auth/login'), 800)
+    ElMessage.success('注册成功，请输入邮箱验证码')
+    router.push(`/verify?email=${encodeURIComponent(registerForm.email)}`)
   } catch (error: any) {
     ElMessage.error(error.response?.data?.message || error.message || '注册失败')
   } finally {

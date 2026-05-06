@@ -1,47 +1,76 @@
 <template>
   <div class="verify-page">
     <div class="verify-card">
-      <el-icon v-if="status === 'loading'" class="verify-icon is-loading" :size="40"><Loading /></el-icon>
-      <el-icon v-else-if="status === 'success'" class="verify-icon success" :size="40"><CircleCheck /></el-icon>
-      <el-icon v-else class="verify-icon error" :size="40"><CircleClose /></el-icon>
-      <h2>{{ status === 'loading' ? '正在验证...' : status === 'success' ? '验证成功！' : '验证失败' }}</h2>
-      <p>{{ message }}</p>
-      <el-button v-if="status !== 'loading'" type="primary" style="margin-top:20px" @click="$router.push('/auth/login')">去登录</el-button>
+      <el-icon v-if="loading" class="verify-icon is-loading" :size="40"><Loading /></el-icon>
+      <el-icon v-else-if="success" class="verify-icon success" :size="40"><CircleCheck /></el-icon>
+      <el-icon v-else class="verify-icon icon-normal" :size="40"><Message /></el-icon>
+
+      <h2 v-if="success">验证成功！</h2>
+      <h2 v-else>验证邮箱</h2>
+
+      <p v-if="success">现在可以登录了</p>
+      <p v-else>请输入发送到 <strong>{{ email }}</strong> 的6位验证码</p>
+
+      <div v-if="!success" class="code-input-wrap">
+        <el-input
+          v-model="code"
+          placeholder="000000"
+          maxlength="6"
+          size="large"
+          class="code-input"
+          :disabled="loading"
+          @input="onCodeInput"
+        />
+      </div>
+
+      <el-button
+        v-if="!success"
+        type="primary"
+        size="large"
+        class="verify-btn"
+        :loading="loading"
+        :disabled="code.length < 6"
+        @click="handleVerify"
+      >
+        验证
+      </el-button>
+
+      <el-button v-else type="primary" style="margin-top:20px" @click="$router.push('/auth/login')">
+        去登录
+      </el-button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { Loading, CircleCheck, CircleClose } from '@element-plus/icons-vue'
+import { Loading, CircleCheck, Message } from '@element-plus/icons-vue'
+import { verifyEmail } from '@/apis/user'
+import { ElMessage } from 'element-plus'
 
 const route = useRoute()
-const status = ref<'loading' | 'success' | 'error'>('loading')
-const message = ref('正在验证您的邮箱...')
+const email = ref((route.query.email as string) || '')
+const code = ref('')
+const loading = ref(false)
+const success = ref(false)
 
-onMounted(async () => {
-  const token = route.query.token as string
-  if (!token) {
-    status.value = 'error'
-    message.value = '缺少验证令牌'
-    return
-  }
+function onCodeInput(val: string) {
+  code.value = val.replace(/\D/g, '')
+}
+
+async function handleVerify() {
+  if (code.value.length < 6) return
+  loading.value = true
   try {
-    const res = await fetch(`/api/user/verify-email?token=${encodeURIComponent(token)}`)
-    const data = await res.json()
-    if (data.success) {
-      status.value = 'success'
-      message.value = '邮箱验证成功，现在可以登录了！'
-    } else {
-      status.value = 'error'
-      message.value = data.message || '验证失败'
-    }
-  } catch {
-    status.value = 'error'
-    message.value = '网络错误，请稍后重试'
+    await verifyEmail({ email: email.value, code: code.value })
+    success.value = true
+  } catch (err: any) {
+    ElMessage.error(err.response?.data?.message || '验证失败')
+  } finally {
+    loading.value = false
   }
-})
+}
 </script>
 
 <style scoped lang="scss">
@@ -50,12 +79,23 @@ onMounted(async () => {
   height: 100vh; background: var(--color-bg-deep);
 }
 .verify-card {
-  text-align: center; padding: 48px; max-width: 400px;
+  text-align: center; padding: 48px; max-width: 400px; width: 100%;
   background: var(--color-bg-card); border-radius: 16px;
   border: 1px solid var(--color-border);
   h2 { margin: 16px 0 8px; color: var(--color-text-primary); }
-  p { color: var(--color-text-muted); font-size: 14px; }
+  p { color: var(--color-text-muted); font-size: 14px; margin-bottom: 20px; }
 }
 .verify-icon.success { color: #67c23a; }
-.verify-icon.error { color: #f56c6c; }
+.verify-icon.icon-normal { color: var(--color-magic-gold); }
+.code-input-wrap { margin-bottom: 16px; }
+.code-input :deep(.el-input__wrapper) {
+  background: var(--color-bg-input);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+.code-input :deep(input) {
+  font-size: 28px; letter-spacing: 12px; text-align: center;
+  font-family: 'Courier New', monospace; color: var(--color-magic-gold);
+}
+.verify-btn { width: 100%; }
 </style>

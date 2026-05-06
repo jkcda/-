@@ -9,8 +9,8 @@ const router = express.Router()
 // POST /api/user/register - 用户注册（发送验证邮件）
 router.post('/register', register)
 
-// GET /api/user/verify-email - 验证邮箱
-router.get('/verify-email', verifyEmail)
+// POST /api/user/verify-email - 邮箱验证（6位验证码）
+router.post('/verify-email', verifyEmail)
 
 // POST /api/user/login - 用户登录
 router.post('/login', login)

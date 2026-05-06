@@ -26,23 +26,23 @@ async function ensureEmailColumns() {
 }
 
 export class UserModel {
-  // 创建用户（含验证令牌）
-  static async create(user: Omit<User, 'id' | 'created_at' | 'email_verified' | 'verification_token'>): Promise<{ id: number; token: string }> {
+  // 创建用户（含6位验证码）
+  static async create(user: Omit<User, 'id' | 'created_at' | 'email_verified' | 'verification_token'>): Promise<{ id: number; code: string }> {
     await ensureEmailColumns()
-    const token = crypto.randomUUID()
+    const code = String(Math.floor(100000 + Math.random() * 900000))
     const [result] = await pool.execute(
       'INSERT INTO users (username, email, password, role, email_verified, verification_token) VALUES (?, ?, ?, ?, 0, ?)',
-      [user.username, user.email, user.password, user.role || 'user', token]
+      [user.username, user.email, user.password, user.role || 'user', code]
     )
-    return { id: (result as any).insertId, token }
+    return { id: (result as any).insertId, code }
   }
 
-  // 验证邮箱
-  static async verifyEmail(token: string): Promise<boolean> {
+  // 验证邮箱（6位验证码）
+  static async verifyEmail(email: string, code: string): Promise<boolean> {
     await ensureEmailColumns()
     const [rows] = await pool.execute(
-      'SELECT id FROM users WHERE verification_token = ? AND email_verified = 0',
-      [token]
+      'SELECT id FROM users WHERE email = ? AND verification_token = ? AND email_verified = 0',
+      [email, code]
     )
     const user = (rows as any[])[0]
     if (!user) return false

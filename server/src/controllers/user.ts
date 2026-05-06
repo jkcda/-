@@ -41,14 +41,14 @@ export const register = async (req: Request, res: Response) => {
     const salt = await bcrypt.genSalt(10)
     const hashedPassword = await bcrypt.hash(password, salt)
 
-    const { id, token } = await UserModel.create({
+    const { id, code } = await UserModel.create({
       username,
       email,
       password: hashedPassword,
     })
 
     // 发送验证邮件（后台发送，失败不影响注册）
-    sendVerificationEmail(email, token).catch(e =>
+    sendVerificationEmail(email, code).catch(e =>
       console.error('[Email] 验证邮件发送失败:', e.message)
     )
 
@@ -57,25 +57,25 @@ export const register = async (req: Request, res: Response) => {
       username,
       email,
       emailSent: !!getSetting('EMAIL_USER'),
-    }, getSetting('EMAIL_USER') ? '注册成功，请查收验证邮件' : '注册成功')
+    }, getSetting('EMAIL_USER') ? '注册成功，请查收邮箱验证码' : '注册成功')
   } catch (error: any) {
     console.error('注册错误:', error)
     return ApiResponse.internalServerError(res, '服务器错误', error.message)
   }
 }
 
-// 验证邮箱
+// 邮箱验证（6位验证码）
 export const verifyEmail = async (req: Request, res: Response) => {
   try {
-    const { token } = req.query
-    if (!token || typeof token !== 'string') {
-      return ApiResponse.badRequest(res, '无效的验证链接')
+    const { email, code } = req.body
+    if (!email || !code) {
+      return ApiResponse.badRequest(res, '请提供邮箱和验证码')
     }
-    const ok = await UserModel.verifyEmail(token)
+    const ok = await UserModel.verifyEmail(email, code)
     if (ok) {
       return ApiResponse.success(res, null, '邮箱验证成功')
     }
-    return ApiResponse.badRequest(res, '验证链接无效或已过期')
+    return ApiResponse.badRequest(res, '验证码错误或已过期')
   } catch (error: any) {
     return ApiResponse.internalServerError(res, '验证失败', error.message)
   }
