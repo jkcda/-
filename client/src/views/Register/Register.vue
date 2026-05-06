@@ -70,9 +70,10 @@ const handleRegister = async () => {
   try {
     await registerFormRef.value.validate()
     loading.value = true
-    await registerApi({ username: registerForm.username, email: registerForm.email, password: registerForm.password })
-    ElMessage.success('注册成功，请输入邮箱验证码')
-    router.push(`/verify?email=${encodeURIComponent(registerForm.email)}`)
+    const res: any = await registerApi({ username: registerForm.username, email: registerForm.email, password: registerForm.password })
+    ElMessage.success('注册成功')
+    const code = res?.data?.result?.code || ''
+    router.push(`/verify?email=${encodeURIComponent(registerForm.email)}&code=${code}`)
   } catch (error: any) {
     ElMessage.error(error.response?.data?.message || error.message || '注册失败')
   } finally {

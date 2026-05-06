@@ -9,6 +9,11 @@
       <h2 v-else>验证邮箱</h2>
 
       <p v-if="success">现在可以登录了</p>
+      <div v-else-if="codeFromServer" class="code-display">
+        <p>您的验证码：</p>
+        <h1 class="big-code">{{ defaultCode }}</h1>
+        <p style="font-size:12px;color:#999">已自动填入，同时已发送至 {{ email }}</p>
+      </div>
       <p v-else>请输入发送到 <strong>{{ email }}</strong> 的6位验证码</p>
 
       <div v-if="!success" class="code-input-wrap">
@@ -51,9 +56,13 @@ import { ElMessage } from 'element-plus'
 
 const route = useRoute()
 const email = ref((route.query.email as string) || '')
-const code = ref('')
+const defaultCode = (route.query.code as string) || ''
+const code = ref(defaultCode)
 const loading = ref(false)
 const success = ref(false)
+
+// 如果 URL 带了验证码，自动填入并提示
+const codeFromServer = !!defaultCode
 
 function onCodeInput(val: string) {
   code.value = val.replace(/\D/g, '')
@@ -98,4 +107,9 @@ async function handleVerify() {
   font-family: 'Courier New', monospace; color: var(--color-magic-gold);
 }
 .verify-btn { width: 100%; }
+.code-display { margin-bottom: 16px; }
+.big-code {
+  font-size: 48px; letter-spacing: 16px; color: var(--color-magic-gold);
+  font-family: 'Courier New', monospace; margin: 8px 0;
+}
 </style>

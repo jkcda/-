@@ -48,6 +48,7 @@ export const register = async (req: Request, res: Response) => {
     })
 
     // 发送验证邮件（后台发送，失败不影响注册）
+    const emailConfigured = !!getSetting('EMAIL_USER')
     sendVerificationEmail(email, code).catch(e =>
       console.error('[Email] 验证邮件发送失败:', e.message)
     )
@@ -56,8 +57,8 @@ export const register = async (req: Request, res: Response) => {
       id,
       username,
       email,
-      emailSent: !!getSetting('EMAIL_USER'),
-    }, getSetting('EMAIL_USER') ? '注册成功，请查收邮箱验证码' : '注册成功')
+      code, // 前端直接用，邮件只是辅助
+    }, emailConfigured ? '注册成功，验证码已发送至邮箱' : '注册成功')
   } catch (error: any) {
     console.error('注册错误:', error)
     return ApiResponse.internalServerError(res, '服务器错误', error.message)
