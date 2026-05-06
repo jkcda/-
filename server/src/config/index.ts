@@ -15,6 +15,7 @@ const SETTING_KEYS = [
   'EMAIL_USER',
   'EMAIL_PASS',
   'JWT_SECRET',
+  'CLIENT_URL',
 ] as const
 
 type SettingKey = (typeof SETTING_KEYS)[number]
@@ -30,6 +31,7 @@ const ENV_MAP: Record<SettingKey, string | undefined> = {
   EMAIL_USER: process.env.EMAIL_USER,
   EMAIL_PASS: process.env.EMAIL_PASS,
   JWT_SECRET: process.env.JWT_SECRET,
+  CLIENT_URL: process.env.CLIENT_URL,
 }
 
 /** 从数据库加载所有配置到内存（DB 有值则用 DB，否则 fallback 到环境变量） */
@@ -80,6 +82,7 @@ export function getMaskedSettings(): { key_name: string; description: string; ma
     EMAIL_USER: 'QQ邮箱 SMTP 登录账号',
     EMAIL_PASS: 'QQ邮箱 SMTP 授权码',
     JWT_SECRET: 'JWT 签名密钥（用于签发和验证登录凭证）',
+    CLIENT_URL: '前端访问地址（用于邮件验证链接，如 https://你的域名.com）',
   }
   return SETTING_KEYS.map(k => {
     const val = getSetting(k)

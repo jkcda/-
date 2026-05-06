@@ -102,6 +102,11 @@ export const login = async (req: Request, res: Response) => {
       return ApiResponse.unauthorized(res, '用户名或密码错误')
     }
 
+    // 校验邮箱是否已验证
+    if (!user.email_verified) {
+      return ApiResponse.unauthorized(res, '邮箱未验证，请先查收验证邮件并完成验证')
+    }
+
     // 生成 JWT token
     const token = jwt.sign(
       { 
