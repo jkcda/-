@@ -117,7 +117,7 @@ const pageTitle = computed(() => {
 })
 
 const goToFront = () => {
-  router.push('/front/home')
+  router.push('/')
 }
 
 const handleLogout = async () => {

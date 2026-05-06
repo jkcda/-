@@ -16,17 +16,13 @@ import AdminApiKeys from '@/views/Admin/ApiKeys.vue'
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
+    // 前台路由 - 首页即根路径
     {
       path: '/',
-      redirect: '/front/home',
-    },
-    // 前台路由 - 普通用户可访问
-    {
-      path: '/front',
       component: Layout,
       children: [
         {
-          path: 'home',
+          path: '',
           component: Home,
           meta: { title: '首页' }
         },
@@ -110,7 +106,7 @@ router.beforeEach((to, from, next) => {
   const userInfoStr = localStorage.getItem('userInfo')
 
   // 定义不需要登录就能访问的页面
-  const publicPages = ['/auth/login', '/auth/register', '/verify', '/login', '/register', '/front/home']
+  const publicPages = ['/auth/login', '/auth/register', '/verify', '/login', '/register', '/']
 
   // 检查当前页面是否需要登录
   const requiresAuth = !publicPages.includes(to.path)
@@ -127,7 +123,7 @@ router.beforeEach((to, from, next) => {
         const userInfo = JSON.parse(userInfoStr)
         if (userInfo.role !== 'admin') {
           ElMessage.error('无管理员权限，无法访问后台')
-          return next('/front/home')
+          return next('/')
         }
       } catch {
         return next('/auth/login')

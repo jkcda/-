@@ -125,7 +125,7 @@ const isLoggedIn = userStore.isLoggedIn()
 
 // 跳转到对话页面
 const goToChat = () => {
-  router.push('/front/chat')
+  router.push('/chat')
 }
 
 // 跳转到注册页面
