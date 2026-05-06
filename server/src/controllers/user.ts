@@ -6,6 +6,7 @@ import { UserModel } from '../models/user.js'
 import { ApiResponse } from '../utils/response.js'
 import { sendVerificationEmail } from '../services/emailService.js'
 import config, { getSetting } from '../config/index.js'
+import pool from '../utils/db.js'
 
 const registerSchema = z.object({
   username: z.string().min(2).max(20).regex(/^[a-zA-Z0-9_\u4e00-\u9fa5]+$/,
@@ -47,18 +48,23 @@ export const register = async (req: Request, res: Response) => {
       password: hashedPassword,
     })
 
-    // 发送验证邮件（后台发送，失败不影响注册）
-    const emailConfigured = !!getSetting('EMAIL_USER')
-    sendVerificationEmail(email, code).catch(e =>
-      console.error('[Email] 验证邮件发送失败:', e.message)
-    )
+    // 发送验证邮件（发送失败则注册失败）
+    if (!getSetting('EMAIL_USER')) {
+      return ApiResponse.internalServerError(res, '邮件服务未配置，请联系管理员')
+    }
+    try {
+      await sendVerificationEmail(email, code)
+    } catch (e: any) {
+      // 邮件发送失败，删除刚创建的用户
+      await pool.execute('DELETE FROM users WHERE id = ?', [id])
+      return ApiResponse.internalServerError(res, '验证邮件发送失败，请稍后重试')
+    }
 
     return ApiResponse.created(res, {
       id,
       username,
       email,
-      code, // 前端直接用，邮件只是辅助
-    }, emailConfigured ? '注册成功，验证码已发送至邮箱' : '注册成功')
+    }, '注册成功，请查收邮箱验证码完成验证')
   } catch (error: any) {
     console.error('注册错误:', error)
     return ApiResponse.internalServerError(res, '服务器错误', error.message)
