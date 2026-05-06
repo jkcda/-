@@ -136,33 +136,73 @@ function stripMarkdown(text: string): string {
     .trim()
 }
 
+function hasChineseVoices(): boolean {
+  return speechSynthesis.getVoices().some(v => v.lang.startsWith('zh'))
+}
+
+let currentAudio: HTMLAudioElement | null = null
+let currentUtterance: SpeechSynthesisUtterance | null = null
+
 export function speak(text: string): void {
   stopSpeaking()
 
   const plainText = stripMarkdown(text)
   if (!plainText) return
 
-  const u = new SpeechSynthesisUtterance(plainText)
-  u.lang = 'zh-CN'
-  u.rate = 1.0
+  // 浏览器支持中文语音 → 本地 TTS
+  if (hasChineseVoices()) {
+    const u = new SpeechSynthesisUtterance(plainText)
+    u.lang = 'zh-CN'
+    u.rate = 1.0
 
-  if (selectedVoiceId.value) {
-    const match = speechSynthesis.getVoices().find(v => v.name === selectedVoiceId.value)
-    if (match) u.voice = match
+    if (selectedVoiceId.value) {
+      const match = speechSynthesis.getVoices().find(v => v.name === selectedVoiceId.value)
+      if (match) u.voice = match
+    }
+
+    u.onstart = () => { isSpeaking.value = true }
+    u.onend = () => { isSpeaking.value = false; currentUtterance = null }
+    u.onerror = () => { isSpeaking.value = false; currentUtterance = null }
+
+    currentUtterance = u
+    speechSynthesis.speak(u)
+  } else {
+    // 浏览器无中文语音 → 服务端 Edge-TTS
+    const baseUrl = import.meta.env.VITE_BASE_URL || ''
+
+    fetch(`${baseUrl}/api/voice/tts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: plainText })
+    })
+      .then(res => {
+        if (!res.ok) throw new Error(`TTS ${res.status}`)
+        return res.blob()
+      })
+      .then(blob => {
+        const url = URL.createObjectURL(blob)
+        const audio = new Audio(url)
+        audio.onplay = () => { isSpeaking.value = true }
+        audio.onended = () => { isSpeaking.value = false; currentAudio = null; URL.revokeObjectURL(url) }
+        audio.onerror = () => { isSpeaking.value = false; currentAudio = null }
+        currentAudio = audio
+        audio.play()
+      })
+      .catch(err => {
+        console.error('[TTS] 服务端合成失败:', err)
+        isSpeaking.value = false
+      })
   }
-
-  u.onstart = () => { isSpeaking.value = true }
-  u.onend = () => { isSpeaking.value = false; currentUtterance = null }
-  u.onerror = () => { isSpeaking.value = false; currentUtterance = null }
-
-  currentUtterance = u
-  speechSynthesis.speak(u)
 }
-
-let currentUtterance: SpeechSynthesisUtterance | null = null
 
 export function stopSpeaking(): void {
   speechSynthesis.cancel()
+  if (currentUtterance) {
+    currentUtterance = null
+  }
+  if (currentAudio) {
+    currentAudio.pause()
+    currentAudio = null
+  }
   isSpeaking.value = false
-  currentUtterance = null
 }

@@ -1,6 +1,6 @@
 import { execSync } from 'child_process'
 import { createRequire } from 'module'
-import config from '../config/index.js'
+import config, { getSetting } from '../config/index.js'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
@@ -89,11 +89,40 @@ export async function preloadTranscriber(): Promise<void> {
   }
 }
 
-export async function transcribeAudio(audioPath: string): Promise<string> {
+async function transcribeViaAPI(audioPath: string): Promise<string> {
   try {
-    // Node.js 无 AudioContext，需手动读取 WAV 为 Float32Array
     const buffer = fs.readFileSync(audioPath)
-    // 解析 WAV 头，提取 PCM 采样数据
+    const base64 = buffer.toString('base64')
+    console.log(`[ASR-API] 调用 ModelScope API，音频 ${(buffer.length / 1024).toFixed(1)}KB`)
+    const res = await fetch('https://api-inference.modelscope.cn/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${getSetting('DASHSCOPE_API_KEY')}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        file: base64,
+        model: 'iic/SenseVoiceSmall',
+        language: 'zh'
+      })
+    })
+    if (!res.ok) {
+      const err = await res.text().catch(() => '')
+      throw new Error(`ASR API 返回 ${res.status}: ${err.slice(0, 200)}`)
+    }
+    const data = await res.json() as { text?: string }
+    console.log(`[ASR-API] 转写完成: "${data.text?.slice(0, 50)}"`)
+    return data.text?.trim() || ''
+  } catch (e: any) {
+    console.error('[ASR-API] 转写失败:', e.message)
+    return ''
+  }
+}
+
+export async function transcribeAudio(audioPath: string): Promise<string> {
+  // 尝试本地 Whisper 模型
+  try {
+    const buffer = fs.readFileSync(audioPath)
     const wav = parseWav(buffer)
     if (!wav) {
       console.error('[Whisper] WAV 解析失败')
@@ -108,8 +137,9 @@ export async function transcribeAudio(audioPath: string): Promise<string> {
     })
     return (r as any).text?.trim() || ''
   } catch (e: any) {
-    console.error('[Whisper] 转写失败:', e.message || e)
-    return ''
+    // 本地模型不可用，自动切 ModelScope API
+    console.warn('[Whisper] 本地模型不可用，切换 API 转写:', e.message)
+    return transcribeViaAPI(audioPath)
   }
 }
 
@@ -183,12 +213,10 @@ export async function processVideo(videoUrl: string) {
     frames = frames.filter((_, i) => i % Math.ceil(frames.length / LOW_RES_FRAME_CAP) === 0).slice(0, LOW_RES_FRAME_CAP)
   }
 
-  // 低配服务器跳过 Whisper 语音转写，避免 OOM 导致 502
+  // 语音转写：本地 Whisper 优先，低配自动切 ModelScope API
   if (isLowResource) {
-    console.log(`[Video] 服务器资源受限（CPU:${cpuCount}核, 空闲内存:${freeMem}MB），跳过语音转写`)
-    return { frames, transcript: '' }
+    console.log(`[Video] 低配服务器（CPU:${cpuCount}核, 空闲内存:${freeMem}MB），使用 API 转写`)
   }
-
   let transcript = ''
   try {
     const audio = extractAudio(filePath)
