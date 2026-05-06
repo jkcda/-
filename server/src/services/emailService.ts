@@ -1,13 +1,13 @@
 import nodemailer from 'nodemailer'
-import config from '../config/index.js'
+import config, { getSetting } from '../config/index.js'
 
 const transporter = nodemailer.createTransport({
   host: config.email.host,
   port: config.email.port,
   secure: config.email.secure,
   auth: {
-    user: config.email.user,
-    pass: config.email.pass,
+    user: getSetting('EMAIL_USER'),
+    pass: getSetting('EMAIL_PASS'),
   },
 })
 
@@ -16,7 +16,7 @@ export async function sendVerificationEmail(to: string, token: string) {
   const verifyUrl = `${base}/verify?token=${token}xi`
 
   await transporter.sendMail({
-    from: `"奈克瑟 NEXUS" <${config.email.from}>`,
+    from: `"奈克瑟 NEXUS" <${process.env.EMAIL_FROM || getSetting('EMAIL_USER')}>`,
     to,
     subject: '验证您的邮箱 — 奈克瑟 NEXUS',
     html: `

@@ -2,16 +2,97 @@
 // 集中管理应用配置
 
 import dotenv from 'dotenv'
+import pool from '../utils/db.js'
 
 // 加载环境变量
 dotenv.config()
+
+// ── 待动态管理的 API Key 白名单 ──
+const SETTING_KEYS = [
+  'DASHSCOPE_API_KEY',
+  'ARK_API_KEY',
+  'TAVILY_API_KEY',
+  'EMAIL_USER',
+  'EMAIL_PASS',
+] as const
+
+type SettingKey = (typeof SETTING_KEYS)[number]
+
+// ── 内存中的动态配置缓存 ──
+const settings = new Map<SettingKey, string>()
+
+// 环境变量到 setting key 的映射
+const ENV_MAP: Record<SettingKey, string | undefined> = {
+  DASHSCOPE_API_KEY: process.env.DASHSCOPE_API_KEY,
+  ARK_API_KEY: process.env.ARK_API_KEY,
+  TAVILY_API_KEY: process.env.TAVILY_API_KEY,
+  EMAIL_USER: process.env.EMAIL_USER,
+  EMAIL_PASS: process.env.EMAIL_PASS,
+}
+
+/** 从数据库加载所有配置到内存（DB 有值则用 DB，否则 fallback 到环境变量） */
+export async function initDynamicConfig(): Promise<void> {
+  try {
+    const [rows] = await pool.execute(
+      'SELECT key_name, value FROM system_settings'
+    ) as [Array<{ key_name: string; value: string }>, any]
+
+    for (const row of rows) {
+      if (SETTING_KEYS.includes(row.key_name as SettingKey)) {
+        settings.set(row.key_name as SettingKey, row.value)
+      }
+    }
+    console.log(`[Config] 已从数据库加载 ${settings.size} 项动态配置`)
+  } catch (e: any) {
+    console.warn('[Config] 数据库读取失败，回退到环境变量:', e.message)
+  }
+}
+
+/** 读取一个动态配置值（内存 > 环境变量 > 空串） */
+export function getSetting(key: string): string {
+  const k = key as SettingKey
+  if (settings.has(k)) return settings.get(k)!
+  return ENV_MAP[k] || ''
+}
+
+/** 更新配置值（写入 DB + 内存），仅白名单内的 key 允许 */
+export async function updateSetting(key: string, value: string): Promise<void> {
+  const k = key as SettingKey
+  if (!SETTING_KEYS.includes(k)) {
+    throw new Error(`不允许修改配置项: ${key}`)
+  }
+  await pool.execute(
+    'INSERT INTO system_settings (key_name, value) VALUES (?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value)',
+    [k, value]
+  )
+  settings.set(k, value)
+  console.log(`[Config] 已更新: ${k}`)
+}
+
+/** 获取所有配置项的脱敏值列表（供管理后台展示） */
+export function getMaskedSettings(): { key_name: string; description: string; masked: string }[] {
+  const desc: Record<SettingKey, string> = {
+    DASHSCOPE_API_KEY: 'ModelScope API Key（聊天 / Embedding / Agent）',
+    ARK_API_KEY: '火山引擎 ARK API Key（图片生成）',
+    TAVILY_API_KEY: 'Tavily API Key（联网搜索）',
+    EMAIL_USER: 'QQ邮箱 SMTP 登录账号',
+    EMAIL_PASS: 'QQ邮箱 SMTP 授权码',
+  }
+  return SETTING_KEYS.map(k => {
+    const val = getSetting(k)
+    const masked = val.length > 8
+      ? val.slice(0, 4) + '***' + val.slice(-4)
+      : val ? '****' : '（未配置）'
+    return { key_name: k, description: desc[k], masked }
+  })
+}
 
 const config = {
   // 服务器配置
   server: {
     port: process.env.PORT || 3000
   },
-  
+
   // 数据库配置
   database: {
     host: process.env.DB_HOST || 'localhost',
@@ -19,23 +100,21 @@ const config = {
     password: process.env.DB_PASSWORD || '',
     database: process.env.DB_NAME || 'ai_chat'
   },
-  
+
   // JWT 配置
   jwt: {
     secret: process.env.JWT_SECRET || 'default-secret-key',
     expiresIn: '7d'
   },
-  
+
   // AI 配置
   ai: {
     // ModelScope 魔搭社区
     modelscope: {
-      apiKey: process.env.DASHSCOPE_API_KEY || '',
       baseURL: 'https://api-inference.modelscope.cn',
     },
     // 火山引擎 ARK
     volcengine: {
-      apiKey: process.env.ARK_API_KEY || '',
       baseURL: process.env.ARK_BASE_URL || 'https://ark.cn-beijing.volces.com',
     },
     defaultModel: 'Qwen/Qwen3.5-397B-A17B',
@@ -64,10 +143,9 @@ const config = {
     // OpenAI 兼容端点（用于 LangChain Agent 工具调用）
     openai: {
       baseURL: 'https://api-inference.modelscope.cn/v1',
-      apiKey: process.env.DASHSCOPE_API_KEY || '',
     },
   },
-  
+
   // 上下文配置
   context: {
     maxChars: 30000 // 上下文最大字符数（模型 32K 上下文）
@@ -160,8 +238,6 @@ const config = {
     host: 'smtp.qq.com',
     port: 465,
     secure: true,
-    user: process.env.EMAIL_USER || '',
-    pass: process.env.EMAIL_PASS || '', // QQ邮箱授权码，非登录密码
     from: process.env.EMAIL_FROM || process.env.EMAIL_USER || '',
   },
 
@@ -169,7 +245,6 @@ const config = {
   webSearch: {
     enabled: true,
     provider: 'tavily' as 'tavily' | 'duckduckgo',
-    tavilyApiKey: process.env.TAVILY_API_KEY || '',
     maxResults: 8
   }
 }

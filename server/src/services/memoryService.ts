@@ -1,6 +1,6 @@
 import { connect } from '@lancedb/lancedb'
 import { embedQuery, embedDocuments } from './embedding.js'
-import config from '../config/index.js'
+import config, { getSetting } from '../config/index.js'
 import path from 'path'
 import fs from 'fs'
 import type { Connection, Table } from '@lancedb/lancedb'
@@ -96,7 +96,7 @@ async function generateSummary(userId: number, sessionId: string, roundCount: nu
   const dialogText = recent.map((r: any) => r.text).join('\n\n')
 
   const Anthropic = (await import('@anthropic-ai/sdk')).default
-  const client = new Anthropic({ apiKey: config.ai.modelscope.apiKey, baseURL: config.ai.modelscope.baseURL })
+  const client = new Anthropic({ apiKey: getSetting('DASHSCOPE_API_KEY'), baseURL: config.ai.modelscope.baseURL })
   const msg = await client.messages.create({
     model: config.ai.defaultModel,
     max_tokens: 200,

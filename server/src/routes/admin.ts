@@ -5,6 +5,7 @@ import { authMiddleware } from '../middleware/auth.js'
 import { ApiResponse } from '../utils/response.js'
 import { ChatHistoryModel } from '../models/chatHistory.js'
 import { UserModel } from '../models/user.js'
+import { getMaskedSettings, updateSetting } from '../config/index.js'
 import pool from '../utils/db.js'
 
 const router = express.Router()
@@ -228,6 +229,36 @@ router.get('/chat-history/:userId', authMiddleware, adminMiddleware, async (req,
     const history = await ChatHistoryModel.getByUserId(userId)
     ApiResponse.success(res, { history }, '获取对话历史成功')
   } catch (error: any) {
+    ApiResponse.internalServerError(res, '服务器错误', error.message)
+  }
+})
+
+// GET /api/admin/settings - 获取系统配置列表（脱敏，仅管理员）
+router.get('/settings', authMiddleware, adminMiddleware, (_req, res) => {
+  try {
+    const settings = getMaskedSettings()
+    ApiResponse.success(res, { settings }, '获取配置列表成功')
+  } catch (error: any) {
+    ApiResponse.internalServerError(res, '服务器错误', error.message)
+  }
+})
+
+// PUT /api/admin/settings - 更新系统配置（仅管理员）
+router.put('/settings', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { key_name, value } = req.body
+    if (!key_name || value === undefined || value === null) {
+      return ApiResponse.badRequest(res, 'key_name 和 value 为必填项')
+    }
+    if (typeof value !== 'string' || value.trim() === '') {
+      return ApiResponse.badRequest(res, 'value 不能为空')
+    }
+    await updateSetting(key_name, value)
+    ApiResponse.success(res, null, `配置 ${key_name} 已更新`)
+  } catch (error: any) {
+    if (error.message?.includes('不允许修改配置项')) {
+      return ApiResponse.badRequest(res, error.message)
+    }
     ApiResponse.internalServerError(res, '服务器错误', error.message)
   }
 })

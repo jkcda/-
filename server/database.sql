@@ -91,7 +91,21 @@ CREATE TABLE IF NOT EXISTS `kb_chunks` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='知识库分块表';
 
 
+-- ============================================
+-- 系统配置表（API Key 等）
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS `system_settings` (
+  `id` INT PRIMARY KEY AUTO_INCREMENT,
+  `key_name` VARCHAR(100) NOT NULL UNIQUE COMMENT '配置键名',
+  `value` TEXT NOT NULL COMMENT '配置值',
+  `description` VARCHAR(255) DEFAULT '' COMMENT '配置说明',
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='系统配置表（API Key等）';
+
+
 -- 示例数据（可选，用于测试）
--- INSERT INTO users (username, email, password, role) VALUES 
+-- INSERT INTO users (username, email, password, role) VALUES
 -- ('admin', 'admin@example.com', '$2a$10$example_hashed_password', 'admin'),
 -- ('test', 'test@example.com', '$2a$10$example_hashed_password', 'user');

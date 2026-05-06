@@ -2,7 +2,7 @@ import { ChatOpenAI } from '@langchain/openai'
 import { createAgent } from 'langchain'
 import { tool } from '@langchain/core/tools'
 import { z } from 'zod'
-import config from '../config/index.js'
+import config, { getSetting } from '../config/index.js'
 import { searchWeb, type WebSearchResult } from './webSearch.js'
 import { retrieveFromKB } from './ragChain.js'
 import { recallMemory, forgetAllMemories } from './memoryService.js'
@@ -77,7 +77,7 @@ function createTools(opts: { userId?: number | null; kbId?: number | null; permi
         const resp = await fetch(`${config.ai.volcengine.baseURL}/api/v3/images/generations`, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${config.ai.volcengine.apiKey}`,
+            'Authorization': `Bearer ${getSetting('ARK_API_KEY')}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -214,7 +214,7 @@ export async function createChatAgent(cfg: AgentConfig) {
 
   const chatModel = new ChatOpenAI({
     model: cfg.model || config.ai.defaultModel,
-    apiKey: config.ai.modelscope.apiKey,
+    apiKey: getSetting('DASHSCOPE_API_KEY'),
     configuration: { baseURL: 'https://api-inference.modelscope.cn/v1' },
     maxTokens: config.ai.maxTokens,
     temperature: 0.7,

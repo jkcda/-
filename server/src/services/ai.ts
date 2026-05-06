@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { ChatHistoryModel } from '../models/chatHistory.js'
-import config from '../config/index.js'
+import config, { getSetting } from '../config/index.js'
 import fs from 'fs'
 import path from 'path'
 import { parseDocument } from './documentPipeline.js'
@@ -10,10 +10,11 @@ import { agentStream, type AgentSSEEvent } from './agent.js'
 import { searchWeb } from './webSearch.js'
 
 function getClient(provider: 'modelscope' | 'volcengine' = 'modelscope') {
-  const cfg = provider === 'volcengine' ? config.ai.volcengine : config.ai.modelscope
+  const baseURL = config.ai[provider].baseURL
+  const apiKey = provider === 'volcengine' ? getSetting('ARK_API_KEY') : getSetting('DASHSCOPE_API_KEY')
   return new Anthropic({
-    apiKey: cfg.apiKey,
-    baseURL: cfg.baseURL
+    apiKey,
+    baseURL
   })
 }
 

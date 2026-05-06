@@ -44,3 +44,13 @@ export const updateUser = (id: number, data: {
 export const deleteUser = (id: number) => {
   return request.delete(`/admin/users/${id}`)
 }
+
+// 获取系统配置列表（脱敏）
+export const getSettings = () => {
+  return request.get('/admin/settings')
+}
+
+// 更新系统配置
+export const updateSetting = (key_name: string, value: string) => {
+  return request.put('/admin/settings', { key_name, value })
+}

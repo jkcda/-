@@ -9,7 +9,7 @@ import { ApiResponse } from '../utils/response.js'
 import { authMiddleware } from '../middleware/auth.js'
 import { adminMiddleware } from '../middleware/admin.js'
 import { UserModel } from '../models/user.js'
-import config from '../config/index.js'
+import config, { getSetting } from '../config/index.js'
 
 const router = express.Router()
 
@@ -255,7 +255,7 @@ router.post('/image', async (req, res) => {
         {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${config.ai.volcengine.apiKey}`,
+            'Authorization': `Bearer ${getSetting('ARK_API_KEY')}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({

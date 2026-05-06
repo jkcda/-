@@ -4,12 +4,12 @@ import { hybridFuse } from './hybridSearch.js'
 import { getAdjacentChunks } from './vectorStore.js'
 import { cacheGet, cacheSet, hashKey } from './cache.js'
 import type { Document } from '@langchain/core/documents'
-import config from '../config/index.js'
+import config, { getSetting } from '../config/index.js'
 import type { HybridCandidate } from './hybridSearch.js'
 import type { SearchResult } from './knowledgeBase.js'
 
 const llmClient = new Anthropic({
-  apiKey: config.ai.modelscope.apiKey,
+  apiKey: getSetting('DASHSCOPE_API_KEY'),
   baseURL: config.ai.modelscope.baseURL
 })
 

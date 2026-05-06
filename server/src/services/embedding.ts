@@ -1,9 +1,9 @@
 import { OpenAI } from 'openai'
-import config from '../config/index.js'
+import config, { getSetting } from '../config/index.js'
 import { cacheGet, cacheSet, hashKey } from './cache.js'
 
 const client = new OpenAI({
-  apiKey: config.ai.modelscope.apiKey,
+  apiKey: getSetting('DASHSCOPE_API_KEY'),
   baseURL: config.ai.modelscope.baseURL + '/v1'
 })
 

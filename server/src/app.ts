@@ -10,9 +10,12 @@ import uploadRouter from './routes/upload.js'
 import knowledgeBaseRouter from './routes/knowledgeBase.js'
 import voiceRouter from './routes/voice.js'
 import mcpRouter from './routes/mcp.js'
-import config from './config/index.js'
+import config, { initDynamicConfig } from './config/index.js'
 import { rateLimiter } from './utils/rateLimit.js'
 import fs from 'fs'
+
+// 从数据库加载动态配置（API Key 等），失败时回退环境变量
+initDynamicConfig()
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)

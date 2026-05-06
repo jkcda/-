@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { UserModel } from '../models/user.js'
 import { ApiResponse } from '../utils/response.js'
 import { sendVerificationEmail } from '../services/emailService.js'
-import config from '../config/index.js'
+import config, { getSetting } from '../config/index.js'
 
 const registerSchema = z.object({
   username: z.string().min(2).max(20).regex(/^[a-zA-Z0-9_\u4e00-\u9fa5]+$/,
@@ -56,8 +56,8 @@ export const register = async (req: Request, res: Response) => {
       id,
       username,
       email,
-      emailSent: !!config.email.user,
-    }, config.email.user ? '注册成功，请查收验证邮件' : '注册成功')
+      emailSent: !!getSetting('EMAIL_USER'),
+    }, getSetting('EMAIL_USER') ? '注册成功，请查收验证邮件' : '注册成功')
   } catch (error: any) {
     console.error('注册错误:', error)
     return ApiResponse.internalServerError(res, '服务器错误', error.message)

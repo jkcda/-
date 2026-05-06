@@ -1,4 +1,4 @@
-import config from '../config/index.js'
+import config, { getSetting } from '../config/index.js'
 
 interface SearchResult {
   title: string
@@ -13,7 +13,7 @@ async function searchTavily(query: string): Promise<SearchResult[]> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      api_key: config.webSearch.tavilyApiKey,
+      api_key: getSetting('TAVILY_API_KEY'),
       query,
       max_results: config.webSearch.maxResults,
       search_depth: 'basic'
@@ -166,7 +166,7 @@ export async function searchWeb(query: string): Promise<WebSearchResult> {
   const optimizedQuery = optimizeQuery(query)
 
   try {
-    const useTavily = !!config.webSearch.tavilyApiKey
+    const useTavily = !!getSetting('TAVILY_API_KEY')
     console.log(`[WebSearch] 查询: "${query}" → "${optimizedQuery}" 提供者: ${useTavily ? 'Tavily' : 'DDG'}`)
 
     const results = useTavily
