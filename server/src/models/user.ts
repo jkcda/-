@@ -37,11 +37,13 @@ export class UserModel {
     return { id: (result as any).insertId, code }
   }
 
-  // 验证邮箱（6位验证码）
+  // 验证邮箱（6位验证码，5分钟内有效）
   static async verifyEmail(email: string, code: string): Promise<boolean> {
     await ensureEmailColumns()
     const [rows] = await pool.execute(
-      'SELECT id FROM users WHERE email = ? AND verification_token = ? AND email_verified = 0',
+      `SELECT id FROM users
+       WHERE email = ? AND verification_token = ? AND email_verified = 0
+         AND created_at > DATE_SUB(NOW(), INTERVAL 5 MINUTE)`,
       [email, code]
     )
     const user = (rows as any[])[0]
