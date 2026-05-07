@@ -13,6 +13,7 @@ import Content from './components/Content.vue'
 <style scoped>
 .layout-container {
   height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   overflow: hidden;

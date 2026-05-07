@@ -984,6 +984,7 @@ defineExpose({ scrollToBottom })
   display: flex;
   gap: 8px;
   padding: 8px 24px;
+  padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
   background: var(--color-bg-card);
   border-top: var(--border-thin) var(--color-border);
   overflow-x: auto;
@@ -1038,6 +1039,7 @@ defineExpose({ scrollToBottom })
 /* 输入区 */
 .chat-input {
   padding: 16px 24px;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
   border-top: var(--border-thin) var(--color-border);
   background: var(--color-bg-card);
   flex-shrink: 0;
@@ -1208,6 +1210,7 @@ defineExpose({ scrollToBottom })
   align-items: center;
   gap: 10px;
   padding: 8px 24px;
+  padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
   background: var(--color-bg-card);
   border-top: var(--border-thin) var(--color-danger);
   flex-shrink: 0;
@@ -1323,6 +1326,7 @@ defineExpose({ scrollToBottom })
 
   .chat-input {
     padding: 8px 10px;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
     overflow-x: hidden;
   }
 

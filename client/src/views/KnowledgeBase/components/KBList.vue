@@ -141,6 +141,8 @@ defineEmits<{
     left: -280px;
     width: 260px;
     height: 100vh;
+    height: 100dvh;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
     z-index: 60;
     transition: left 0.3s ease;
     box-shadow: var(--shadow-card);

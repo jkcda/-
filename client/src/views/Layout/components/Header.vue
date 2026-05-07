@@ -246,6 +246,7 @@ onMounted(() => {
     right: -280px;
     width: 260px;
     height: 100vh;
+    height: 100dvh;
     background: var(--color-bg-card);
     flex-direction: column;
     padding: 60px 20px 20px;

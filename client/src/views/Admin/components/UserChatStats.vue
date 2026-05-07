@@ -289,6 +289,7 @@ onMounted(() => {
 
 .chat-history-list {
   max-height: calc(100vh - 180px);
+  max-height: calc(100dvh - 180px);
   overflow-y: auto;
 }
 

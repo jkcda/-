@@ -9,6 +9,7 @@ import { RouterLink, RouterView } from 'vue-router'
 <style>
 .app-root {
   height: 100vh;
+  height: 100dvh;
   position: relative;
   z-index: 1;
 }

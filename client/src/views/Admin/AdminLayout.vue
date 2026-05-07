@@ -136,6 +136,7 @@ const handleLogout = async () => {
 .admin-layout {
   display: flex;
   height: 100vh;
+  height: 100dvh;
 }
 
 .admin-sidebar {
@@ -149,6 +150,7 @@ const handleLogout = async () => {
   top: 0;
   left: 0;
   height: 100vh;
+  height: 100dvh;
   z-index: 100;
 }
 

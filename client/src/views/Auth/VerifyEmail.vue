@@ -76,7 +76,7 @@ async function handleVerify() {
 <style scoped lang="scss">
 .verify-page {
   display: flex; align-items: center; justify-content: center;
-  height: 100vh; background: var(--color-bg-deep);
+  height: 100vh; height: 100dvh; background: var(--color-bg-deep);
 }
 .verify-card {
   text-align: center; padding: 48px; max-width: 400px; width: 100%;
