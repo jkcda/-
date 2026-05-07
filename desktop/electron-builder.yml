@@ -5,12 +5,12 @@ directories:
   buildResources: public
 
 files:
-  # 前端构建产物
-  - dist/**/*
+  # 前端构建产物（在 client/dist/）
+  - ../client/dist/**/*
   # Electron 主进程
   - electron/**/*.mjs
-  # 服务端 bundle
-  - server-bundle/**/*
+  # 服务端 bundle（在 client/server-bundle/）
+  - ../client/server-bundle/**/*
 
 extraResources:
   # 服务端必需的原生 node_modules

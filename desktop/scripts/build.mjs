@@ -6,7 +6,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(__dirname, '..', '..')
 const serverRoot = path.join(root, 'server')
 const clientRoot = path.join(root, 'client')
-const electronDir = path.join(clientRoot, 'electron')
+const electronDir = path.join(root, 'desktop', 'electron')
 const bundleDir = path.join(clientRoot, 'server-bundle')
 
 // ===== 1. 编译 Electron 主进程文件 =====
