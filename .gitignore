@@ -11,6 +11,8 @@ dist/
 dist-ssr/
 build/
 output/
+electron-dist/
+server-bundle/
 
 # Claude Code
 .claude/
