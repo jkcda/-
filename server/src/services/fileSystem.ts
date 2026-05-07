@@ -5,11 +5,15 @@ import { z } from 'zod'
 import config from '../config/index.js'
 
 const workspaceRoot = path.resolve(config.workspace.root)
+const uploadsRoot = path.resolve(process.cwd(), 'uploads')
+
+const allowedRoots = [workspaceRoot, uploadsRoot]
 
 /** 校验路径在沙箱内，越界抛错 */
 function resolveSafe(targetPath: string): string {
-  const resolved = path.resolve(workspaceRoot, targetPath)
-  if (!resolved.startsWith(workspaceRoot + path.sep) && resolved !== workspaceRoot) {
+  const resolved = path.resolve(targetPath.startsWith(uploadsRoot) ? targetPath : path.join(workspaceRoot, targetPath))
+  const allowed = allowedRoots.some(root => resolved === root || resolved.startsWith(root + path.sep))
+  if (!allowed) {
     throw new Error(`路径越界：${targetPath} 不在工作区范围内`)
   }
   return resolved

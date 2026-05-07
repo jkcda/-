@@ -918,11 +918,14 @@ defineExpose({ scrollToBottom })
   min-width: 120px;
 }
 
-.message-content :deep(img):hover {
-  transform: scale(1.05);
+.message-content :deep(img.img-loaded) {
+  background: transparent;
+  animation: none;
+  min-height: 0;
+  min-width: 0;
 }
 
-.message-content :deep(img.img-loaded):hover {
+.message-content :deep(img):hover {
   transform: scale(1.05);
 }
 
