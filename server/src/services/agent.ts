@@ -112,7 +112,8 @@ function createTools(opts: { userId?: number | null; kbId?: number | null; permi
   tools.push(
     tool(async (opts: any) => {
       const filePath = await createPPTX(opts)
-      return `PPT 已生成：${filePath}`
+      const pptName = opts.fileName || 'presentation.pptx'
+      return `PPT 已生成：[📥 下载 ${pptName}](/api/fs/download?file=${encodeURIComponent(pptName)})`
     }, {
       name: 'create_pptx',
       description: `创建 PPT 演示文稿。你需要自己决定每一页的布局和内容。
@@ -148,7 +149,8 @@ fileName 以 .pptx 结尾。`,
   tools.push(
     tool(async (opts: any) => {
       const filePath = await createDOCX(opts)
-      return `Word 文档已生成：${filePath}`
+      const docName = opts.fileName || 'document.docx'
+      return `Word 文档已生成：[📥 下载 ${docName}](/api/fs/download?file=${encodeURIComponent(docName)})`
     }, {
       name: 'create_docx',
       description: `创建 Word 文档。你需要自己规划文档结构。
