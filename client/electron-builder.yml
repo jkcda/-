@@ -32,10 +32,10 @@ asar: true
 compression: maximum
 
 win:
-  icon: public/favicon.ico
   target:
     - nsis
   artifactName: ${productName}-${version}-Setup.${ext}
+  signAndEditExecutable: false
 
 nsis:
   oneClick: false
@@ -43,11 +43,9 @@ nsis:
   createDesktopShortcut: true
 
 mac:
-  icon: public/icon.png
   target:
     - dmg
 
 linux:
-  icon: public/icon.png
   target:
     - AppImage
