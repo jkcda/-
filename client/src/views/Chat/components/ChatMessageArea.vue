@@ -92,7 +92,7 @@
               :key="fi"
               class="message-file-item"
             >
-              <img v-if="file.type.startsWith('image/')" :src="file.url" class="msg-image" @click="openPreview(file.url)" />
+              <img v-if="file.type.startsWith('image/')" :src="file.url" class="msg-image" @load="onImgLoad" @click="openPreview(file.url)" />
               <a v-else :href="file.url" target="_blank" class="msg-doc">
                 <el-icon><Document /></el-icon>
                 {{ file.name }}
@@ -130,7 +130,7 @@
         :key="index"
         class="file-preview-item"
       >
-        <img v-if="file.type.startsWith('image/')" :src="file.previewUrl" class="file-thumb" />
+        <img v-if="file.type.startsWith('image/')" :src="file.previewUrl" class="file-thumb" @load="onImgLoad" />
         <el-icon v-else class="file-icon"><Document /></el-icon>
         <span class="file-name">{{ file.name }}</span>
         <el-button class="file-remove" size="small" text type="danger" @click="removeFile(index)">
@@ -383,7 +383,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted } from 'vue'
+import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useMediaQuery } from '@vueuse/core'
 import { ElMessage } from 'element-plus'
 import { PictureFilled, FolderOpened, Document, Close, ArrowDown, Menu, VideoCameraFilled, Microphone, Headset, ZoomIn, ZoomOut, RefreshLeft, Download, Plus, Promotion } from '@element-plus/icons-vue'
@@ -624,6 +624,10 @@ function onPaste(event: ClipboardEvent) {
   if (files.length > 0) addFiles(files)
 }
 
+function onImgLoad(e: Event) {
+  ;(e.target as HTMLElement).classList.add('img-loaded')
+}
+
 function removeFile(index: number) {
   const removed = selectedFiles.value.splice(index, 1)[0]
   if (removed?.previewUrl) {
@@ -654,8 +658,34 @@ async function scrollToBottom() {
   }
 }
 
+// markdown 图片骨架屏：监听消息容器中新增的 img，附加 load 监听
+let imgObserver: MutationObserver | null = null
+
 onMounted(() => {
   loadVoices()
+  if (messagesContainer.value) {
+    imgObserver = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        for (const node of m.addedNodes) {
+          if (node instanceof HTMLElement) {
+            const imgs = node.tagName === 'IMG' ? [node] : Array.from(node.querySelectorAll('img'))
+            for (const img of imgs) {
+              if ((img as HTMLImageElement).complete) {
+                img.classList.add('img-loaded')
+              } else {
+                img.addEventListener('load', () => img.classList.add('img-loaded'), { once: true })
+              }
+            }
+          }
+        }
+      }
+    })
+    imgObserver.observe(messagesContainer.value, { childList: true, subtree: true })
+  }
+})
+
+onBeforeUnmount(() => {
+  imgObserver?.disconnect()
 })
 
 defineExpose({ scrollToBottom })
@@ -853,7 +883,19 @@ defineExpose({ scrollToBottom })
   cursor: pointer;
   border: var(--border-thin) var(--color-border);
   object-fit: cover;
-  transition: transform 0.15s;
+  transition: opacity 0.3s ease;
+  background: linear-gradient(90deg, var(--color-bg-input) 25%, var(--color-bg-card) 50%, var(--color-bg-input) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+  min-height: 80px;
+  min-width: 80px;
+}
+
+.msg-image.img-loaded {
+  background: transparent;
+  animation: none;
+  min-height: 0;
+  min-width: 0;
 }
 
 .msg-image:hover {
@@ -868,10 +910,19 @@ defineExpose({ scrollToBottom })
   border-radius: var(--radius-sm);
   cursor: pointer;
   object-fit: cover;
-  transition: transform 0.15s;
+  transition: opacity 0.3s ease;
+  background: linear-gradient(90deg, var(--color-bg-input) 25%, var(--color-bg-card) 50%, var(--color-bg-input) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+  min-height: 120px;
+  min-width: 120px;
 }
 
 .message-content :deep(img):hover {
+  transform: scale(1.05);
+}
+
+.message-content :deep(img.img-loaded):hover {
   transform: scale(1.05);
 }
 
@@ -956,6 +1007,14 @@ defineExpose({ scrollToBottom })
   height: 32px;
   object-fit: cover;
   border-radius: var(--radius-sm);
+  background: linear-gradient(90deg, var(--color-bg-input) 25%, var(--color-bg-card) 50%, var(--color-bg-input) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
+.file-thumb.img-loaded {
+  background: transparent;
+  animation: none;
 }
 
 .file-icon {
@@ -1099,6 +1158,11 @@ defineExpose({ scrollToBottom })
   display: block;
   object-fit: contain;
   animation: floatUpDown 2s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
 }
 
 @keyframes floatUpDown {
@@ -1392,6 +1456,13 @@ defineExpose({ scrollToBottom })
   .msg-image {
     max-width: 140px;
     max-height: 140px;
+    min-height: 60px;
+    min-width: 60px;
+  }
+
+  .msg-image.img-loaded {
+    min-height: 0;
+    min-width: 0;
   }
 
   .message-content :deep(pre) {
