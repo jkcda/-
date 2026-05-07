@@ -1162,11 +1162,6 @@ defineExpose({ scrollToBottom })
   animation: floatUpDown 2s ease-in-out infinite;
 }
 
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
-
 @keyframes floatUpDown {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-6px); }
