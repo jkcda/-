@@ -254,6 +254,11 @@ const config = {
     enabled: true,
     provider: 'tavily' as 'tavily' | 'duckduckgo',
     maxResults: 8
+  },
+
+  // 文件系统沙箱配置
+  workspace: {
+    root: process.env.WORKSPACE_ROOT || './workspace'
   }
 }
 

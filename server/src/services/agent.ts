@@ -7,6 +7,7 @@ import { searchWeb, type WebSearchResult } from './webSearch.js'
 import { retrieveFromKB } from './ragChain.js'
 import { recallMemory, forgetAllMemories } from './memoryService.js'
 import { getMcpTools } from './mcp.js'
+import { fsTools } from './fileSystem.js'
 import { UserModel } from '../models/user.js'
 import { ChatHistoryModel } from '../models/chatHistory.js'
 import pool from '../utils/db.js'
@@ -202,7 +203,7 @@ export interface AgentConfig {
  * 根据用户权限和上下文配置可用工具
  */
 export async function createChatAgent(cfg: AgentConfig) {
-  // 加载 MCP 工具（文件系统 + Playwright）+ 手写工具
+  // 加载 MCP 工具（Playwright 等）+ 原生文件系统工具
   const mcpTools = await getMcpTools()
   const allTools = [...createTools({
     userId: cfg.userId,
@@ -210,7 +211,7 @@ export async function createChatAgent(cfg: AgentConfig) {
     permissions: cfg.permissions || {},
     defaultImageRatio: cfg.defaultImageRatio,
     userRole: cfg.userRole,
-  }), ...mcpTools]
+  }), ...fsTools, ...mcpTools]
 
   const chatModel = new ChatOpenAI({
     model: cfg.model || config.ai.defaultModel,
