@@ -12,6 +12,7 @@ dist-ssr/
 build/
 output/
 server-bundle/
+server/workspace/
 
 # Claude Code
 .claude/
