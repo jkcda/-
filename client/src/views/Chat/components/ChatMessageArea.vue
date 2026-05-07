@@ -383,7 +383,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, nextTick, onMounted } from 'vue'
+import { useMediaQuery } from '@vueuse/core'
 import { ElMessage } from 'element-plus'
 import { PictureFilled, FolderOpened, Document, Close, ArrowDown, Menu, VideoCameraFilled, Microphone, Headset, ZoomIn, ZoomOut, RefreshLeft, Download, Plus, Promotion } from '@element-plus/icons-vue'
 import { marked } from 'marked'
@@ -461,18 +462,14 @@ interface SelectedFile {
 const selectedFiles = ref<SelectedFile[]>([])
 
 // 移动端附加面板
-const isMobile = ref(window.innerWidth < 768)
+const isMobile = useMediaQuery('(max-width: 768px)')
 const showMobileExtras = ref(false)
-
-function onResize() {
-  isMobile.value = window.innerWidth < 768
-}
 
 // 图片预览
 const previewVisible = ref(false)
 const previewUrl = ref('')
 const previewScale = ref(1)
-const isMobilePreview = ref(window.innerWidth < 768)
+const isMobilePreview = useMediaQuery('(max-width: 768px)')
 const previewWidth = computed(() => isMobilePreview.value ? '95%' : '70%')
 
 const loadingText = computed(() => {
@@ -659,11 +656,6 @@ async function scrollToBottom() {
 
 onMounted(() => {
   loadVoices()
-  window.addEventListener('resize', onResize)
-})
-
-onBeforeUnmount(() => {
-  window.removeEventListener('resize', onResize)
 })
 
 defineExpose({ scrollToBottom })
