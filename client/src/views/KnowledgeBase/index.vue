@@ -13,10 +13,13 @@
       @delete="handleDeleteKB"
     />
     <div class="kb-main">
-      <div class="kb-main-header-mobile" v-if="kbList.length > 0">
+      <div class="kb-main-header-mobile">
         <el-button size="small" text @click="mobileSidebarOpen = true">
           <el-icon :size="18"><Menu /></el-icon>
           <span>{{ selectedKB?.name || '知识库' }}</span>
+        </el-button>
+        <el-button size="small" type="primary" circle @click="showCreateDialog = true">
+          <el-icon :size="18"><Plus /></el-icon>
         </el-button>
       </div>
       <KBDocumentList
@@ -27,7 +30,9 @@
         @deleted="loadKBList"
       />
       <div v-else class="kb-empty">
-        <el-empty description="选择一个知识库或创建新的知识库" />
+        <el-empty description="选择一个知识库或创建新的知识库">
+          <el-button type="primary" @click="showCreateDialog = true">新建知识库</el-button>
+        </el-empty>
       </div>
     </div>
 
@@ -57,7 +62,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Menu } from '@element-plus/icons-vue'
+import { Menu, Plus } from '@element-plus/icons-vue'
 import { getKnowledgeBases, createKnowledgeBase, deleteKnowledgeBase, type KnowledgeBase } from '@/apis/knowledgeBase'
 import KBList from './components/KBList.vue'
 import KBDocumentList from './components/KBDocumentList.vue'
@@ -188,6 +193,8 @@ onMounted(() => {
 
   .kb-main-header-mobile {
     display: flex;
+    justify-content: space-between;
+    align-items: center;
     padding: 8px 12px;
     background: var(--color-bg-card);
     border-bottom: var(--border-thin) var(--color-border);
@@ -199,6 +206,10 @@ onMounted(() => {
     gap: 6px;
     font-size: 14px;
     color: var(--color-text-primary);
+  }
+
+  .kb-empty .el-empty {
+    padding: 20px;
   }
 }
 </style>
