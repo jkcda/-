@@ -883,7 +883,7 @@ defineExpose({ scrollToBottom })
   cursor: pointer;
   border: var(--border-thin) var(--color-border);
   object-fit: cover;
-  transition: opacity 0.3s ease;
+  transition: transform 0.15s, opacity 0.3s ease, border-color 0.15s;
   background: linear-gradient(90deg, var(--color-bg-input) 25%, var(--color-bg-card) 50%, var(--color-bg-input) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.6s ease-in-out infinite;
