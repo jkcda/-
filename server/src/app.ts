@@ -67,6 +67,19 @@ app.use('/api', uploadRouter)
 app.use('/api/voice', voiceRouter)
 app.use('/api/mcp', mcpRouter)
 
+// 工作区文件下载
+app.get('/api/fs/download', (req, res) => {
+  const file = req.query.file as string
+  if (!file) return res.status(400).json({ error: '缺少 file 参数' })
+  const workspaceRoot = path.resolve(config.workspace.root)
+  const abs = path.resolve(workspaceRoot, file)
+  if (!abs.startsWith(workspaceRoot + path.sep) && abs !== workspaceRoot) {
+    return res.status(403).json({ error: '路径越界' })
+  }
+  if (!fs.existsSync(abs)) return res.status(404).json({ error: '文件不存在' })
+  res.download(abs)
+})
+
 // Multer 文件上传错误处理
 app.use((err: any, _req: express.Request, res: express.Response, next: express.NextFunction) => {
   if (err.code === 'LIMIT_FILE_SIZE') {

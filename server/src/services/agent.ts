@@ -8,6 +8,7 @@ import { retrieveFromKB } from './ragChain.js'
 import { recallMemory, forgetAllMemories } from './memoryService.js'
 import { getMcpTools } from './mcp.js'
 import { fsTools } from './fileSystem.js'
+import { createPPTX, createDOCX } from './documentGenerator.js'
 import { UserModel } from '../models/user.js'
 import { ChatHistoryModel } from '../models/chatHistory.js'
 import pool from '../utils/db.js'
@@ -106,6 +107,72 @@ function createTools(opts: { userId?: number | null; kbId?: number | null; permi
       })
     )
   }
+
+  // 文档生成工具
+  tools.push(
+    tool(async (opts: any) => {
+      const filePath = await createPPTX(opts)
+      return `PPT 已生成：${filePath}`
+    }, {
+      name: 'create_pptx',
+      description: `创建 PPT 演示文稿。你需要自己决定每一页的布局和内容。
+layout 可选值：
+- "cover": 封面（需 title + subtitle）
+- "section": 章节分隔页（需 title + subtitle 可选）
+- "bullets": 要点列表（需 title + items 数组）
+- "two_column": 左右两栏对比（需 title + leftItems + rightItems）
+- "table": 数据表格（需 title + tableData: { headers, rows }）
+- "quote": 引用金句（需 quote + author 可选）
+- "ending": 结尾页（需 title + subtitle 可选）
+
+theme 可选值：blue / dark / warm / green / minimal
+fileName 以 .pptx 结尾。`,
+      schema: z.object({
+        theme: z.enum(['blue', 'dark', 'warm', 'green', 'minimal']).describe('配色主题'),
+        fileName: z.string().describe('文件名，以 .pptx 结尾'),
+        slides: z.array(z.object({
+          layout: z.enum(['cover', 'section', 'bullets', 'two_column', 'table', 'quote', 'ending']).describe('页面布局'),
+          title: z.string().optional().describe('标题'),
+          subtitle: z.string().optional().describe('副标题'),
+          items: z.array(z.string()).optional().describe('要点列表（bullets 布局用）'),
+          leftItems: z.array(z.string()).optional().describe('左栏内容（two_column 用）'),
+          rightItems: z.array(z.string()).optional().describe('右栏内容（two_column 用）'),
+          tableData: z.object({ headers: z.array(z.string()), rows: z.array(z.array(z.string())) }).optional().describe('表格数据（table 布局用）'),
+          quote: z.string().optional().describe('引用文字（quote 布局用）'),
+          author: z.string().optional().describe('引用来源/作者'),
+        })).describe('幻灯片数组'),
+      }),
+    })
+  )
+
+  tools.push(
+    tool(async (opts: any) => {
+      const filePath = await createDOCX(opts)
+      return `Word 文档已生成：${filePath}`
+    }, {
+      name: 'create_docx',
+      description: `创建 Word 文档。你需要自己规划文档结构。
+section.type 可选值：
+- "heading1": 一级标题
+- "heading2": 二级标题
+- "paragraph": 正文段落
+- "bullets": 要点列表（需 items 数组）
+- "table": 表格（需 tableData: { headers, rows }）
+
+fileName 以 .docx 结尾。`,
+      schema: z.object({
+        fileName: z.string().describe('文件名，以 .docx 结尾'),
+        title: z.string().describe('文档标题'),
+        author: z.string().optional().describe('作者'),
+        sections: z.array(z.object({
+          type: z.enum(['heading1', 'heading2', 'paragraph', 'bullets', 'table']).describe('内容类型'),
+          text: z.string().optional().describe('文本内容（heading1/heading2/paragraph 用）'),
+          items: z.array(z.string()).optional().describe('要点列表（bullets 用）'),
+          tableData: z.object({ headers: z.array(z.string()), rows: z.array(z.array(z.string())) }).optional().describe('表格数据（table 用）'),
+        })).describe('文档内容'),
+      }),
+    })
+  )
 
   // 管理员工具（仅 admin 角色可见）
   if (opts.userRole === 'admin') {
