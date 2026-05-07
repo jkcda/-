@@ -11,8 +11,6 @@ dist/
 dist-ssr/
 build/
 output/
-desktop/electron-dist/
-desktop/node_modules/
 server-bundle/
 
 # Claude Code
