@@ -15,10 +15,12 @@ async function getTranscriber() {
   if (_transcriber) return _transcriber
   if (_transcriberLoadError) throw new Error(_transcriberLoadError)
 
-  // 低配服务器（空闲内存<1.5GB）拒绝加载 Whisper 模型，避免 OOM 崩溃
+  // 低配服务器拒绝加载 Whisper 模型，避免推理阶段 OOM 崩溃
   const freeMem = Math.round(os.freemem() / (1024 * 1024))
-  if (freeMem < 1536) {
-    const msg = `服务器可用内存不足（${freeMem}MB < 1.5GB），已跳过语音转写`
+  const cpuCount = os.cpus().length
+  const minFreeMem = cpuCount <= 2 ? 2048 : 1536
+  if (freeMem < minFreeMem) {
+    const msg = `服务器资源不足（CPU:${cpuCount}核, 空闲内存:${freeMem}MB < ${minFreeMem}MB），跳过本地语音转写`
     _transcriberLoadError = msg
     console.warn('[Whisper] ' + msg)
     throw new Error(msg)
