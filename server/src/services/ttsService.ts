@@ -42,9 +42,20 @@ export async function synthesizeSpeech(text: string, voiceId: string = defaultVo
       : cleanText
     fs.writeFileSync(inPath, safeText, 'utf-8')
 
+    // 检查 edge-tts 是否已安装
+    try {
+      const check = spawn('python', ['-m', 'edge_tts', '--help'], { timeout: 5000, windowsHide: true })
+      await new Promise<void>((res, rej) => {
+        check.on('close', (c: number) => c === 0 ? res() : rej(new Error(`exit ${c}`)))
+        check.on('error', rej)
+      })
+    } catch {
+      throw new Error('Edge-TTS 未安装，请在服务器执行: pip install edge-tts')
+    }
+
     await new Promise<void>((resolve, reject) => {
       const child = spawn('python', [BRIDGE_SCRIPT, inPath, voiceId, outPath], {
-        timeout: 30000,
+        timeout: 60000,
         windowsHide: true
       })
 
