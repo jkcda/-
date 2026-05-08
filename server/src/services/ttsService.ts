@@ -29,6 +29,15 @@ export const voiceList = [
 const defaultVoice = 'zh-CN-XiaoxiaoNeural'
 const MAX_TTS_CHARS = 2000
 
+function getPythonCmd(): string {
+  try {
+    execSync('python3 --version', { stdio: 'pipe', timeout: 3000 })
+    return 'python3'
+  } catch {
+    return 'python'
+  }
+}
+
 async function synthesizeSegment(text: string, voiceId: string, outPath: string): Promise<void> {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tts-'))
   const inPath = path.join(tmpDir, 'input.txt')
@@ -37,7 +46,7 @@ async function synthesizeSegment(text: string, voiceId: string, outPath: string)
     fs.writeFileSync(inPath, text, 'utf-8')
 
     await new Promise<void>((resolve, reject) => {
-      const child = spawn('python', [BRIDGE_SCRIPT, inPath, voiceId, outPath], {
+      const child = spawn(getPythonCmd(), [BRIDGE_SCRIPT, inPath, voiceId, outPath], {
         timeout: 60000,
         windowsHide: true,
       })
