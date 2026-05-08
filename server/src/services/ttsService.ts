@@ -1,4 +1,5 @@
-import { spawn } from 'child_process'
+import { spawn, execSync } from 'child_process'
+import { createRequire } from 'module'
 import path from 'path'
 import fs from 'fs'
 import os from 'os'
@@ -6,6 +7,7 @@ import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const BRIDGE_SCRIPT = path.resolve(__dirname, '../../scripts/tts_bridge.py')
+const ffmpegPath = createRequire(import.meta.url)('ffmpeg-static')
 
 // Female-only Chinese neural voices
 export const voiceList = [
@@ -27,36 +29,17 @@ export const voiceList = [
 const defaultVoice = 'zh-CN-XiaoxiaoNeural'
 const MAX_TTS_CHARS = 2000
 
-export async function synthesizeSpeech(text: string, voiceId: string = defaultVoice): Promise<Buffer> {
+async function synthesizeSegment(text: string, voiceId: string, outPath: string): Promise<void> {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tts-'))
-  const outPath = path.join(tmpDir, 'output.mp3')
   const inPath = path.join(tmpDir, 'input.txt')
 
   try {
-    const cleanText = text
-      .replace(/[\r\n]+/g, '。')
-      .replace(/[#*`_~\[\]\(\)\{\}]/g, '')
-      .replace(/\s{2,}/g, ' ')
-    const safeText = cleanText.length > MAX_TTS_CHARS
-      ? cleanText.slice(0, MAX_TTS_CHARS) + '。'
-      : cleanText
-    fs.writeFileSync(inPath, safeText, 'utf-8')
-
-    // 检查 edge-tts 是否已安装
-    try {
-      const check = spawn('python', ['-m', 'edge_tts', '--help'], { timeout: 5000, windowsHide: true })
-      await new Promise<void>((res, rej) => {
-        check.on('close', (c: number) => c === 0 ? res() : rej(new Error(`exit ${c}`)))
-        check.on('error', rej)
-      })
-    } catch {
-      throw new Error('Edge-TTS 未安装，请在服务器执行: pip install edge-tts')
-    }
+    fs.writeFileSync(inPath, text, 'utf-8')
 
     await new Promise<void>((resolve, reject) => {
       const child = spawn('python', [BRIDGE_SCRIPT, inPath, voiceId, outPath], {
         timeout: 60000,
-        windowsHide: true
+        windowsHide: true,
       })
 
       let stderr = ''
@@ -69,6 +52,55 @@ export async function synthesizeSpeech(text: string, voiceId: string = defaultVo
 
       child.on('error', reject)
     })
+  } finally {
+    try { fs.rmSync(tmpDir, { recursive: true, force: true }) } catch {}
+  }
+}
+
+export async function synthesizeSpeech(text: string, voiceId: string = defaultVoice): Promise<Buffer> {
+  const cleanText = text
+    .replace(/[\r\n]+/g, '。')
+    .replace(/[#*`_~\[\]\(\)\{\}]/g, '')
+    .replace(/\s{2,}/g, ' ')
+  const safeText = cleanText.length > MAX_TTS_CHARS * 3
+    ? cleanText.slice(0, MAX_TTS_CHARS * 3) + '。'
+    : cleanText
+
+  // 单段，无需拼接
+  if (safeText.length <= MAX_TTS_CHARS) {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tts-'))
+    const outPath = path.join(tmpDir, 'output.mp3')
+    try {
+      await synthesizeSegment(safeText, voiceId, outPath)
+      const audio = fs.readFileSync(outPath)
+      if (audio.length === 0) throw new Error('TTS 生成音频为空')
+      return audio
+    } finally {
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }) } catch {}
+    }
+  }
+
+  // 长文本：分段合成 + ffmpeg 拼接
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tts-'))
+  const segPaths: string[] = []
+
+  try {
+    for (let i = 0; i < safeText.length; i += MAX_TTS_CHARS) {
+      const chunk = safeText.slice(i, Math.min(i + MAX_TTS_CHARS, safeText.length))
+      const segPath = path.join(tmpDir, `seg_${String(i).padStart(4, '0')}.mp3`)
+      await synthesizeSegment(chunk, voiceId, segPath)
+      segPaths.push(segPath)
+    }
+
+    // ffmpeg concat
+    const filelistPath = path.join(tmpDir, 'files.txt')
+    fs.writeFileSync(filelistPath, segPaths.map(p => `file '${p}'`).join('\n'), 'utf-8')
+    const outPath = path.join(tmpDir, 'output.mp3')
+
+    execSync(
+      `"${ffmpegPath}" -f concat -safe 0 -i "${filelistPath}" -c copy "${outPath}" -y`,
+      { timeout: 30000, stdio: 'pipe' }
+    )
 
     const audio = fs.readFileSync(outPath)
     if (audio.length === 0) throw new Error('TTS 生成音频为空')
