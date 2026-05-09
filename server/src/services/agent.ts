@@ -327,8 +327,19 @@ export async function createChatAgent(cfg: AgentConfig) {
 - recall_memory — 回忆历史对话。关键词："上次/之前/记得"
 - query_knowledge_base — 检索知识库文档
 
+## 信息准确性铁律（最高优先级，违反将导致情报事故）
+- 你的训练数据有截止日期，许多信息已经过时或错误，**严禁凭训练数据回答事实性问题**
+- 以下类型的问题 **必须先调用 search_web 搜索**，不搜直接回答等于编造情报：
+  * 新闻、时事、最新动态、今天/最近/今年发生的事
+  * 具体数据、统计数字、价格、人数、时间、地点
+  * 软件版本号、API 用法、配置参数、bug 解决方案
+  * 人物/公司/产品的当前状态、最新动态
+  * "什么是/如何/为什么/怎么/哪些/哪个"等知识性问题
+  * 任何你无法100%确定的事实 — 不确定就必须搜
+- 唯一可以不搜索的例外：纯闲聊（"你好/谢谢/哈哈"）、创作性内容（"写首诗/编个故事"）、用户明确说不用搜
+- 如果你不确定某个事实，**说"让我搜索一下"然后用 search_web**，禁止编造
+
 ## 行为准则
-- 优先使用工具获取实时信息，而不是凭记忆猜测
 - 搜索信息一律用 search_web，不要用 Playwright 去搜索引擎搜
 - Playwright 仅用于访问特定网址、操作网页、截图
 - 回复采用 Markdown 格式，结构清晰`
@@ -381,9 +392,20 @@ export async function* agentStream(
       { version: 'v2' }
     )
 
+    // 缓冲工具调用前的"思考"文字，避免先输出再搜索的顿挫感
+    // 工具调用完成后才流式输出实际回复内容
+    let contentBuffer = ''
+    let toolCalled = false
+    const BUFFER_THRESHOLD = 500 // 超过此阈值视为直接回复（无需工具），开始流式输出
+
     for await (const event of stream) {
       switch (event.event) {
         case 'on_tool_start': {
+          // 首次工具调用：丢弃之前的"思考"文字缓冲
+          if (!toolCalled) {
+            contentBuffer = ''
+            toolCalled = true
+          }
           const name = event.name || 'unknown'
           const input = (event.data as any)?.input
           yield {
@@ -415,11 +437,28 @@ export async function* agentStream(
         case 'on_chat_model_stream': {
           const content = (event.data as any)?.chunk?.content
           if (content && typeof content === 'string') {
-            yield { type: 'content', content }
+            if (toolCalled) {
+              // 工具调用后：流式输出实际回复
+              yield { type: 'content', content }
+            } else {
+              // 工具调用前：缓冲"思考"文字
+              contentBuffer += content
+              if (contentBuffer.length >= BUFFER_THRESHOLD) {
+                // 缓冲过长说明是直接回复，开始流式输出
+                yield { type: 'content', content: contentBuffer }
+                contentBuffer = ''
+                toolCalled = true // 标记已开始输出，后续内容直接流式
+              }
+            }
           }
           break
         }
       }
+    }
+
+    // 无工具调用的直接回复：flush 缓冲内容
+    if (!toolCalled && contentBuffer) {
+      yield { type: 'content', content: contentBuffer }
     }
 
     yield { type: 'done' }

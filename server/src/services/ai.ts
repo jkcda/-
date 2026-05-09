@@ -255,9 +255,26 @@ export async function chatWithAIStream(
       }
     }
 
+    // 事实性问题检测：对知识类问题强制注入搜索指令，防止模型凭训练数据编造
+    const factualPatterns = [
+      /是什么/, /什么是/, /怎么(做|用|配置|安装|解决|处理)/, /如何/, /为什么/,
+      /最新/, /最近/, /今天/, /现在/, /当前/, /今年/, /即将/,
+      /版本/, /价格/, /多少(钱)?/, /哪个/, /什么时候/, /何时/,
+      /谁能/, /在哪里/, /有哪些/, /叫什么/, /是谁/,
+      /推荐/, /最好用的/, /排名/, /对比/, /区别/,
+      /API/, /SDK/, /文档/, /教程/, /示例/, /代码/,
+      /报错/, /错误/, /失败/, /不行/, /不工作/,
+      /支持.*吗\?/, /可以.*吗\?/, /能.*吗\?/,
+      /\d{4}年/, /新闻/, /数据/, /统计/,
+    ]
+    const isFactualQuery = factualPatterns.some(p => p.test(message))
+    const searchReminder = isFactualQuery
+      ? '[🔍 搜索指令] 以下问题涉及事实性信息，你必须先调用 search_web 工具搜索确认，禁止凭训练数据直接回答。搜索后标注来源编号。\n\n'
+      : ''
+
     const agentMessage = documentContext
-      ? `以下是上传的文档内容:\n${documentContext}\n\n用户问题: ${message}`
-      : message
+      ? `以下是上传的文档内容:\n${documentContext}\n\n${searchReminder}用户问题: ${message}`
+      : searchReminder + message
 
     // Agent 管线（纯文本 / 含文档）
     const events = agentStream(
