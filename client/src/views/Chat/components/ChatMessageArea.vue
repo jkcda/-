@@ -1162,12 +1162,7 @@ defineExpose({ scrollToBottom })
   margin: 0 auto 8px;
   display: block;
   object-fit: contain;
-  animation: floatUpDown 2s ease-in-out infinite;
-}
-
-@keyframes floatUpDown {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-6px); }
+  animation: float-up 2s ease-in-out infinite !important;
 }
 
 .typing-indicator {
