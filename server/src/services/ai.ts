@@ -8,6 +8,7 @@ import { holdUserMessage } from './memoryService.js'
 import { processVideo } from './videoProcessor.js'
 import { agentStream, type AgentSSEEvent } from './agent.js'
 import { searchWeb } from './webSearch.js'
+import { AgentModel } from '../models/agent.js'
 
 function getClient(provider: 'modelscope' | 'volcengine' = 'modelscope') {
   const baseURL = config.ai[provider].baseURL
@@ -175,7 +176,8 @@ export async function chatWithAIStream(
   nexusMode: boolean = true,
   maxVideoFrames?: number,
   model?: string,
-  userRole?: string
+  userRole?: string,
+  agentId?: number | null
 ) {
   try {
     const history = await ChatHistoryModel.getBySessionIdAndUserId(sessionId, userId)
@@ -185,10 +187,31 @@ export async function chatWithAIStream(
       files: h.files ? (typeof h.files === 'string' ? JSON.parse(h.files) : h.files) : undefined
     }))
 
-    await ChatHistoryModel.create(sessionId, userId, 'user', message, files ? JSON.stringify(files) : undefined)
+    await ChatHistoryModel.create(sessionId, userId, 'user', message, files ? JSON.stringify(files) : undefined, undefined, undefined, agentId)
 
     if (userId) {
       holdUserMessage(userId, sessionId, message)
+    }
+
+    // 加载自定义 Agent 配置（角色扮演）
+    let customSystemPrompt: string | undefined
+    let agentGreeting: string | undefined
+    let isNexusSummoned = false
+
+    if (agentId && userId) {
+      try {
+        const agent = await AgentModel.findById(agentId)
+        if (agent && agent.user_id === userId) {
+          // 检测是否召唤奈瑟斯
+          const summonPattern = /@奈瑟斯|@Nexus|@nexus|召唤奈瑟斯|召唤nexus|奈瑟斯出来|叫奈瑟斯/i
+          isNexusSummoned = summonPattern.test(message)
+
+          if (!isNexusSummoned) {
+            customSystemPrompt = agent.system_prompt
+            agentGreeting = agent.greeting || undefined
+          }
+        }
+      } catch { /* agent 加载失败则回退默认行为 */ }
     }
 
     const hasMedia = files && files.some(f => f.type.startsWith('image/') || f.type.startsWith('video/'))
@@ -272,13 +295,18 @@ export async function chatWithAIStream(
       ? '[🔍 搜索指令] 以下问题涉及事实性信息，你必须先调用 search_web 工具搜索确认，禁止凭训练数据直接回答。搜索后标注来源编号。\n\n'
       : ''
 
-    const agentMessage = documentContext
+    let agentMessage = documentContext
       ? `以下是上传的文档内容:\n${documentContext}\n\n${searchReminder}用户问题: ${message}`
       : searchReminder + message
 
+    // 自定义角色首次对话：把初始场景作为上下文注入，让AI生成自然的角色反应
+    if (customSystemPrompt && agentGreeting && historyMessages.length === 0) {
+      agentMessage = `初始场景：${agentGreeting}\n\n请根据以上初始场景，以角色的身份自然地开始第一次对话。注意：不要说场景描述，不要复述初始场景的内容，直接进入角色，给出符合人设的自然反应。\n\n用户的第一句话：${message}`
+    }
+
     // Agent 管线（纯文本 / 含文档）
     const events = agentStream(
-      { userId, kbId, model, nexusMode, userRole, permissions: { kbRetrieval: !!kbId, memory: !!userId, imageGeneration: true } },
+      { userId, kbId, model, nexusMode, customSystemPrompt, userRole, permissions: { kbRetrieval: !!kbId, memory: !!userId, imageGeneration: true } },
       historyMessages,
       agentMessage
     )

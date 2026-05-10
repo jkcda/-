@@ -116,6 +116,25 @@ CREATE TABLE IF NOT EXISTS `verification_codes` (
   INDEX `idx_vc_email` (`email`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='注册验证码临时存储（验证通过后移至users表）';
 
+-- ============================================
+-- AI 角色扮演智能体表
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS `ai_agents` (
+  `id` INT PRIMARY KEY AUTO_INCREMENT COMMENT 'Agent ID',
+  `user_id` INT NOT NULL COMMENT '所属用户 ID',
+  `name` VARCHAR(100) NOT NULL COMMENT '角色名',
+  `avatar` VARCHAR(500) DEFAULT NULL COMMENT '头像URL',
+  `system_prompt` TEXT NOT NULL COMMENT '人设+背景故事（写进system prompt）',
+  `greeting` TEXT DEFAULT NULL COMMENT '初始场景（首次对话的第一条消息，不在system prompt中）',
+  `model_config` JSON DEFAULT NULL COMMENT '可选模型覆盖配置',
+  `is_default` BOOLEAN DEFAULT FALSE COMMENT '是否为默认角色',
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
+  INDEX `idx_agent_user_id` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI角色扮演智能体表';
+
 -- 示例数据（可选，用于测试）
 -- INSERT INTO users (username, email, password, role) VALUES
 -- ('admin', 'admin@example.com', '$2a$10$example_hashed_password', 'admin'),

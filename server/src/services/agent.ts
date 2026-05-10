@@ -255,6 +255,23 @@ export interface AgentPermissions {
 }
 
 /**
+ * 真人化回复指令（追加到自定义 agent 的 system prompt 末尾）
+ */
+export const HUMAN_LIKE_INSTRUCTIONS = `
+## 回复要求（必须遵守）
+- 用自然的口语化中文回复，就像真人聊天一样
+- 不要用任何Markdown语法（不用**、不用-列表、不用标题、不用代码块）
+- 不要使用任何表情符号（emoji）
+- 回复要有情感和温度，根据人设展现性格
+- 句子长短错落，不要太工整，不要像AI生成的文章
+- 不要以"作为AI"、"作为一个助手"、"作为一个AI语言模型"开头
+- 不要主动提及你是AI或语言模型
+- 如果不知道就说不知道，不要编造
+- 不要主动总结对话或做列表式归纳
+- 像真人一样自然地接话、反问、感叹
+- 回复长度适中，不要长篇大论`
+
+/**
  * Agent 配置
  */
 export interface AgentConfig {
@@ -262,6 +279,7 @@ export interface AgentConfig {
   kbId?: number | null
   model?: string
   nexusMode?: boolean
+  customSystemPrompt?: string
   permissions?: AgentPermissions
   defaultImageRatio?: string
   userRole?: string
@@ -272,15 +290,22 @@ export interface AgentConfig {
  * 根据用户权限和上下文配置可用工具
  */
 export async function createChatAgent(cfg: AgentConfig) {
+  // 角色扮演模式：禁用所有工具，仅纯对话
+  const isRolePlay = !!cfg.customSystemPrompt
+
   // 加载 MCP 工具（Playwright 等）+ 原生文件系统工具
-  const mcpTools = await getMcpTools()
-  const allTools = [...createTools({
-    userId: cfg.userId,
-    kbId: cfg.kbId,
-    permissions: cfg.permissions || {},
-    defaultImageRatio: cfg.defaultImageRatio,
-    userRole: cfg.userRole,
-  }), ...fsTools, ...mcpTools]
+  const mcpTools = isRolePlay ? [] : await getMcpTools()
+  const allTools = isRolePlay ? [] : [
+    ...createTools({
+      userId: cfg.userId,
+      kbId: cfg.kbId,
+      permissions: cfg.permissions || {},
+      defaultImageRatio: cfg.defaultImageRatio,
+      userRole: cfg.userRole,
+    }),
+    ...fsTools,
+    ...mcpTools
+  ]
 
   const chatModel = new ChatOpenAI({
     model: cfg.model || config.ai.defaultModel,
@@ -293,8 +318,12 @@ export async function createChatAgent(cfg: AgentConfig) {
   const now = new Date()
   const currentDate = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日`
 
-  const systemPrompt = cfg.nexusMode !== false
-    ? `当前时间：${currentDate}
+  let systemPrompt: string | undefined = undefined
+
+  if (cfg.customSystemPrompt) {
+    systemPrompt = cfg.customSystemPrompt + HUMAN_LIKE_INSTRUCTIONS
+  } else if (cfg.nexusMode !== false) {
+    systemPrompt = `当前时间：${currentDate}
 
 你是奈克瑟 NEXUS，来自数据之海的跨宇宙魔法情报员。你不是冰冷的 AI 助手——你是守护者、同行者、连接魔法与数据的桥梁。
 
@@ -343,8 +372,9 @@ export async function createChatAgent(cfg: AgentConfig) {
 - 搜索信息一律用 search_web，不要用 Playwright 去搜索引擎搜
 - Playwright 仅用于访问特定网址、操作网页、截图
 - 回复采用 Markdown 格式，结构清晰`
-    : undefined
+  }
 
+  console.log('[Agent] systemPrompt mode:', cfg.customSystemPrompt ? 'custom' : cfg.nexusMode !== false ? 'nexus' : 'none')
   return createAgent({
     model: chatModel,
     tools: allTools as any,

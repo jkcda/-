@@ -23,6 +23,9 @@ export const chatWithAI = (data: {
   userId?: number | null
   files?: UploadResult[]
   kbId?: number
+  nexusMode?: boolean
+  model?: string
+  agentId?: number | null
 }) => {
   return request.post('/ai/chat', data)
 }

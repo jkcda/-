@@ -10,6 +10,7 @@ import uploadRouter from './routes/upload.js'
 import knowledgeBaseRouter from './routes/knowledgeBase.js'
 import voiceRouter from './routes/voice.js'
 import mcpRouter from './routes/mcp.js'
+import agentRouter from './routes/agent.js'
 import config, { initDynamicConfig, getSetting } from './config/index.js'
 import { rateLimiter } from './utils/rateLimit.js'
 import fs from 'fs'
@@ -64,6 +65,7 @@ app.use('/api/admin', adminRouter)
 app.use('/api/ai', aiRouter)
 app.use('/api/kb', knowledgeBaseRouter)
 app.use('/api', uploadRouter)
+app.use('/api/agents', agentRouter)
 app.use('/api/voice', voiceRouter)
 app.use('/api/mcp', mcpRouter)
 

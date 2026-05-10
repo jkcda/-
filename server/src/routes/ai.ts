@@ -16,7 +16,7 @@ const router = express.Router()
 // POST /api/ai/chat - AI对话（统一入口：Agent 工具调用 + 多模态流式）
 router.post('/chat', async (req, res) => {
   try {
-    const { message, sessionId, userId, files, kbId, nexusMode, maxVideoFrames, model } = req.body
+    const { message, sessionId, userId, files, kbId, nexusMode, maxVideoFrames, model, agentId } = req.body
 
     if (!message && (!files || files.length === 0)) {
       return ApiResponse.badRequest(res, '请输入消息内容或上传文件')
@@ -52,7 +52,8 @@ router.post('/chat', async (req, res) => {
         nexusMode !== false,
         maxVideoFrames || undefined,
         model || undefined,
-        userRole
+        userRole,
+        agentId || undefined
       )
 
       let assistantContent = ''
@@ -99,7 +100,9 @@ router.post('/chat', async (req, res) => {
           'assistant',
           assistantContent,
           undefined,
-          kbId || undefined
+          kbId || undefined,
+          undefined,
+          agentId || undefined
         )
 
         if (userId) {
@@ -130,7 +133,17 @@ router.get('/sessions', async (req, res) => {
     const { userId } = req.query
     const uid = userId ? Number(userId) : null
     const sessions = await ChatHistoryModel.getSessionsByUserId(uid)
-    ApiResponse.success(res, { sessions }, '获取会话列表成功')
+    const formatted = (sessions as any[]).map(s => ({
+      session_id: s.session_id,
+      created_at: s.created_at,
+      last_active_at: s.last_active_at,
+      message_count: s.message_count,
+      first_message: s.first_message,
+      agent_id: s.agent_id || null,
+      agent_name: s.agent_name || null,
+      agent_avatar: s.agent_avatar || null
+    }))
+    ApiResponse.success(res, { sessions: formatted }, '获取会话列表成功')
   } catch (error: any) {
     ApiResponse.internalServerError(res, '服务器错误', error.message)
   }

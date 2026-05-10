@@ -10,8 +10,8 @@
         >
           <el-icon :size="18"><Menu /></el-icon>
         </el-button>
-        <h2>奈克瑟 · 情报同步</h2>
-        <img :src="'/images/character-avatar.png'" alt="AI" class="chat-header-avatar" />
+        <h2>{{ currentAgent ? currentAgent.name + ' · 角色扮演' : '奈克瑟 · 情报同步' }}</h2>
+        <img :src="currentAvatar" alt="AI" class="chat-header-avatar" />
       </div>
       <el-button
         v-if="currentSessionId"
@@ -41,9 +41,9 @@
     </el-dialog>
 
     <div v-if="!currentSessionId" class="chat-empty-state">
-      <img :src="'/images/character-avatar.png'" alt="AI" class="empty-avatar" />
-      <p class="empty-title">奈克瑟 NEXUS</p>
-      <p class="empty-desc">在左侧创建或选择一个对话，开始同步情报。</p>
+      <img :src="currentAvatar" alt="AI" class="empty-avatar" />
+      <p class="empty-title">{{ currentAgent ? currentAgent.name : '奈克瑟 NEXUS' }}</p>
+      <p class="empty-desc">{{ currentAgent ? '在左侧创建或选择一个对话，开始角色扮演。' : '在左侧创建或选择一个对话，开始同步情报。' }}</p>
     </div>
 
     <div v-else class="chat-messages" ref="messagesContainer" @click="onMessageClick">
@@ -57,7 +57,7 @@
         :class="['message', msg.role]"
       >
         <div v-if="msg.role === 'assistant'" class="message-avatar">
-          <img :src="'/images/character-avatar.png'" alt="AI" />
+          <img :src="currentAvatar" alt="AI" />
         </div>
         <div class="message-content">
           <div v-html="renderMarkdown(msg.content)"></div>
@@ -182,7 +182,7 @@
           <div class="mobile-extras-section">
             <span class="mobile-extras-label">开关</span>
             <div class="mobile-extras-toggles">
-              <el-switch :model-value="nexusMode" size="small" active-text="奈克瑟" inactive-text="AI" @change="$emit('update:nexusMode', $event as boolean)" />
+              <el-switch v-if="!currentAgent" :model-value="nexusMode" size="small" active-text="奈克瑟" inactive-text="AI" @change="$emit('update:nexusMode', $event as boolean)" />
               <el-switch :model-value="autoSpeakEnabled" size="small" active-text="朗读" @change="onAutoSpeakToggle" />
               <el-select v-if="autoSpeakEnabled && voices.length > 0" :model-value="selectedVoiceId" size="small" style="width: 100px" @update:model-value="onVoiceSelect">
                 <el-option v-for="v in voices" :key="v.id" :label="v.name" :value="v.id" />
@@ -242,6 +242,7 @@
             />
           </el-select>
           <el-switch
+            v-if="!currentAgent"
             :model-value="nexusMode"
             size="small"
             active-text="奈克瑟"
@@ -420,6 +421,13 @@ interface KbItem {
   name: string
 }
 
+interface AgentItem {
+  id: number
+  name: string
+  avatar: string | null
+  greeting?: string | null
+}
+
 const props = defineProps<{
   messages: Message[]
   isLoading: boolean
@@ -433,6 +441,8 @@ const props = defineProps<{
   selectedModel: string
   imageRatios: { label: string; value: string }[]
   selectedImageRatio: string
+  agentList: AgentItem[]
+  currentAgent: { id: number; name: string; avatar: string | null } | null
   loadingStage: string
 }>()
 
@@ -444,6 +454,7 @@ const emit = defineEmits<{
   'update:nexusMode': [value: boolean]
   'update:selectedModel': [value: string]
   'update:selectedImageRatio': [value: string]
+  createSessionWithAgent: [agent: AgentItem | null]
 }>()
 
 const inputMessage = ref('')
@@ -465,6 +476,12 @@ const selectedFiles = ref<SelectedFile[]>([])
 const isMobile = useMediaQuery('(max-width: 768px)')
 const showMobileExtras = ref(false)
 
+// 当前角色头像
+const currentAvatar = computed(() => {
+  if (props.currentAgent?.avatar) return props.currentAgent.avatar
+  return '/images/character-avatar.png'
+})
+
 // 图片预览
 const previewVisible = ref(false)
 const previewUrl = ref('')
@@ -484,6 +501,7 @@ const loadingText = computed(() => {
 })
 
 const loadingImage = computed(() => {
+  if (props.currentAgent?.avatar) return props.currentAgent.avatar
   if (props.loadingStage === 'searching') return '/images/searching.png'
   return '/images/thinking.png'
 })

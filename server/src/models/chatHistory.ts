@@ -19,11 +19,12 @@ export class ChatHistoryModel {
     content: string,
     files?: string,
     kbId?: number,
-    retrievedChunks?: string
+    retrievedChunks?: string,
+    agentId?: number | null
   ) {
     const [result] = await pool.execute(
-      'INSERT INTO chat_history (session_id, user_id, role, content, files, kb_id, retrieved_chunks) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [sessionId, userId, role, content, files || null, kbId || null, retrievedChunks || null]
+      'INSERT INTO chat_history (session_id, user_id, role, content, files, kb_id, retrieved_chunks, agent_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [sessionId, userId, role, content, files || null, kbId || null, retrievedChunks || null, agentId || null]
     )
     return (result as any).insertId
   }
@@ -113,7 +114,10 @@ export class ChatHistoryModel {
           COUNT(*) AS message_count,
           (SELECT c2.content FROM chat_history c2
            WHERE c2.session_id = ch.session_id AND c2.role = 'user'
-           ORDER BY c2.created_at ASC LIMIT 1) AS first_message
+           ORDER BY c2.created_at ASC LIMIT 1) AS first_message,
+          MAX(ch.agent_id) AS agent_id,
+          (SELECT a.name FROM ai_agents a WHERE a.id = MAX(ch.agent_id)) AS agent_name,
+          (SELECT a.avatar FROM ai_agents a WHERE a.id = MAX(ch.agent_id)) AS agent_avatar
         FROM chat_history ch
         WHERE ch.user_id = ? OR ch.user_id IS NULL
         GROUP BY ch.session_id
@@ -130,7 +134,8 @@ export class ChatHistoryModel {
           COUNT(*) AS message_count,
           (SELECT c2.content FROM chat_history c2
            WHERE c2.session_id = ch.session_id AND c2.role = 'user'
-           ORDER BY c2.created_at ASC LIMIT 1) AS first_message
+           ORDER BY c2.created_at ASC LIMIT 1) AS first_message,
+          MAX(ch.agent_id) AS agent_id
         FROM chat_history ch
         WHERE ch.user_id IS NULL
         GROUP BY ch.session_id

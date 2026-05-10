@@ -73,6 +73,43 @@ router.post('/upload', upload.single('file'), (req, res) => {
   }
 })
 
+// POST /api/upload/avatar - 上传角色头像
+const avatarDir = path.join(process.cwd(), 'uploads', 'avatars')
+if (!fs.existsSync(avatarDir)) {
+  fs.mkdirSync(avatarDir, { recursive: true })
+}
+
+const avatarStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, avatarDir),
+  filename: (_req, file, cb) => {
+    const originalName = decodeFileName(file.originalname)
+    const ext = path.extname(originalName)
+    cb(null, `avatar_${Date.now()}${ext}`)
+  }
+})
+
+const avatarUpload = multer({
+  storage: avatarStorage,
+  fileFilter: (_req, file, cb) => {
+    if (config.upload.allowedImages.includes(file.mimetype)) {
+      cb(null, true)
+    } else {
+      cb(new Error('仅支持图片格式'))
+    }
+  },
+  limits: { fileSize: 2 * 1024 * 1024 } // 2MB
+})
+
+router.post('/upload/avatar', avatarUpload.single('file'), (req, res) => {
+  try {
+    if (!req.file) return ApiResponse.badRequest(res, '请选择头像图片')
+    const url = `/uploads/avatars/${req.file.filename}`
+    ApiResponse.success(res, { name: decodeFileName(req.file.originalname), url }, '上传成功')
+  } catch (error: any) {
+    ApiResponse.internalServerError(res, '上传失败', error.message)
+  }
+})
+
 // multer 错误处理
 router.use((err: any, _req: express.Request, res: express.Response, next: express.NextFunction) => {
   if (err instanceof multer.MulterError) {

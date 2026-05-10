@@ -1,10 +1,37 @@
 <template>
   <div class="chat-sidebar" :class="{ collapsed, 'mobile-open': mobileOpen }">
     <div class="sidebar-header">
-      <el-button type="primary" class="new-chat-btn" @click="$emit('createSession')">
-        <el-icon><Plus /></el-icon>
-        新对话
-      </el-button>
+      <el-popover placement="bottom-start" :width="220" trigger="click">
+        <template #reference>
+          <el-button type="primary" class="new-chat-btn">
+            <el-icon><Plus /></el-icon>
+            新对话
+          </el-button>
+        </template>
+        <div class="new-chat-popover">
+          <p class="popover-title">选择对话角色</p>
+          <div class="popover-option" @click="onSelectAgent(null)">
+            <img :src="'/images/character-avatar.png'" class="option-avatar" />
+            <div class="option-info">
+              <span class="option-name">✦ 奈克瑟 NEXUS</span>
+              <span class="option-desc">跨宇宙魔法情报员</span>
+            </div>
+          </div>
+          <div
+            v-for="agent in agentList"
+            :key="agent.id"
+            class="popover-option"
+            @click="onSelectAgent(agent)"
+          >
+            <img v-if="agent.avatar" :src="agent.avatar" class="option-avatar" />
+            <div v-else class="option-avatar placeholder">{{ agent.name.slice(0, 1) }}</div>
+            <div class="option-info">
+              <span class="option-name">{{ agent.name }}</span>
+              <span class="option-desc">自定义角色</span>
+            </div>
+          </div>
+        </div>
+      </el-popover>
     </div>
     <div class="nexus-card">
       <img :src="'/images/character-avatar.png'" class="nexus-avatar" />
@@ -20,9 +47,14 @@
         :class="['session-item', { active: sess.id === currentSessionId }]"
         @click="$emit('selectSession', sess.id)"
       >
-        <div class="session-preview">{{ sess.preview || '新对话' }}</div>
+        <div class="session-preview">
+          <img v-if="sess.agentAvatar" :src="sess.agentAvatar" class="session-agent-avatar" />
+          <img v-else-if="sess.agentId" :src="'/images/character-avatar.png'" class="session-agent-avatar" />
+          {{ sess.preview || '新对话' }}
+        </div>
         <div class="session-meta">
           <span>{{ sess.messageCount }} 条消息</span>
+          <span v-if="sess.agentName" class="session-agent-tag">{{ sess.agentName }}</span>
           <el-button
             class="delete-session-btn"
             size="small"
@@ -81,6 +113,9 @@ interface SessionItem {
   preview: string
   messageCount: number
   lastActiveAt: string
+  agentId?: number | null
+  agentName?: string | null
+  agentAvatar?: string | null
 }
 
 interface McpServer {
@@ -89,6 +124,13 @@ interface McpServer {
   icon: string
   enabled: boolean
   toolCount: number
+}
+
+interface AgentItem {
+  id: number
+  name: string
+  avatar: string | null
+  greeting: string | null
 }
 
 const welcomeLine = computed(() => '✦ 指挥官，数据之海已同步。开始新的对话吧。')
@@ -119,7 +161,6 @@ async function handleToggle(name: string, enabled: boolean) {
     if (data.success) {
       toggleNote.value = data.result.note || '变更将在服务重启后生效'
       setTimeout(() => toggleNote.value = '', 4000)
-      // 乐观更新
       const srv = mcpServers.value.find(s => s.name === name)
       if (srv) srv.enabled = enabled
     }
@@ -131,18 +172,24 @@ async function handleToggle(name: string, enabled: boolean) {
 
 onMounted(() => fetchMcpStatus())
 
-defineProps<{
+const props = defineProps<{
   sessionList: SessionItem[]
   currentSessionId: string
   collapsed: boolean
   mobileOpen?: boolean
+  agentList: AgentItem[]
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   createSession: []
+  createSessionWithAgent: [agent: AgentItem | null]
   selectSession: [sessionId: string]
   deleteSession: [sessionId: string]
 }>()
+
+function onSelectAgent(agent: AgentItem | null) {
+  emit('createSessionWithAgent', agent)
+}
 </script>
 
 <style scoped>
@@ -169,6 +216,69 @@ defineEmits<{
 
 .new-chat-btn {
   width: 100%;
+}
+
+.new-chat-popover {
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.popover-title {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin: 0 0 8px 0;
+  padding: 0 4px;
+}
+
+.popover-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 4px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.popover-option:hover {
+  background: var(--color-primary-light);
+}
+
+.option-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.option-avatar.placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg-input);
+  font-weight: 700;
+  color: var(--color-text-muted);
+  border-radius: 50%;
+}
+
+.option-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.option-name {
+  font-size: 13px;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+}
+
+.option-desc {
+  font-size: 11px;
+  color: var(--color-text-muted);
 }
 
 .nexus-card {
@@ -242,6 +352,17 @@ defineEmits<{
   overflow: hidden;
   text-overflow: ellipsis;
   margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.session-agent-avatar {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
 }
 
 .session-meta {
@@ -250,6 +371,18 @@ defineEmits<{
   align-items: center;
   font-size: var(--font-size-sm);
   color: var(--color-text-muted);
+}
+
+.session-agent-tag {
+  font-size: 10px;
+  color: var(--color-magic-gold);
+  background: var(--color-bg-input);
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .delete-session-btn {

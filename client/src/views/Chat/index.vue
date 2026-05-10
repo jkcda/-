@@ -8,7 +8,9 @@
       :currentSessionId="currentSessionId"
       :collapsed="sidebarCollapsed"
       :mobile-open="mobileSidebarOpen"
+      :agentList="agentList"
       @createSession="createNewSession(); mobileSidebarOpen = false"
+      @createSessionWithAgent="createNewSessionWithAgent($event); mobileSidebarOpen = false"
       @selectSession="switchSessionAndClose($event)"
       @deleteSession="deleteSession($event)"
     />
@@ -31,10 +33,13 @@
       :selectedModel="selectedModel"
       :imageRatios="imageRatios"
       :selectedImageRatio="selectedImageRatio"
+      :agentList="agentList"
+      :currentAgent="currentAgent"
       :loadingStage="loadingStage"
       @update:nexusMode="nexusMode = $event"
       @update:selectedModel="onModelChange($event)"
       @update:selectedImageRatio="onImageRatioChange($event)"
+      @createSessionWithAgent="createNewSessionWithAgent"
       @send="sendMessage"
       @clearHistory="clearHistory"
       @update:selectedKbId="selectedKbId = $event"
@@ -44,12 +49,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Fold } from '@element-plus/icons-vue'
 import { getChatHistory, deleteChatHistory, getSessions, uploadFile } from '@/apis/ai'
 import { getKnowledgeBases, type KnowledgeBase } from '@/apis/knowledgeBase'
 import { handleSSE } from '@/utils/sse'
+import { autoSpeakEnabled, speak } from '@/utils/tts'
+import { useUserStore } from '@/stores/userStore'
+import request from '@/utils/http'
 function getGreeting() {
   const h = new Date().getHours()
   if (h < 6) return '夜深了，指挥官还在工作啊。'
@@ -57,8 +65,6 @@ function getGreeting() {
   if (h < 18) return '午后好，指挥官。'
   return '晚安，指挥官。'
 }
-import { autoSpeakEnabled, speak } from '@/utils/tts'
-import { useUserStore } from '@/stores/userStore'
 import ChatSidebar from './components/ChatSidebar.vue'
 import ChatMessageArea from './components/ChatMessageArea.vue'
 
@@ -79,6 +85,15 @@ interface SessionItem {
   preview: string
   messageCount: number
   lastActiveAt: string
+  agentId: number | null
+  agentName: string | null
+  agentAvatar: string | null
+}
+interface AgentItem {
+  id: number
+  name: string
+  avatar: string | null
+  greeting: string | null
 }
 
 const messages = ref<Message[]>([])
@@ -96,6 +111,14 @@ const modelList = ref<{ id: string; name: string; type: string; desc: string }[]
 const imageRatios = ref<{ label: string; value: string }[]>([])
 const loadingStage = ref<string>('thinking')
 const selectedImageRatio = ref<string>(localStorage.getItem('nexusImageRatio') || '')
+const agentList = ref<AgentItem[]>([])
+
+// 当前会话的agent信息（从sessionList中读取）
+const currentAgent = computed(() => {
+  const sess = sessionList.value.find(s => s.id === currentSessionId.value)
+  if (!sess || !sess.agentId) return null
+  return { id: sess.agentId, name: sess.agentName || '', avatar: sess.agentAvatar || null, greeting: null }
+})
 
 const isMobile = ref(window.innerWidth < 768)
 
@@ -148,7 +171,8 @@ const saveSessionList = () => {
 }
 
 const generateSessionId = () => {
-  return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
+  const uid = userStore.getUserInfo()?.id || 'anon'
+  return `session_${uid}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 }
 
 const getPreview = (content: string, files?: FileAttachment[]) => {
@@ -175,12 +199,18 @@ const syncSessionsFromBackend = async () => {
             id: bs.session_id,
             preview: getPreview(bs.first_message || ''),
             messageCount: bs.message_count || 0,
-            lastActiveAt: bs.last_active_at || bs.created_at
+            lastActiveAt: bs.last_active_at || bs.created_at,
+            agentId: bs.agent_id || null,
+            agentName: bs.agent_name || null,
+            agentAvatar: bs.agent_avatar || null
           })
         } else {
           existing.messageCount = bs.message_count || 0
           existing.preview = getPreview(bs.first_message || existing.preview)
           existing.lastActiveAt = bs.last_active_at || existing.lastActiveAt
+          existing.agentId = bs.agent_id || null
+          existing.agentName = bs.agent_name || null
+          existing.agentAvatar = bs.agent_avatar || null
         }
       }
       sessionList.value.sort((a, b) =>
@@ -249,30 +279,9 @@ const initCurrentSession = async () => {
   // 无会话时空着，等待用户点击"新对话"
 }
 
-const createNewSession = (switchTo = true) => {
-  const newId = generateSessionId()
-  const welcomeText = '✦ 新对话已就绪，指挥官。'
-  const greeting = getGreeting()
-
-  const newSession: SessionItem = {
-    id: newId,
-    preview: welcomeText,
-    messageCount: 1,
-    lastActiveAt: new Date().toISOString()
-  }
-  sessionList.value.unshift(newSession)
-  saveSessionList()
-
-  if (switchTo) {
-    stopTypewriter()
-    currentSessionId.value = newId
-    localStorage.setItem(getCurrentKey(), newId)
-    messages.value = [{
-      role: 'assistant',
-      content: `${greeting}\n\n${welcomeText}`
-    }]
-    isLoading.value = false
-  }
+const createNewSession = () => {
+  // 快速创建奈瑟斯对话（sidebar 新对话按钮）
+  createNewSessionWithAgent(null)
 }
 
 const switchSession = async (sessionId: string, saveCurrent = true) => {
@@ -338,9 +347,12 @@ const loadHistory = async () => {
         // 新会话无后端记录时显示欢迎消息，防止刷新消失
         const sess = sessionList.value.find(s => s.id === currentSessionId.value)
         if (sess) {
+          const welcomeMsg = sess.agentId
+            ? sess.preview || '欢迎消息'
+            : `${getGreeting()}\n\n${sess.preview || '✦ 新对话已就绪'}`
           messages.value = [{
             role: 'assistant',
-            content: `${getGreeting()}\n\n${sess.preview || '✦ 新对话已就绪'}`
+            content: welcomeMsg
           }]
         } else {
           messages.value = []
@@ -432,6 +444,56 @@ function onImageRatioChange(val: string) {
   localStorage.setItem('nexusImageRatio', val)
 }
 
+function createNewSessionWithAgent(agent: AgentItem | null) {
+  const newId = generateSessionId()
+
+  let welcomeMsg: string
+  let preview: string
+
+  if (agent) {
+    welcomeMsg = `✦ ${agent.name} 已就绪，开始对话吧。`
+    preview = `[${agent.name}] 新对话`
+  } else {
+    const greeting = getGreeting()
+    welcomeMsg = `${greeting}\n\n✦ 新对话已就绪，指挥官。`
+    preview = '✦ 新对话已就绪，指挥官。'
+  }
+
+  const newSession: SessionItem = {
+    id: newId,
+    preview,
+    messageCount: 1,
+    lastActiveAt: new Date().toISOString(),
+    agentId: agent?.id || null,
+    agentName: agent?.name || null,
+    agentAvatar: agent?.avatar || null
+  }
+  sessionList.value.unshift(newSession)
+  saveSessionList()
+
+  stopTypewriter()
+  currentSessionId.value = newId
+  localStorage.setItem(getCurrentKey(), newId)
+  messages.value = [{
+    role: 'assistant',
+    content: welcomeMsg
+  }]
+  isLoading.value = false
+}
+
+async function loadAgents() {
+  try {
+    const userInfo = userStore.getUserInfo()
+    if (!userInfo?.id) return
+    const res = await request.get('/agents')
+    if (res.data.success) {
+      agentList.value = res.data.result.agents
+    }
+  } catch {
+    // 静默失败
+  }
+}
+
 const sendMessage = async (payload: { content: string; files: File[] }) => {
   const { content, files } = payload
   if (!currentSessionId.value) {
@@ -480,6 +542,7 @@ const sendMessage = async (payload: { content: string; files: File[] }) => {
         kbId: selectedKbId.value || undefined,
         nexusMode: nexusMode.value,
         model: selectedModel.value || undefined,
+        agentId: currentAgent.value?.id || undefined,
         maxVideoFrames: uploadedFiles.some(f => f.type.startsWith('video/')) ? 40 : undefined
       })
     })
@@ -596,6 +659,7 @@ onMounted(() => {
   initCurrentSession()
   loadKBList()
   loadModelList()
+  loadAgents()
   window.addEventListener('resize', handleResize)
 })
 

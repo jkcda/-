@@ -8,6 +8,7 @@ import VerifyEmail from '@/views/Auth/VerifyEmail.vue'
 import Home from '@/views/Home/home.vue'
 import Chat from '@/views/Chat/index.vue'
 import KnowledgeBase from '@/views/KnowledgeBase/index.vue'
+import AgentManager from '@/views/Agent/AgentManager.vue'
 import AdminLayout from '@/views/Admin/AdminLayout.vue'
 import AdminDashboard from '@/views/Admin/AdminDashboard.vue'
 import AdminUsers from '@/views/Admin/AdminUsers.vue'
@@ -35,6 +36,11 @@ const router = createRouter({
           path: 'knowledge-base',
           component: KnowledgeBase,
           meta: { title: '知识库' }
+        },
+        {
+          path: 'agents',
+          component: AgentManager,
+          meta: { title: '角色管理', requiresAuth: true }
         }
       ]
     },
