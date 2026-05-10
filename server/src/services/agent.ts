@@ -396,15 +396,96 @@ export interface AgentSSEEvent {
 }
 
 /**
+ * 角色扮演快速通道 — 跳过 LangChain，直接调用模型流式
+ * 角色扮演禁用所有工具，不需要 LangChain Agent 管线
+ * 但保留记忆检索和知识库检索（预取后注入上下文）
+ */
+async function* rolePlayStream(
+  cfg: AgentConfig,
+  messages: { role: 'user' | 'assistant'; content: string }[],
+  userInput: string
+): AsyncGenerator<AgentSSEEvent> {
+  const systemPrompt = cfg.customSystemPrompt
+    ? cfg.customSystemPrompt + HUMAN_LIKE_INSTRUCTIONS
+    : undefined
+
+  // 预取记忆和知识库，注入上下文
+  let memoryContext = ''
+  let kbContext = ''
+
+  if (cfg.userId && cfg.permissions?.memory !== false) {
+    try {
+      const memoryText = await recallMemory(cfg.userId, userInput)
+      if (memoryText && memoryText !== '未找到相关历史记忆') {
+        memoryContext = `\n\n[🧠相关记忆]\n${memoryText}`
+      }
+    } catch { /* 记忆检索失败静默处理 */ }
+  }
+
+  if (cfg.kbId && cfg.permissions?.kbRetrieval !== false) {
+    try {
+      const result = await retrieveFromKB(userInput, cfg.kbId)
+      if (result.chunks.length > 0) {
+        kbContext = '\n\n[📚知识库参考]\n' + result.chunks.map(c => `- ${c.content}`).join('\n')
+      }
+    } catch { /* 知识库检索失败静默处理 */ }
+  }
+
+  const contextSuffix = memoryContext + kbContext
+  const augmentedInput = contextSuffix ? userInput + '\n\n---\n' + contextSuffix.trim() : userInput
+
+  const chatModel = new ChatOpenAI({
+    model: cfg.model || config.ai.defaultModel,
+    apiKey: getSetting('DASHSCOPE_API_KEY'),
+    configuration: { baseURL: 'https://api-inference.modelscope.cn/v1' },
+    maxTokens: config.ai.maxTokens,
+    temperature: 0.7,
+  })
+
+  const apiMessages = [
+    ...(systemPrompt ? [{ role: 'system' as const, content: systemPrompt }] : []),
+    ...messages.map(m => ({
+      role: m.role as 'user' | 'assistant',
+      content: m.content,
+    })),
+    { role: 'user' as const, content: augmentedInput },
+  ]
+
+  try {
+    const stream = await chatModel.stream(apiMessages)
+    for await (const chunk of stream) {
+      const content = chunk?.content
+      if (content && typeof content === 'string') {
+        yield { type: 'content', content }
+      }
+    }
+    yield { type: 'done' }
+  } catch (error: any) {
+    const msg = error.message || ''
+    if (msg.includes('DataInspectionFailed') || msg.includes('inappropriate content')) {
+      yield { type: 'error', error: '内容审核拦截：回复因包含敏感内容被服务商拦截，请重新措辞后重试。' }
+    } else {
+      yield { type: 'error', error: msg || '角色扮演执行失败' }
+    }
+  }
+}
+
+/**
  * Agent 流式对话 — 生成 SSE 兼容的事件流
  *
  * 调用方通过 for await 消费事件，每个事件可序列化为 SSE data 行
+ * 角色扮演（customSystemPrompt）走快速通道跳过 LangChain
  */
 export async function* agentStream(
   cfg: AgentConfig,
   messages: { role: 'user' | 'assistant'; content: string }[],
   userInput: string
 ): AsyncGenerator<AgentSSEEvent> {
+  // 角色扮演快速通道 — 无工具，直接调模型，快得多
+  if (cfg.customSystemPrompt) {
+    return yield* rolePlayStream(cfg, messages, userInput)
+  }
+
   const agent = await createChatAgent(cfg)
 
   const langchainMessages = [
