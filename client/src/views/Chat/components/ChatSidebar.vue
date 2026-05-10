@@ -130,7 +130,7 @@ interface AgentItem {
   id: number
   name: string
   avatar: string | null
-  greeting: string | null
+  greeting?: string | null
 }
 
 const welcomeLine = computed(() => '✦ 指挥官，数据之海已同步。开始新的对话吧。')

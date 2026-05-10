@@ -93,7 +93,7 @@ interface AgentItem {
   id: number
   name: string
   avatar: string | null
-  greeting: string | null
+  greeting?: string | null
 }
 
 const messages = ref<Message[]>([])
