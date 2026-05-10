@@ -154,12 +154,14 @@
           <div class="mobile-extras-section">
             <span class="mobile-extras-label">上传</span>
             <div class="mobile-extras-btns">
-              <input ref="imageInputRef" type="file" accept="image/*" multiple hidden @change="onFilesSelected($event, 'image')" />
-              <el-button size="small" @click="imageInputRef?.click()"><el-icon><PictureFilled /></el-icon>图片</el-button>
-              <input ref="docInputRef" type="file" accept=".txt,.pdf,.doc,.docx,.md" multiple hidden @change="onFilesSelected($event, 'doc')" />
-              <el-button size="small" @click="docInputRef?.click()"><el-icon><FolderOpened /></el-icon>文档</el-button>
-              <input ref="videoInputRef" type="file" accept="video/*" hidden @change="onFilesSelected($event, 'video')" />
-              <el-button size="small" @click="videoInputRef?.click()"><el-icon><VideoCameraFilled /></el-icon>视频</el-button>
+              <template v-if="!currentAgent">
+                <input ref="imageInputRef" type="file" accept="image/*" multiple hidden @change="onFilesSelected($event, 'image')" />
+                <el-button size="small" @click="imageInputRef?.click()"><el-icon><PictureFilled /></el-icon>图片</el-button>
+                <input ref="docInputRef" type="file" accept=".txt,.pdf,.doc,.docx,.md" multiple hidden @change="onFilesSelected($event, 'doc')" />
+                <el-button size="small" @click="docInputRef?.click()"><el-icon><FolderOpened /></el-icon>文档</el-button>
+                <input ref="videoInputRef" type="file" accept="video/*" hidden @change="onFilesSelected($event, 'video')" />
+                <el-button size="small" @click="videoInputRef?.click()"><el-icon><VideoCameraFilled /></el-icon>视频</el-button>
+              </template>
               <el-button size="small" :type="isRecording ? 'danger' : undefined" @click="toggleRecording">
                 <el-icon><Microphone /></el-icon>语音
               </el-button>
@@ -273,7 +275,7 @@
           </el-select>
         </div>
         <div class="input-row">
-          <div class="upload-btns">
+          <div v-if="!currentAgent" class="upload-btns">
             <input
               ref="imageInputRef"
               type="file"

@@ -135,6 +135,13 @@ CREATE TABLE IF NOT EXISTS `ai_agents` (
   INDEX `idx_agent_user_id` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI角色扮演智能体表';
 
+-- ============================================
+-- chat_history 表新增 agent_id 列（角色扮演支持）
+-- ============================================
+ALTER TABLE `chat_history`
+  ADD COLUMN `agent_id` INT DEFAULT NULL COMMENT '关联AI角色ID' AFTER `kb_id`,
+  ADD INDEX `idx_chat_agent_id` (`agent_id`);
+
 -- 示例数据（可选，用于测试）
 -- INSERT INTO users (username, email, password, role) VALUES
 -- ('admin', 'admin@example.com', '$2a$10$example_hashed_password', 'admin'),

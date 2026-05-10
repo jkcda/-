@@ -116,9 +116,10 @@ export class ChatHistoryModel {
            WHERE c2.session_id = ch.session_id AND c2.role = 'user'
            ORDER BY c2.created_at ASC LIMIT 1) AS first_message,
           MAX(ch.agent_id) AS agent_id,
-          (SELECT a.name FROM ai_agents a WHERE a.id = MAX(ch.agent_id)) AS agent_name,
-          (SELECT a.avatar FROM ai_agents a WHERE a.id = MAX(ch.agent_id)) AS agent_avatar
+          MAX(a.name) AS agent_name,
+          MAX(a.avatar) AS agent_avatar
         FROM chat_history ch
+        LEFT JOIN ai_agents a ON a.id = ch.agent_id
         WHERE ch.user_id = ? OR ch.user_id IS NULL
         GROUP BY ch.session_id
         ORDER BY last_active_at DESC
