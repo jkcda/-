@@ -405,31 +405,6 @@ async function* rolePlayStream(
     ? cfg.customSystemPrompt + HUMAN_LIKE_INSTRUCTIONS
     : undefined
 
-  // 预取记忆和知识库，注入上下文
-  let memoryContext = ''
-  let kbContext = ''
-
-  if (cfg.userId && cfg.permissions?.memory !== false) {
-    try {
-      const memoryText = await recallMemory(cfg.userId, userInput)
-      if (memoryText && memoryText !== '未找到相关历史记忆') {
-        memoryContext = `\n\n[🧠相关记忆]\n${memoryText}`
-      }
-    } catch { /* 记忆检索失败静默处理 */ }
-  }
-
-  if (cfg.kbId && cfg.permissions?.kbRetrieval !== false) {
-    try {
-      const result = await retrieveFromKB(userInput, cfg.kbId)
-      if (result.chunks.length > 0) {
-        kbContext = '\n\n[📚知识库参考]\n' + result.chunks.map(c => `- ${c.content}`).join('\n')
-      }
-    } catch { /* 知识库检索失败静默处理 */ }
-  }
-
-  const contextSuffix = memoryContext + kbContext
-  const augmentedInput = contextSuffix ? userInput + '\n\n---\n' + contextSuffix.trim() : userInput
-
   const chatModel = new ChatOpenAI({
     model: cfg.model || config.ai.defaultModel,
     apiKey: getSetting('DASHSCOPE_API_KEY'),
@@ -444,7 +419,7 @@ async function* rolePlayStream(
       role: m.role as 'user' | 'assistant',
       content: m.content,
     })),
-    { role: 'user' as const, content: augmentedInput },
+    { role: 'user' as const, content: userInput },
   ]
 
   try {
