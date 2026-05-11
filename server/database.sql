@@ -142,6 +142,55 @@ ALTER TABLE `chat_history`
   ADD COLUMN `agent_id` INT DEFAULT NULL COMMENT '关联AI角色ID' AFTER `kb_id`,
   ADD INDEX `idx_chat_agent_id` (`agent_id`);
 
+-- ============================================
+-- chat_history 表新增 room_id 列（聊天室支持）
+-- ============================================
+ALTER TABLE `chat_history`
+  ADD COLUMN `room_id` INT DEFAULT NULL COMMENT '关联房间ID（群聊消息）' AFTER `agent_id`,
+  ADD INDEX `idx_chat_room_id` (`room_id`);
+ALTER TABLE `chat_history`
+  ADD FOREIGN KEY (`room_id`) REFERENCES `chat_rooms`(`id`) ON DELETE CASCADE;
+
+-- ============================================
+-- 聊天室相关表
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS `chat_rooms` (
+  `id` INT PRIMARY KEY AUTO_INCREMENT COMMENT '房间ID',
+  `owner_id` INT NOT NULL COMMENT '房间创建者ID',
+  `name` VARCHAR(200) NOT NULL COMMENT '房间名称',
+  `topic` TEXT DEFAULT NULL COMMENT '房间话题/描述',
+  `is_active` TINYINT(1) DEFAULT 1 COMMENT '是否活跃',
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  FOREIGN KEY (`owner_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
+  INDEX `idx_room_owner` (`owner_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='聊天室表';
+
+CREATE TABLE IF NOT EXISTS `chat_room_agents` (
+  `id` INT PRIMARY KEY AUTO_INCREMENT COMMENT '关联ID',
+  `room_id` INT NOT NULL COMMENT '房间ID',
+  `agent_id` INT NOT NULL COMMENT 'AI角色ID',
+  `joined_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '加入时间',
+  UNIQUE KEY `uq_room_agent` (`room_id`, `agent_id`),
+  FOREIGN KEY (`room_id`) REFERENCES `chat_rooms`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`agent_id`) REFERENCES `ai_agents`(`id`) ON DELETE CASCADE,
+  INDEX `idx_cra_room` (`room_id`),
+  INDEX `idx_cra_agent` (`agent_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='房间与AI角色关联表';
+
+CREATE TABLE IF NOT EXISTS `chat_room_members` (
+  `id` INT PRIMARY KEY AUTO_INCREMENT COMMENT '关联ID',
+  `room_id` INT NOT NULL COMMENT '房间ID',
+  `user_id` INT NOT NULL COMMENT '用户ID',
+  `joined_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '加入时间',
+  UNIQUE KEY `uq_room_user` (`room_id`, `user_id`),
+  FOREIGN KEY (`room_id`) REFERENCES `chat_rooms`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
+  INDEX `idx_crm_room` (`room_id`),
+  INDEX `idx_crm_user` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='聊天室成员表';
+
 -- 示例数据（可选，用于测试）
 -- INSERT INTO users (username, email, password, role) VALUES
 -- ('admin', 'admin@example.com', '$2a$10$example_hashed_password', 'admin'),

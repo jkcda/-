@@ -41,6 +41,16 @@ const router = createRouter({
           path: 'agents',
           component: AgentManager,
           meta: { title: '角色管理', requiresAuth: true }
+        },
+        {
+          path: 'rooms',
+          component: () => import('@/views/Room/index.vue'),
+          meta: { title: '聊天室', requiresAuth: true }
+        },
+        {
+          path: 'room/:id',
+          component: () => import('@/views/Room/RoomChat.vue'),
+          meta: { title: '聊天室', requiresAuth: true }
         }
       ]
     },

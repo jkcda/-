@@ -405,31 +405,64 @@ async function* rolePlayStream(
     ? cfg.customSystemPrompt + HUMAN_LIKE_INSTRUCTIONS
     : undefined
 
-  const chatModel = new ChatOpenAI({
-    model: cfg.model || config.ai.defaultModel,
-    apiKey: getSetting('DASHSCOPE_API_KEY'),
-    configuration: { baseURL: 'https://api-inference.modelscope.cn/v1' },
-    maxTokens: config.ai.maxTokens,
-    temperature: 0.7,
-  })
-
   const apiMessages = [
-    ...(systemPrompt ? [{ role: 'system' as const, content: systemPrompt }] : []),
+    ...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []),
     ...messages.map(m => ({
       role: m.role as 'user' | 'assistant',
       content: m.content,
     })),
-    { role: 'user' as const, content: userInput },
+    { role: 'user', content: userInput },
   ]
 
   try {
-    const stream = await chatModel.stream(apiMessages)
-    for await (const chunk of stream) {
-      const content = chunk?.content
-      if (content && typeof content === 'string') {
-        yield { type: 'content', content }
+    const resp = await fetch('https://api-inference.modelscope.cn/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${getSetting('DASHSCOPE_API_KEY')}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: cfg.model || config.ai.defaultModel,
+        messages: apiMessages,
+        max_tokens: config.ai.maxTokens,
+        temperature: 0.7,
+        stream: true,
+      }),
+    })
+
+    if (!resp.ok) {
+      const errText = await resp.text()
+      yield { type: 'error', error: `API 错误 (${resp.status}): ${errText.slice(0, 200)}` }
+      return
+    }
+
+    const reader = resp.body!.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+
+      for (const line of lines) {
+        const trimmed = line.trim()
+        if (!trimmed || !trimmed.startsWith('data: ')) continue
+        if (trimmed === 'data: [DONE]') continue
+
+        try {
+          const json = JSON.parse(trimmed.slice(6))
+          const content = json.choices?.[0]?.delta?.content
+          if (content) {
+            yield { type: 'content', content }
+          }
+        } catch {}
       }
     }
+
     yield { type: 'done' }
   } catch (error: any) {
     const msg = error.message || ''

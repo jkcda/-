@@ -20,11 +20,12 @@ export class ChatHistoryModel {
     files?: string,
     kbId?: number,
     retrievedChunks?: string,
-    agentId?: number | null
+    agentId?: number | null,
+    roomId?: number | null
   ) {
     const [result] = await pool.execute(
-      'INSERT INTO chat_history (session_id, user_id, role, content, files, kb_id, retrieved_chunks, agent_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [sessionId, userId, role, content, files || null, kbId || null, retrievedChunks || null, agentId || null]
+      'INSERT INTO chat_history (session_id, user_id, role, content, files, kb_id, retrieved_chunks, agent_id, room_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [sessionId, userId, role, content, files || null, kbId || null, retrievedChunks || null, agentId || null, roomId || null]
     )
     return (result as any).insertId
   }
@@ -93,6 +94,21 @@ export class ChatHistoryModel {
     return rows
   }
 
+  // 获取房间聊天历史（含用户名和角色信息）
+  static async getByRoomId(roomId: number, limit: number = 100) {
+    const [rows] = await pool.query(
+      `SELECT ch.*, u.username AS user_username,
+         a.name AS agent_name, a.avatar AS agent_avatar
+       FROM chat_history ch
+       LEFT JOIN users u ON ch.user_id = u.id
+       LEFT JOIN ai_agents a ON ch.agent_id = a.id
+       WHERE ch.room_id = ?
+       ORDER BY ch.created_at ASC LIMIT ?`,
+      [roomId, limit]
+    )
+    return rows as any[]
+  }
+
   // 根据用户ID获取对话历史（管理员用）
   static async getByUserId(userId: number) {
     const [rows] = await pool.execute(
@@ -120,7 +136,7 @@ export class ChatHistoryModel {
           MAX(a.avatar) AS agent_avatar
         FROM chat_history ch
         LEFT JOIN ai_agents a ON a.id = ch.agent_id
-        WHERE ch.user_id = ? OR ch.user_id IS NULL
+        WHERE (ch.user_id = ? OR ch.user_id IS NULL) AND ch.room_id IS NULL
         GROUP BY ch.session_id
         ORDER BY last_active_at DESC
       `, [userId])
@@ -138,7 +154,7 @@ export class ChatHistoryModel {
            ORDER BY c2.created_at ASC LIMIT 1) AS first_message,
           MAX(ch.agent_id) AS agent_id
         FROM chat_history ch
-        WHERE ch.user_id IS NULL
+        WHERE ch.user_id IS NULL AND ch.room_id IS NULL
         GROUP BY ch.session_id
         ORDER BY last_active_at DESC
       `)

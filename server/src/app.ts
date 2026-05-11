@@ -1,6 +1,7 @@
 import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
+import http from 'http'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import userRouter from './routes/user.js'
@@ -11,6 +12,7 @@ import knowledgeBaseRouter from './routes/knowledgeBase.js'
 import voiceRouter from './routes/voice.js'
 import mcpRouter from './routes/mcp.js'
 import agentRouter from './routes/agent.js'
+import roomRouter from './routes/room.js'
 import config, { initDynamicConfig, getSetting } from './config/index.js'
 import { rateLimiter } from './utils/rateLimit.js'
 import fs from 'fs'
@@ -66,6 +68,7 @@ app.use('/api/ai', aiRouter)
 app.use('/api/kb', knowledgeBaseRouter)
 app.use('/api', uploadRouter)
 app.use('/api/agents', agentRouter)
+app.use('/api/rooms', roomRouter)
 app.use('/api/voice', voiceRouter)
 app.use('/api/mcp', mcpRouter)
 
@@ -109,8 +112,18 @@ import('./services/mcp.js').then(m => {
   m.initMCP()
 }).catch(() => {})
 
+// 创建 HTTP Server（供 Socket.IO 挂载）
+const httpServer = http.createServer(app)
+
+// 延迟加载 Socket.IO（避免循环依赖）
+import('./services/socket.js').then(m => {
+  m.initSocketIO(httpServer, allowedOrigins)
+}).catch(err => {
+  console.warn('[Socket.IO] 初始化失败:', err.message)
+})
+
 // 启动
 const PORT = config.server.port
-app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
   console.log(`🚀 服务运行在 http://localhost:${PORT}`)
 })
