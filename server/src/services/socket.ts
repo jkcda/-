@@ -16,7 +16,7 @@ interface SocketUser {
 export function initSocketIO(httpServer: HttpServer, allowedOrigins: string[]): SocketIOServer {
   io = new SocketIOServer(httpServer, {
     cors: {
-      origin: (origin, cb) => {
+      origin: (origin: string | undefined, cb: (err: Error | null, allow?: boolean) => void) => {
         if (!origin || allowedOrigins.includes(origin)) return cb(null, true)
         cb(null, false)
       },
@@ -26,7 +26,7 @@ export function initSocketIO(httpServer: HttpServer, allowedOrigins: string[]): 
   })
 
   // JWT 鉴权中间件
-  io.use((socket, next) => {
+  io.use((socket: Socket, next: (err?: Error) => void) => {
     const token = socket.handshake.auth.token || socket.handshake.query.token
     if (!token) {
       return next(new Error('未提供认证令牌'))
