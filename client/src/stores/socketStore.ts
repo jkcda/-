@@ -12,7 +12,7 @@ export const useSocketStore = defineStore('socket', () => {
     if (socket.value?.connected) return socket.value
     if (socket.value) socket.value.disconnect()
 
-    const serverUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+    const serverUrl = import.meta.env.VITE_API_URL || window.location.origin
     const s = io(serverUrl, {
       auth: { token },
       transports: ['websocket', 'polling'],

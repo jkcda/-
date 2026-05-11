@@ -7,7 +7,7 @@ export function connectSocket(token: string): Socket {
   if (socket) {
     socket.disconnect()
   }
-  const serverUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+  const serverUrl = import.meta.env.VITE_API_URL || window.location.origin
   socket = io(serverUrl, {
     auth: { token },
     transports: ['websocket', 'polling'],
