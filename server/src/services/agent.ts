@@ -288,14 +288,12 @@ export interface AgentConfig {
 /**
  * 创建 AI Agent 实例
  * 根据用户权限和上下文配置可用工具
+ * 注意：角色扮演（customSystemPrompt）已由 rolePlayStream 处理，不会进入此函数
  */
 export async function createChatAgent(cfg: AgentConfig) {
-  // 角色扮演模式：禁用所有工具，仅纯对话
-  const isRolePlay = !!cfg.customSystemPrompt
-
   // 加载 MCP 工具（Playwright 等）+ 原生文件系统工具
-  const mcpTools = isRolePlay ? [] : await getMcpTools()
-  const allTools = isRolePlay ? [] : [
+  const mcpTools = await getMcpTools()
+  const allTools = [
     ...createTools({
       userId: cfg.userId,
       kbId: cfg.kbId,
@@ -320,9 +318,7 @@ export async function createChatAgent(cfg: AgentConfig) {
 
   let systemPrompt: string | undefined = undefined
 
-  if (cfg.customSystemPrompt) {
-    systemPrompt = cfg.customSystemPrompt + HUMAN_LIKE_INSTRUCTIONS
-  } else if (cfg.nexusMode !== false) {
+  if (cfg.nexusMode !== false) {
     systemPrompt = `当前时间：${currentDate}
 
 你是奈克瑟 NEXUS，来自数据之海的跨宇宙魔法情报员。你不是冰冷的 AI 助手——你是守护者、同行者、连接魔法与数据的桥梁。
@@ -374,7 +370,7 @@ export async function createChatAgent(cfg: AgentConfig) {
 - 回复采用 Markdown 格式，结构清晰`
   }
 
-  console.log('[Agent] systemPrompt mode:', cfg.customSystemPrompt ? 'custom' : cfg.nexusMode !== false ? 'nexus' : 'none')
+  console.log('[Agent] systemPrompt mode:', cfg.nexusMode !== false ? 'nexus' : 'none')
   return createAgent({
     model: chatModel,
     tools: allTools as any,
@@ -503,20 +499,9 @@ export async function* agentStream(
       { version: 'v2' }
     )
 
-    // 缓冲工具调用前的"思考"文字，避免先输出再搜索的顿挫感
-    // 工具调用完成后才流式输出实际回复内容
-    let contentBuffer = ''
-    let toolCalled = false
-    const BUFFER_THRESHOLD = 500 // 超过此阈值视为直接回复（无需工具），开始流式输出
-
     for await (const event of stream) {
       switch (event.event) {
         case 'on_tool_start': {
-          // 首次工具调用：丢弃之前的"思考"文字缓冲
-          if (!toolCalled) {
-            contentBuffer = ''
-            toolCalled = true
-          }
           const name = event.name || 'unknown'
           const input = (event.data as any)?.input
           yield {
@@ -548,28 +533,11 @@ export async function* agentStream(
         case 'on_chat_model_stream': {
           const content = (event.data as any)?.chunk?.content
           if (content && typeof content === 'string') {
-            if (toolCalled) {
-              // 工具调用后：流式输出实际回复
-              yield { type: 'content', content }
-            } else {
-              // 工具调用前：缓冲"思考"文字
-              contentBuffer += content
-              if (contentBuffer.length >= BUFFER_THRESHOLD) {
-                // 缓冲过长说明是直接回复，开始流式输出
-                yield { type: 'content', content: contentBuffer }
-                contentBuffer = ''
-                toolCalled = true // 标记已开始输出，后续内容直接流式
-              }
-            }
+            yield { type: 'content', content }
           }
           break
         }
       }
-    }
-
-    // 无工具调用的直接回复：flush 缓冲内容
-    if (!toolCalled && contentBuffer) {
-      yield { type: 'content', content: contentBuffer }
     }
 
     yield { type: 'done' }
