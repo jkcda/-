@@ -184,18 +184,19 @@ const send = async () => {
   const files = [...pending.value]; pending.value = []
   messages.value.push({ role: 'user', content: text, files: files.length ? files : undefined }); scrollEnd()
   const ai: any = { role: 'assistant', content: '' }; messages.value.push(ai); strmMsg.value = ai; streaming.value = true; strmStage.value = 'thinking'; let full = ''
+  const handlers: [string, Function][] = [
+    ['ai:chunk', (d: any) => { full += d.content; ai.content = full; strmStage.value = 'composing'; scrollEnd() }],
+    ['ai:tool_call', (d: any) => { const m: any = { search_web: 'searching', query_knowledge_base: 'retrieving_kb', recall_memory: 'recalling', generate_image: 'generating_image' }; strmStage.value = m[d.tool] || d.tool }],
+    ['ai:done', () => { streaming.value = false; strmMsg.value = null; cleanWs(); loadS() }],
+    ['ai:error', (d: any) => { streaming.value = false; ai.content = `出错: ${d.error}`; strmMsg.value = null; cleanWs() }],
+  ]
+  const cleanWs = () => handlers.forEach(([e, f]) => wsClient.off(e, f))
   try {
     if (!wsClient.connected) { wsClient.connect(U.getToken()); await new Promise<void>(r => { wsClient.on('__connected__', () => r()); setTimeout(r, 3000) }) }
-    const h: [string, Function][] = [
-      ['ai:chunk', (d: any) => { full += d.content; ai.content = full; strmStage.value = 'composing'; scrollEnd() }],
-      ['ai:tool_call', (d: any) => { const m: any = { search_web: 'searching', query_knowledge_base: 'retrieving_kb', recall_memory: 'recalling', generate_image: 'generating_image' }; strmStage.value = m[d.tool] || d.tool }],
-      ['ai:done', () => { streaming.value = false; strmMsg.value = null; cleanWs(); loadS() }],
-      ['ai:error', (d: any) => { streaming.value = false; ai.content = `出错: ${d.error}`; strmMsg.value = null; cleanWs() }],
-    ]; h.forEach(([e, f]) => wsClient.on(e, f as any))
+    handlers.forEach(([e, f]) => wsClient.on(e, f))
     wsClient.send('ai:chat', { message: text, sessionId: curSess.value!.session_id, userId: U.getUserInfo()?.id || null, kbId: kbId.value || undefined, model: selM.value || undefined, agentId: curSess.value!.agent_id || undefined, files: files.length ? files : undefined })
   } catch (e: any) { streaming.value = false; ai.content = `失败: ${e.message}`; strmMsg.value = null; cleanWs() }
 }
-const cleanWs = () => ['ai:chunk', 'ai:tool_call', 'ai:done', 'ai:error'].forEach(e => wsClient.off(e, () => { }))
 const chooseFile = () => { uni.showActionSheet({ itemList: ['图片', '文件'], success: (r) => { const up = async (paths: string[]) => { uploading.value = true; for (const p of paths) { try { const u = await upFile(p); pending.value.push(u) } catch { } }; uploading.value = false; if (pending.value.length) uni.showToast({ title: `已选${pending.value.length}个附件`, icon: 'none' }) }; if (r.tapIndex === 0) uni.chooseImage({ count: 3, success: (x) => up(x.tempFilePaths) }); else uni.chooseMessageFile({ count: 3, type: 'all', success: (x) => up(x.tempFiles.map((f: any) => f.path)) }) } }) }
 const pickKb = (id: number | null) => { kbId.value = id; showKb.value = false }
 const pickM = (id: string) => { selM.value = id; showM.value = false; showExt.value = false }

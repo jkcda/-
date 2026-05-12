@@ -12,7 +12,7 @@ export const useSocketStore = defineStore('socket', () => {
     if (socket.value?.connected) return socket.value
     if (socket.value) socket.value.disconnect()
 
-    const serverUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+    const serverUrl = import.meta.env.VITE_API_URL || window.location.origin
     console.log('[SocketStore] 连接地址:', serverUrl, 'token:', token ? token.substring(0, 20) + '...' : '无')
     const s = io(serverUrl, {
       auth: { token },
