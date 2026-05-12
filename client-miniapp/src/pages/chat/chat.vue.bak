@@ -1,0 +1,815 @@
+<template>
+  <view class="chat-page">
+    <!-- 消息区 -->
+    <view class="msg-wrap">
+	      <scroll-view class="msg-scroll" scroll-y :scroll-into-view="scrollToId" scroll-with-animation>
+
+      <view v-if="loadingHistory" class="loading-hint">加载历史对话中...</view>
+
+      <!-- 空状态 -->
+      <view v-if="!currentSession?.session_id && !loadingHistory" class="empty-state">
+        <image src="/static/character-avatar.png" class="empty-avatar" mode="aspectFill" />
+        <text class="empty-title">奈克瑟 NEXUS</text>
+        <text class="empty-desc">在左侧创建或选择一个对话，开始同步情报。</text>
+      </view>
+
+      <view v-for="(msg, idx) in messages" :key="idx" :id="'m-'+idx"
+        v-show="msg.content || !isStreaming || idx !== messages.length - 1"
+        :class="['msg', msg.role === 'user' ? 'msg-user' : 'msg-ai']">
+
+        <!-- AI 头像 -->
+        <view v-if="msg.role === 'assistant'" class="msg-avatar">
+          <image :src="aiAvatar" class="avat-img" mode="aspectFill" />
+        </view>
+
+        <!-- 内容气泡 -->
+        <view :class="['msg-body', msg.role === 'user' ? 'body-user' : 'body-ai']">
+          <!-- AI 消息顶部金色标记 -->
+          <text v-if="msg.role === 'assistant'" class="body-mark">◆</text>
+
+          <!-- 附件 -->
+          <view v-if="msg.files?.length" class="msg-files">
+            <view v-for="(f, fi) in msg.files" :key="fi" class="msg-file">
+              <image v-if="f.type && f.type.startsWith('image/')" :src="f.url" class="file-img" mode="aspectFill"
+                @tap="previewImg(f.url)" />
+              <text v-else class="file-doc">{{ f.name }}</text>
+            </view>
+          </view>
+
+          <!-- 文本 -->
+          <view v-if="msg.content" class="msg-text">
+            <rich-text v-if="msg.role === 'assistant'" :nodes="mdToHtml(msg.content)"></rich-text>
+            <text v-else user-select="true">{{ msg.content }}</text>
+          </view>
+
+          <!-- 联网搜索来源 -->
+          <view v-if="msg.webSources?.length && msg.role === 'assistant'" class="web-refs">
+            <text class="refs-label">搜索来源：</text>
+            <text v-for="(s, si) in msg.webSources" :key="si" class="ref-link">{{ si+1 }}. {{ s.title }}</text>
+          </view>
+        </view>
+      </view>
+
+      <!-- 流式生成中 -->
+      <view v-if="isStreaming && streamingMsg && !streamingMsg?.content" class="msg msg-ai">
+        <view class="msg-avatar">
+          <image :src="loadingImg" class="avat-img load-gif" mode="aspectFit" />
+        </view>
+        <view class="msg-body body-ai typing-indicator">
+          <text class="body-mark">◆</text>
+          <text class="loading-label">{{ stageLabel }}</text>
+        </view>
+      </view>
+
+      <view id="msg-bottom" style="height:1rpx;"></view>
+    </scroll-view>
+    </view>
+
+    <!-- 输入区 -->
+    <view class="input-area" id="input-area">
+      <!-- 工具条 -->
+      <view class="input-tools">
+        <text class="tool" @tap="showExtras = !showExtras">
+          {{ currentSession?.agent_name || '奈克瑟' }}
+          <text :class="['tool-arr', showExtras && 'up']">▾</text>
+        </text>
+        <text v-if="kbList.length" class="tool" @tap="showKbPicker = true">
+          {{ selectedKb?.name?.slice(0,6) || '知识库' }}
+        </text>
+        <text class="tool" @tap="showModelPicker = true">{{ selectedModelName }}</text>
+      </view>
+
+      <!-- 展开面板 -->
+      <view v-if="showExtras" class="extras">
+        <view class="ext-sec">
+          <text class="ext-label">会话</text>
+          <view class="ext-item" @tap="newSession(null)"><text>+ 新对话（奈克瑟）</text></view>
+          <view v-for="a in agentList" :key="a.id" class="ext-item" @tap="newSession(a)">
+            <image v-if="a.avatar" :src="a.avatar" class="ext-thumb" mode="aspectFill" />
+            <text>+ {{ a.name }}</text>
+          </view>
+          <view v-for="s in sessionList" :key="s.session_id"
+            :class="['ext-item', currentSession?.session_id === s.session_id && 'active']"
+            @tap="switchAndClose(s)">
+            <text class="ext-name">{{ s.agent_name || '奈克瑟' }}</text>
+            <text class="ext-prev">{{ s.first_message || '' }}</text>
+            <text class="ext-del" @tap.stop="delSession(s.session_id)">✕</text>
+          </view>
+        </view>
+        <view class="ext-sec">
+          <text class="ext-label">模型</text>
+          <view v-for="m in modelList" :key="m.id"
+            :class="['ext-item', selectedModel === m.id && 'active']"
+            @tap="pickModel(m.id)">
+            <text>{{ m.name }}</text>
+          </view>
+        </view>
+      </view>
+
+      <!-- 输入行 -->
+      <view class="input-row">
+        <text class="plus-btn" @tap="chooseFile">+</text>
+        <textarea class="text-inp" v-model="inputText" :maxlength="5000"
+          placeholder="输入消息... (Enter 发送)" :auto-height="true"
+          :cursor-spacing="12" :show-confirm-bar="false"
+          @confirm="send" />
+        <view :class="['send-btn', (!canSend) && 'snd-dis']" @tap="send">
+          <text class="send-ico">{{ isStreaming ? '■' : '↑' }}</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 知识库弹层 -->
+    <view v-if="showKbPicker" class="overlay" @tap="showKbPicker = false">
+      <view class="sheet" @tap.stop>
+        <text class="sh-title">选择知识库</text>
+        <view class="sh-item" @tap="pickKb(null)">
+          <text :class="!selectedKbId && 'active'">不使用知识库</text>
+        </view>
+        <view v-for="k in kbList" :key="k.id"
+          :class="['sh-item', selectedKbId === k.id && 'active']"
+          @tap="pickKb(k.id)">
+          <text>{{ k.name }}</text>
+        </view>
+        <button class="sh-close" @tap="showKbPicker = false">关闭</button>
+      </view>
+    </view>
+
+    <!-- 模型弹层 -->
+    <view v-if="showModelPicker" class="overlay" @tap="showModelPicker = false">
+      <view class="sheet" @tap.stop>
+        <text class="sh-title">选择模型</text>
+        <view v-for="m in modelList" :key="m.id"
+          :class="['sh-item', selectedModel === m.id && 'active']"
+          @tap="pickModel(m.id)">
+          <text>{{ m.name }}</text>
+          <text class="sh-sub">{{ m.desc }}</text>
+        </view>
+        <button class="sh-close" @tap="showModelPicker = false">关闭</button>
+      </view>
+    </view>
+
+    <!-- 上传提示 -->
+    <view v-if="uploading" class="toast">上传中...</view>
+  </view>
+</template>
+
+<script setup lang="ts">
+import { ref, computed } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
+import { useUserStore } from '../../store/userStore'
+import { wsClient } from '../../utils/ws'
+import { getSessions, getChatHistory, getModels, deleteChatHistory, type SessionItem, type Message, type ModelItem } from '../../api/ai'
+import { get, uploadFile as upFile } from '../../api/request'
+import { API_BASE_URL } from '../../config'
+
+const userStore = useUserStore()
+
+// —— 状态 ——
+const messages = ref<(Message & { webSources?: any[] })[]>([])
+const inputText = ref('')
+const scrollToId = ref('msg-bottom')
+const loadingHistory = ref(false)
+const sessionList = ref<SessionItem[]>([])
+const currentSession = ref<SessionItem | null>(null)
+const isStreaming = ref(false)
+const streamingMsg = ref<Message | null>(null)
+const streamingStage = ref('')
+const modelList = ref<ModelItem[]>([])
+const selectedModel = ref('')
+const showModelPicker = ref(false)
+const showKbPicker = ref(false)
+const showExtras = ref(false)
+const kbList = ref<any[]>([])
+const selectedKbId = ref<number | null>(null)
+const agentList = ref<any[]>([])
+const pendingFiles = ref<any[]>([])
+const uploading = ref(false)
+
+// —— 计算 ——
+const selectedKb = computed(() => kbList.value.find((k: any) => k.id === selectedKbId.value))
+const canSend = computed(() => !!inputText.value.trim() && !isStreaming.value)
+const selectedModelName = computed(() => modelList.value.find((m: any) => m.id === selectedModel.value)?.name || '模型')
+
+const aiAvatar = computed(() => {
+  const url = currentSession.value?.agent_avatar
+  if (!url) return '/static/character-avatar.png'
+  return url.startsWith('/uploads') ? API_BASE_URL + url : url
+})
+
+const loadingImg = computed(() => {
+  if (currentSession.value?.agent_avatar) return currentSession.value.agent_avatar.startsWith('/uploads') ? API_BASE_URL + currentSession.value.agent_avatar : currentSession.value.agent_avatar
+  if (streamingStage.value === 'searching') return '/static/searching.png'
+  return '/static/thinking.png'
+})
+
+const stageLabel = computed(() => {
+  const m: Record<string, string> = {
+    thinking: '正在解析情报...',
+    searching: '正在穿越数据之海...',
+    retrieving_kb: '正在检索知识库...',
+    recalling: '正在同步记忆回路...',
+    generating_image: '正在绘制魔法画像...',
+    composing: '正在整理情报...',
+  }
+  return m[streamingStage.value] || '正在解析情报...'
+})
+
+// —— 高度计算 ——
+  const s = uni.getSystemInfoSync()
+	  nextTick(() => {
+	  })
+}
+
+// —— 初始化 ——
+const initPage = async () => {
+  if (!(globalThis as any).__nexusLoggedIn()) return
+  if (!wsClient.connected) wsClient.connect(userStore.getToken())
+  await Promise.all([loadModels(), loadSessions(), loadKb(), loadAgents()])
+  if (sessionList.value.length > 0) selectSession(sessionList.value[0])
+  else await newSession(null)
+}
+
+// —— Markdown → HTML ——
+const mdToHtml = (t: string): string => {
+  if (!t) return ''
+  let h = t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  // 代码块（优先）
+  h = h.replace(/```(\w*)\n?([\s\S]*?)```/g,
+    '<pre style="background:rgba(255,255,255,0.06);padding:10rpx 14rpx;border-radius:8rpx;overflow-x:auto;margin:6rpx 0;border:1rpx solid rgba(255,255,255,0.08);"><code style="font-size:24rpx;white-space:pre-wrap;word-break:break-all;">$2</code></pre>')
+  // 图片
+  h = h.replace(/!\[([^\]]*)\]\(([^)]+)\)/g,
+    '<img src="$2" alt="$1" style="max-width:100%;border-radius:8rpx;margin:8rpx 0;" />')
+  // 链接
+  h = h.replace(/\[([^\]]+)\]\(([^)]+)\)/g,
+    '<a href="$2" style="color:#d4af37;text-decoration:none;">$1</a>')
+  // 粗体 斜体
+  h = h.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+  h = h.replace(/\*([^*]+)\*/g, '<em>$1</em>')
+  // 行内代码
+  h = h.replace(/`([^`]+)`/g,
+    '<code style="background:rgba(255,255,255,0.08);padding:2rpx 6rpx;border-radius:4rpx;font-size:0.9em;">$1</code>')
+  // 标题
+  h = h.replace(/^### (.+)$/gm, '<h3 style="color:#d4af37;font-weight:600;margin:8rpx 0 4rpx;">$1</h3>')
+  h = h.replace(/^## (.+)$/gm, '<h2 style="color:#d4af37;font-weight:600;margin:10rpx 0 4rpx;">$1</h2>')
+  h = h.replace(/^# (.+)$/gm, '<h1 style="color:#d4af37;font-weight:600;margin:12rpx 0 4rpx;">$1</h1>')
+  // 引用块
+  h = h.replace(/^&gt; (.+)$/gm,
+    '<blockquote style="border-left:3rpx solid #d4af37;padding-left:10rpx;color:#8892b0;margin:6rpx 0;">$1</blockquote>')
+  // 分割线
+  h = h.replace(/^---$/gm, '<hr style="border:none;border-top:1rpx solid rgba(212,175,55,0.2);margin:10rpx 0;" />')
+  // 无序列表
+  h = h.replace(/^[\-\*] (.+)$/gm, '<li style="margin:2rpx 0;">$1</li>')
+  h = h.replace(/((?:<li[^>]*>.*<\/li>\n?)+)/g, '<ul style="padding-left:20rpx;margin:4rpx 0;">$1</ul>')
+  // 有序列表
+  h = h.replace(/^\d+\. (.+)$/gm, '<li style="margin:2rpx 0;">$1</li>')
+  // 换行
+  h = h.replace(/\n{2,}/g, '<br/>')
+  h = h.replace(/\n/g, '<br/>')
+  return h
+}
+
+// —— 数据加载 ——
+const loadModels = async () => {
+  try { const r = await getModels(); if (r.success) { modelList.value = r.result.models || []; if (!selectedModel.value && modelList.value.length) selectedModel.value = modelList.value[0].id } } catch { }
+}
+const loadSessions = async () => {
+  try { const r = await getSessions(userStore.getUserInfo()?.id); if (r.success) sessionList.value = r.result.sessions as any[] } catch { }
+}
+const loadKb = async () => {
+  try { const r = await get<any>('/api/kb'); if (r.success) kbList.value = r.result.knowledgeBases || [] } catch { }
+}
+const loadAgents = async () => {
+  try { const r = await get<any>('/api/agents'); if (r.success) agentList.value = r.result.agents || [] } catch { }
+}
+
+// —— 会话 ——
+const selectSession = async (s: SessionItem) => {
+  currentSession.value = s
+  loadingHistory.value = true
+  try {
+    const r = await getChatHistory(s.session_id, userStore.getUserInfo()?.id)
+    messages.value = r.success && r.result.messages?.length ? r.result.messages
+      : [{ role: 'assistant', content: `✦ ${s.agentName || '奈克瑟'} 已就绪，开始对话吧。` }]
+  } catch { messages.value = [] } finally { loadingHistory.value = false }
+  scrollBottom()
+}
+
+const switchAndClose = (s: SessionItem) => { selectSession(s); showExtras.value = false }
+
+const newSession = async (agent: any) => {
+  const uid = userStore.getUserInfo()?.id || 'anon'
+  const s: SessionItem = {
+    session_id: `s_${uid}_${Date.now()}_${Math.random().toString(36).substr(2,6)}`,
+    message_count: 0, last_active_at: new Date().toISOString(), created_at: new Date().toISOString(),
+    agent_id: agent?.id || null, agent_name: agent?.name || null, agent_avatar: agent?.avatar || null,
+  }
+  sessionList.value.unshift(s)
+  showExtras.value = false
+  await selectSession(s)
+}
+
+const delSession = async (sid: string) => {
+  try { await deleteChatHistory(sid, userStore.getUserInfo()?.id) } catch { }
+  sessionList.value = sessionList.value.filter(s => s.session_id !== sid)
+  if (currentSession.value?.session_id === sid) {
+    currentSession.value = null
+    if (sessionList.value.length > 0) selectSession(sessionList.value[0])
+  }
+}
+
+// —— 发送 ——
+const send = async () => {
+  if (!canSend.value) return
+  const text = inputText.value.trim()
+  inputText.value = ''
+  showExtras.value = false
+  if (!currentSession.value) await newSession(null)
+
+  const files = [...pendingFiles.value]
+  pendingFiles.value = []
+
+  messages.value.push({ role: 'user', content: text, files: files.length ? files : undefined } as any)
+  scrollBottom()
+
+  const ai: any = { role: 'assistant', content: '' }
+  messages.value.push(ai)
+  streamingMsg.value = ai
+  isStreaming.value = true
+  streamingStage.value = 'thinking'
+  let full = ''
+
+  try {
+    if (!wsClient.connected) {
+      wsClient.connect(userStore.getToken())
+      await new Promise<void>(r => { wsClient.on('__connected__', () => r()); setTimeout(r, 3000) })
+    }
+    const h: [string, Function][] = [
+      ['ai:chunk', (d: any) => { full += d.content; ai.content = full; streamingStage.value = 'composing'; scrollBottom() }],
+      ['ai:tool_call', (d: any) => { const m: any = { search_web: 'searching', query_knowledge_base: 'retrieving_kb', recall_memory: 'recalling', generate_image: 'generating_image' }; streamingStage.value = m[d.tool] || d.tool }],
+      ['ai:done', () => { isStreaming.value = false; streamingMsg.value = null; cleanWs(); loadSessions() }],
+      ['ai:error', (d: any) => { isStreaming.value = false; ai.content = `出错: ${d.error}`; streamingMsg.value = null; cleanWs() }],
+    ]
+    h.forEach(([e, f]) => wsClient.on(e, f as any))
+
+    wsClient.send('ai:chat', {
+      message: text, sessionId: currentSession.value!.session_id,
+      userId: userStore.getUserInfo()?.id || null,
+      kbId: selectedKbId.value || undefined,
+      model: selectedModel.value || undefined,
+      agentId: currentSession.value!.agent_id || undefined,
+      files: files.length ? files : undefined,
+    })
+  } catch (e: any) {
+    isStreaming.value = false; ai.content = `失败: ${e.message}`; streamingMsg.value = null; cleanWs()
+  }
+}
+const cleanWs = () => ['ai:chunk', 'ai:tool_call', 'ai:done', 'ai:error'].forEach(e => wsClient.off(e, () => { }))
+
+// —— 文件 ——
+const chooseFile = () => {
+  uni.showActionSheet({
+    itemList: ['图片', '文件'],
+    success: (r) => {
+      const up = async (paths: string[]) => {
+        uploading.value = true
+        for (const p of paths) { try { const u = await upFile(p); pendingFiles.value.push(u) } catch { } }
+        uploading.value = false
+        if (pendingFiles.value.length) uni.showToast({ title: `已选${pendingFiles.value.length}个附件`, icon: 'none' })
+      }
+      if (r.tapIndex === 0) uni.chooseImage({ count: 3, success: (x) => up(x.tempFilePaths) })
+      else uni.chooseMessageFile({ count: 3, type: 'all', success: (x) => up(x.tempFiles.map((f: any) => f.path)) })
+    },
+  })
+}
+
+const pickKb = (id: number | null) => { selectedKbId.value = id; showKbPicker.value = false }
+const pickModel = (id: string) => { selectedModel.value = id; showModelPicker.value = false; showExtras.value = false }
+const previewImg = (url: string) => uni.previewImage({ urls: [url] })
+const scrollBottom = () => {
+  setTimeout(() => { scrollToId.value = ''; setTimeout(() => scrollToId.value = 'msg-bottom', 60) }, 60)
+}
+
+onShow(() => {
+  if (!(globalThis as any).__nexusLoggedIn()) { uni.reLaunch({ url: '/pages/login/login' }); return }
+  initPage()
+})
+</script>
+
+<style lang="scss" scoped>
+// ===== 页面 =====
+.chat-page {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #0f0f23;
+  overflow: hidden;
+}
+
+.msg-wrap { flex: 1; min-height: 0; overflow: hidden; }
+.msg-scroll { height: 100%; width: 100%; padding: 16rpx 20rpx; }
+
+.loading-hint {
+  text-align: center;
+  padding: 24rpx;
+  font-size: 24rpx;
+  color: #556;
+}
+
+// ===== 空状态 =====
+.empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80rpx 40rpx;
+}
+
+.empty-avatar {
+  width: 160rpx;
+  height: 160rpx;
+  border-radius: 50%;
+  border: 3rpx solid #d4af37;
+  box-shadow: 0 0 24rpx rgba(212,175,55,0.3);
+  opacity: 0.7;
+  margin-bottom: 20rpx;
+}
+
+.empty-title {
+  font-size: 32rpx;
+  color: #d4af37;
+  font-weight: 700;
+  letter-spacing: 4rpx;
+  text-shadow: 0 0 12rpx rgba(212,175,55,0.4);
+  margin-bottom: 12rpx;
+}
+
+.empty-desc {
+  font-size: 24rpx;
+  color: #8892b0;
+}
+
+// ===== 消息行 =====
+.msg {
+  display: flex;
+  margin-bottom: 20rpx;
+  animation: msgIn 0.25s ease-out;
+}
+
+@keyframes msgIn {
+  from { opacity: 0; transform: translateY(12rpx); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.msg-user { justify-content: flex-end; }
+.msg-ai { justify-content: flex-start; }
+
+// ===== 头像 =====
+.msg-avatar {
+  flex-shrink: 0;
+  width: 64rpx;
+  height: 64rpx;
+  margin-right: 12rpx;
+  align-self: flex-end;
+}
+
+.avat-img {
+  width: 64rpx;
+  height: 64rpx;
+  border-radius: 50%;
+  border: 2rpx solid #d4af37;
+  box-shadow: 0 0 16rpx rgba(212,175,55,0.2);
+}
+
+.load-gif {
+  animation: float 2s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8rpx); }
+}
+
+// ===== 消息气泡 =====
+.msg-body {
+  max-width: 78%;
+  padding: 14rpx 20rpx;
+  border-radius: 12rpx;
+  position: relative;
+  word-break: break-all;
+}
+
+.body-user {
+  background: linear-gradient(135deg, #d4af37, #b8960f);
+  color: #1a1a2e;
+  border-radius: 12rpx 4rpx 12rpx 12rpx;
+  box-shadow: 0 2rpx 12rpx rgba(212,175,55,0.25);
+}
+
+.body-ai {
+  background: rgba(255,255,255,0.05);
+  border: 1rpx solid rgba(255,255,255,0.08);
+  border-radius: 4rpx 12rpx 12rpx 12rpx;
+  box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.3);
+}
+
+.body-mark {
+  position: absolute;
+  top: -10rpx;
+  left: 16rpx;
+  font-size: 18rpx;
+  color: #d4af37;
+  text-shadow: 0 0 8rpx rgba(212,175,55,0.6);
+}
+
+// ===== 消息文本 =====
+.msg-text {
+  font-size: 26rpx;
+  line-height: 1.65;
+  color: #e0e0e0;
+}
+
+.body-user .msg-text { color: #1a1a2e; }
+
+// ===== 附件 =====
+.msg-files {
+  margin-bottom: 8rpx;
+  padding-bottom: 8rpx;
+  border-bottom: 1rpx solid rgba(255,255,255,0.1);
+}
+
+.body-user .msg-files { border-color: rgba(0,0,0,0.15); }
+
+.msg-file { margin-bottom: 6rpx; }
+
+.file-img {
+  max-width: 240rpx;
+  max-height: 240rpx;
+  border-radius: 8rpx;
+  border: 1rpx solid rgba(255,255,255,0.12);
+}
+
+.file-doc {
+  font-size: 22rpx;
+  color: #8892b0;
+  padding: 6rpx 12rpx;
+  background: rgba(255,255,255,0.06);
+  border-radius: 6rpx;
+}
+
+// ===== 搜索引用 =====
+.web-refs {
+  margin-top: 8rpx;
+  padding-top: 8rpx;
+  border-top: 1rpx solid rgba(255,255,255,0.08);
+}
+
+.refs-label { font-size: 20rpx; color: #556; }
+
+.ref-link {
+  font-size: 20rpx;
+  color: #8892b0;
+  margin-left: 8rpx;
+  max-width: 200rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+}
+
+// ===== 打字指示器 =====
+.typing-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8rpx;
+  min-width: 200rpx;
+}
+
+.loading-label {
+  font-size: 22rpx;
+  color: #8892b0;
+}
+
+// ===== 输入区 =====
+.input-area {
+  background: #1a1a2e;
+  border-top: 1rpx solid rgba(212,175,55,0.15);
+  padding: 10rpx 16rpx;
+  padding-bottom: calc(10rpx + env(safe-area-inset-bottom));
+  flex-shrink: 0;
+}
+
+.input-tools {
+  display: flex;
+  gap: 10rpx;
+  margin-bottom: 8rpx;
+  flex-wrap: wrap;
+}
+
+.tool {
+  font-size: 20rpx;
+  color: #8892b0;
+  padding: 4rpx 12rpx;
+  border: 1rpx solid rgba(255,255,255,0.1);
+  border-radius: 12rpx;
+}
+
+.tool-arr { transition: transform 0.2s; display: inline-block; }
+.tool-arr.up { transform: rotate(180deg); }
+
+// ===== 展开面板 =====
+.extras {
+  margin-bottom: 8rpx;
+  padding: 12rpx;
+  background: rgba(255,255,255,0.03);
+  border-radius: 10rpx;
+  border: 1rpx solid rgba(255,255,255,0.06);
+  max-height: 280rpx;
+  overflow-y: auto;
+  animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; max-height: 0; }
+  to { opacity: 1; max-height: 280rpx; }
+}
+
+.ext-sec { margin-bottom: 10rpx; }
+
+.ext-label {
+  font-size: 18rpx;
+  color: #556;
+  text-transform: uppercase;
+  letter-spacing: 1rpx;
+  margin-bottom: 4rpx;
+}
+
+.ext-item {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  padding: 10rpx 8rpx;
+  font-size: 24rpx;
+  color: #e0e0e0;
+  border-bottom: 1rpx solid rgba(255,255,255,0.04);
+}
+
+.ext-item.active { color: #d4af37; }
+
+.ext-name { flex: 0 0 auto; }
+
+.ext-prev {
+  flex: 1;
+  font-size: 20rpx;
+  color: #556;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-left: 8rpx;
+}
+
+.ext-del {
+  font-size: 22rpx;
+  color: #ff4757;
+  padding: 4rpx 8rpx;
+  flex-shrink: 0;
+}
+
+.ext-thumb {
+  width: 32rpx;
+  height: 32rpx;
+  border-radius: 50%;
+}
+
+// ===== 输入行 =====
+.input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10rpx;
+}
+
+.plus-btn {
+  width: 48rpx;
+  height: 48rpx;
+  line-height: 48rpx;
+  text-align: center;
+  font-size: 32rpx;
+  color: #8892b0;
+  border: 1rpx solid rgba(255,255,255,0.12);
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.text-inp {
+  flex: 1;
+  min-height: 48rpx;
+  max-height: 120rpx;
+  background: rgba(255,255,255,0.06);
+  border-radius: 24rpx;
+  padding: 10rpx 20rpx;
+  font-size: 26rpx;
+  color: #e0e0e0;
+}
+
+.send-btn {
+  width: 52rpx;
+  height: 52rpx;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #d4af37, #b8960f);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 2rpx 12rpx rgba(212,175,55,0.3);
+}
+
+.snd-dis { opacity: 0.35; box-shadow: none; }
+
+.send-ico {
+  font-size: 26rpx;
+  color: #1a1a2e;
+  font-weight: 700;
+}
+
+// ===== 弹层 =====
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: flex-end;
+  z-index: 100;
+}
+
+.sheet {
+  width: 100%;
+  background: #1a1a2e;
+  border-radius: 20rpx 20rpx 0 0;
+  padding: 28rpx;
+  max-height: 70vh;
+  overflow-y: auto;
+  padding-bottom: calc(28rpx + env(safe-area-inset-bottom));
+  animation: slideUp 0.25s ease-out;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.sh-title {
+  font-size: 30rpx;
+  color: #d4af37;
+  font-weight: 600;
+  margin-bottom: 20rpx;
+}
+
+.sh-item {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  padding: 18rpx 12rpx;
+  font-size: 26rpx;
+  color: #e0e0e0;
+  border-bottom: 1rpx solid rgba(255,255,255,0.05);
+}
+
+.sh-item.active { color: #d4af37; }
+
+.sh-sub {
+  font-size: 22rpx;
+  color: #556;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sh-close {
+  width: 100%;
+  height: 76rpx;
+  line-height: 76rpx;
+  background: rgba(255,255,255,0.08);
+  color: #e0e0e0;
+  border-radius: 38rpx;
+  font-size: 26rpx;
+  border: none;
+  margin-top: 20rpx;
+}
+
+// ===== Toast =====
+.toast {
+  position: fixed;
+  bottom: 200rpx;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.85);
+  color: #e0e0e0;
+  font-size: 22rpx;
+  padding: 10rpx 28rpx;
+  border-radius: 28rpx;
+  z-index: 60;
+}
+</style>

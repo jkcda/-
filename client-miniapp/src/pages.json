@@ -1,0 +1,78 @@
+{
+  "pages": [
+    {
+      "path": "pages/login/login",
+      "style": { "navigationBarTitleText": "登录", "navigationStyle": "custom" }
+    },
+    {
+      "path": "pages/register/register",
+      "style": { "navigationBarTitleText": "注册" }
+    },
+    {
+      "path": "pages/chat/chat",
+      "style": { "navigationBarTitleText": "AI 对话" }
+    },
+    {
+      "path": "pages/chatList/chatList",
+      "style": { "navigationBarTitleText": "会话列表" }
+    },
+    {
+      "path": "pages/knowledge/knowledge",
+      "style": { "navigationBarTitleText": "知识库" }
+    },
+    {
+      "path": "pages/knowledge/docs",
+      "style": { "navigationBarTitleText": "知识库文档" }
+    },
+    {
+      "path": "pages/room/list",
+      "style": { "navigationBarTitleText": "聊天室" }
+    },
+    {
+      "path": "pages/room/chat",
+      "style": { "navigationBarTitleText": "聊天室" }
+    },
+    {
+      "path": "pages/agent/agent",
+      "style": { "navigationBarTitleText": "角色管理" }
+    },
+    {
+      "path": "pages/mine/mine",
+      "style": { "navigationBarTitleText": "我的" }
+    }
+  ],
+  "tabBar": {
+    "color": "#8892b0",
+    "selectedColor": "#d4af37",
+    "backgroundColor": "#1a1a2e",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/chat/chat",
+        "text": "对话"
+      },
+      {
+        "pagePath": "pages/knowledge/knowledge",
+        "text": "知识库"
+      },
+      {
+        "pagePath": "pages/room/list",
+        "text": "聊天室"
+      },
+      {
+        "pagePath": "pages/agent/agent",
+        "text": "角色"
+      },
+      {
+        "pagePath": "pages/mine/mine",
+        "text": "我的"
+      }
+    ]
+  },
+  "globalStyle": {
+    "navigationBarTextStyle": "white",
+    "navigationBarTitleText": "奈克瑟 NEXUS",
+    "navigationBarBackgroundColor": "#1a1a2e",
+    "backgroundColor": "#0f0f23"
+  }
+}
