@@ -141,6 +141,58 @@ export const login = async (req: Request, res: Response) => {
   }
 }
 
+// 微信登录接口（小程序专用）
+export const wxLogin = async (req: Request, res: Response) => {
+  try {
+    const { code } = req.body
+    if (!code) return ApiResponse.badRequest(res, '缺少登录凭证 code')
+
+    const appid = getSetting('WECHAT_APPID')
+    const secret = getSetting('WECHAT_SECRET')
+    if (!appid || !secret) {
+      return ApiResponse.internalServerError(res, '微信登录未配置，请联系管理员')
+    }
+
+    const wxRes = await fetch(
+      `https://api.weixin.qq.com/sns/jscode2session?appid=${appid}&secret=${secret}&js_code=${code}&grant_type=authorization_code`
+    )
+    const wxData = await wxRes.json() as { openid?: string; unionid?: string; errcode?: number; errmsg?: string }
+
+    if (wxData.errcode || !wxData.openid) {
+      console.error('微信登录失败:', wxData)
+      return ApiResponse.badRequest(res, `微信登录失败: ${wxData.errmsg || '未知错误'}`)
+    }
+
+    const { openid, unionid } = wxData
+
+    // 查找已有用户，没有则自动创建
+    let user = await UserModel.findByOpenid(openid)
+    if (!user) {
+      const result = await UserModel.createWechatUser(openid)
+      user = await UserModel.findById(result.id)
+    }
+
+    if (!user) {
+      return ApiResponse.internalServerError(res, '创建用户失败')
+    }
+
+    const token = jwt.sign(
+      { id: user.id, username: user.username, email: user.email, role: user.role },
+      config.jwt.secret as any,
+      { expiresIn: config.jwt.expiresIn as any }
+    )
+
+    return ApiResponse.success(res, {
+      token,
+      user: { id: user.id, username: user.username, email: user.email, role: user.role },
+      isNewUser: !user.created_at // 简化判断
+    }, '登录成功')
+  } catch (error: any) {
+    console.error('微信登录错误:', error)
+    return ApiResponse.internalServerError(res, '服务器错误', error.message)
+  }
+}
+
 // 获取用户信息接口（需要 token）
 export const getUserInfo = async (req: Request, res: Response) => {
   try {

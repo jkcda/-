@@ -1,5 +1,5 @@
 import express from 'express'
-import { register, login, getUserInfo, verifyEmail } from '../controllers/user.js'
+import { register, login, getUserInfo, verifyEmail, wxLogin } from '../controllers/user.js'
 import { authMiddleware } from '../middleware/auth.js'
 import { ChatHistoryModel } from '../models/chatHistory.js'
 import { ApiResponse } from '../utils/response.js'
@@ -14,6 +14,9 @@ router.post('/verify-email', verifyEmail)
 
 // POST /api/user/login - 用户登录
 router.post('/login', login)
+
+// POST /api/user/wx-login - 微信小程序登录
+router.post('/wx-login', wxLogin)
 
 // GET /api/user/info - 获取用户信息（需要认证）
 router.get('/info', authMiddleware, getUserInfo)

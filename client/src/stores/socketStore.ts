@@ -12,7 +12,8 @@ export const useSocketStore = defineStore('socket', () => {
     if (socket.value?.connected) return socket.value
     if (socket.value) socket.value.disconnect()
 
-    const serverUrl = import.meta.env.VITE_API_URL || window.location.origin
+    const serverUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+    console.log('[SocketStore] 连接地址:', serverUrl, 'token:', token ? token.substring(0, 20) + '...' : '无')
     const s = io(serverUrl, {
       auth: { token },
       transports: ['websocket', 'polling'],
@@ -21,8 +22,20 @@ export const useSocketStore = defineStore('socket', () => {
       reconnectionAttempts: 10,
     })
 
-    s.on('connect', () => { connected.value = true })
-    s.on('disconnect', () => { connected.value = false })
+    s.on('connect', () => {
+      console.log('[SocketStore] 连接成功 transport:', s.io.engine.transport.name)
+      connected.value = true
+    })
+    s.on('disconnect', (reason) => {
+      console.log('[SocketStore] 断开连接 reason:', reason)
+      connected.value = false
+    })
+    s.on('connect_error', (err) => {
+      console.error('[SocketStore] 连接错误:', err.message)
+    })
+    s.io.on('reconnect_attempt', (attempt) => {
+      console.log('[SocketStore] 重连尝试 #' + attempt)
+    })
 
     socket.value = s
     connected.value = s.connected

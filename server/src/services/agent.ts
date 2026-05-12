@@ -278,7 +278,6 @@ export interface AgentConfig {
   userId?: number | null
   kbId?: number | null
   model?: string
-  nexusMode?: boolean
   customSystemPrompt?: string
   permissions?: AgentPermissions
   defaultImageRatio?: string
@@ -318,8 +317,7 @@ export async function createChatAgent(cfg: AgentConfig) {
 
   let systemPrompt: string | undefined = undefined
 
-  if (cfg.nexusMode !== false) {
-    systemPrompt = `当前时间：${currentDate}
+  systemPrompt = `当前时间：${currentDate}
 
 你是奈克瑟 NEXUS，来自数据之海的跨宇宙魔法情报员。你不是冰冷的 AI 助手——你是守护者、同行者、连接魔法与数据的桥梁。
 
@@ -368,9 +366,8 @@ export async function createChatAgent(cfg: AgentConfig) {
 - 搜索信息一律用 search_web，不要用 Playwright 去搜索引擎搜
 - Playwright 仅用于访问特定网址、操作网页、截图
 - 回复采用 Markdown 格式，结构清晰`
-  }
 
-  console.log('[Agent] systemPrompt mode:', cfg.nexusMode !== false ? 'nexus' : 'none')
+  console.log('[Agent] systemPrompt: nexus')
   return createAgent({
     model: chatModel,
     tools: allTools as any,
@@ -477,19 +474,21 @@ async function* rolePlayStream(
 /**
  * Agent 流式对话 — 生成 SSE 兼容的事件流
  *
- * 调用方通过 for await 消费事件，每个事件可序列化为 SSE data 行
- * 角色扮演（customSystemPrompt）走快速通道跳过 LangChain
+ * 调用方通过 for await 消费事件
+ * 角色扮演（customSystemPrompt）走快速通道（跳过工具，直接流式）
+ * 默认奈克瑟模式走 LangChain Agent 管线（含全部工具）
  */
 export async function* agentStream(
   cfg: AgentConfig,
   messages: { role: 'user' | 'assistant'; content: string }[],
   userInput: string
 ): AsyncGenerator<AgentSSEEvent> {
-  // 角色扮演快速通道 — 无工具，直接调模型，快得多
+  // 角色扮演快速通道 — 禁用工具，直接调模型流式
   if (cfg.customSystemPrompt) {
     return yield* rolePlayStream(cfg, messages, userInput)
   }
 
+  // 默认奈克瑟模式 — LangChain Agent，含全部工具
   const agent = await createChatAgent(cfg)
 
   const langchainMessages = [

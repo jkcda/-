@@ -14,10 +14,14 @@ interface SocketUser {
 }
 
 export function initSocketIO(httpServer: HttpServer, allowedOrigins: string[]): SocketIOServer {
+  console.log('[Socket.IO] 允许的 origins:', JSON.stringify(allowedOrigins))
+
   io = new SocketIOServer(httpServer, {
     cors: {
       origin: (origin: string | undefined, cb: (err: Error | null, allow?: boolean) => void) => {
-        if (!origin || allowedOrigins.includes(origin)) return cb(null, true)
+        const allowed = !origin || allowedOrigins.includes(origin)
+        console.log(`[Socket.IO] CORS check origin="${origin}" allowed=${allowed} list=${JSON.stringify(allowedOrigins)}`)
+        if (allowed) return cb(null, true)
         cb(null, false)
       },
       credentials: true,
@@ -25,10 +29,17 @@ export function initSocketIO(httpServer: HttpServer, allowedOrigins: string[]): 
     transports: ['websocket', 'polling'],
   })
 
+  // 监听原始 HTTP upgrade 请求（在 engine.io 处理之前）
+  httpServer.on('upgrade', (req, _socket, _head) => {
+    console.log(`[Socket.IO] HTTP upgrade 请求: url=${req.url} headers=${JSON.stringify({origin: req.headers.origin, host: req.headers.host})}`)
+  })
+
   // JWT 鉴权中间件
   io.use((socket: Socket, next: (err?: Error) => void) => {
     const token = socket.handshake.auth.token || socket.handshake.query.token
+    console.log(`[Socket.IO] 鉴权: 有token=${!!token} transport=${socket.conn.transport.name}`)
     if (!token) {
+      console.log('[Socket.IO] 鉴权失败: 无token')
       return next(new Error('未提供认证令牌'))
     }
     try {
@@ -38,14 +49,22 @@ export function initSocketIO(httpServer: HttpServer, allowedOrigins: string[]): 
         username: decoded.username,
         role: decoded.role || 'user',
       }
+      console.log(`[Socket.IO] 鉴权成功: user=${decoded.username} id=${decoded.id}`)
       next()
     } catch (err: any) {
+      console.log(`[Socket.IO] 鉴权失败: token无效 - ${err.message}`)
       next(new Error('无效的认证令牌'))
     }
   })
 
+  // engine.io 级别的错误
+  io.engine.on('connection_error', (err: any) => {
+    console.log('[Socket.IO] engine.io 连接错误:', err.code, err.message, err.context ? JSON.stringify(err.context) : '')
+  })
+
   io.on('connection', (socket: Socket) => {
     const user = socket.data.user as SocketUser
+    console.log(`[Socket.IO] 连接成功: user=${user?.username} transport=${socket.conn.transport.name}`)
 
     socket.on('room:join', async ({ roomId }: { roomId: number }) => {
       try {

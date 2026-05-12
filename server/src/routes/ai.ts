@@ -16,7 +16,7 @@ const router = express.Router()
 // POST /api/ai/chat - AI对话（统一入口：Agent 工具调用 + 多模态流式）
 router.post('/chat', async (req, res) => {
   try {
-    const { message, sessionId, userId, files, kbId, nexusMode, maxVideoFrames, model, agentId } = req.body
+    const { message, sessionId, userId, files, kbId, maxVideoFrames, model, agentId } = req.body
 
     if (!message && (!files || files.length === 0)) {
       return ApiResponse.badRequest(res, '请输入消息内容或上传文件')
@@ -48,8 +48,7 @@ router.post('/chat', async (req, res) => {
         userId,
         files && files.length > 0 ? files : undefined,
         kbId || undefined,
-        true, // webSearch — Agent 自主决定，不再由前端开关控制
-        nexusMode !== false,
+        true, // webSearch — Agent 自主决定
         maxVideoFrames || undefined,
         model || undefined,
         userRole,

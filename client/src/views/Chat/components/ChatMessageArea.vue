@@ -184,7 +184,6 @@
           <div class="mobile-extras-section">
             <span class="mobile-extras-label">开关</span>
             <div class="mobile-extras-toggles">
-              <el-switch v-if="!currentAgent" :model-value="nexusMode" size="small" active-text="奈克瑟" inactive-text="AI" @change="$emit('update:nexusMode', $event as boolean)" />
               <el-switch :model-value="autoSpeakEnabled" size="small" active-text="朗读" @change="onAutoSpeakToggle" />
               <el-select v-if="autoSpeakEnabled && voices.length > 0" :model-value="selectedVoiceId" size="small" style="width: 100px" @update:model-value="onVoiceSelect">
                 <el-option v-for="v in voices" :key="v.id" :label="v.name" :value="v.id" />
@@ -243,15 +242,6 @@
               :value="r.value"
             />
           </el-select>
-          <el-switch
-            v-if="!currentAgent"
-            :model-value="nexusMode"
-            size="small"
-            active-text="奈克瑟"
-            inactive-text="AI助手"
-            style="margin-left: 8px"
-            @change="$emit('update:nexusMode', $event as boolean)"
-          />
           <el-switch
             :model-value="autoSpeakEnabled"
             size="small"
@@ -438,7 +428,6 @@ const props = defineProps<{
   currentSessionId: string
   kbList: KbItem[]
   selectedKbId: number | null
-  nexusMode: boolean
   modelList: { id: string; name: string; type: string; desc: string }[]
   selectedModel: string
   imageRatios: { label: string; value: string }[]
@@ -453,7 +442,6 @@ const emit = defineEmits<{
   clearHistory: []
   toggleSidebar: []
   'update:selectedKbId': [value: number | null]
-  'update:nexusMode': [value: boolean]
   'update:selectedModel': [value: string]
   'update:selectedImageRatio': [value: string]
   createSessionWithAgent: [agent: AgentItem | null]

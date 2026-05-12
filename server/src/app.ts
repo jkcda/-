@@ -2,6 +2,7 @@ import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
 import http from 'http'
+import { WebSocketServer } from 'ws'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import userRouter from './routes/user.js'
@@ -120,6 +121,21 @@ import('./services/socket.js').then(m => {
   m.initSocketIO(httpServer, allowedOrigins)
 }).catch(err => {
   console.warn('[Socket.IO] 初始化失败:', err.message)
+})
+
+// 原生 WebSocket Server — 小程序专用
+// 与 Socket.IO 分开端口，避免 upgrade 事件冲突
+import { createServer } from 'http'
+const wsHttpServer = createServer()
+const wss = new WebSocketServer({ server: wsHttpServer, path: '/ws' })
+import('./services/wsBridge.js').then(m => {
+  m.initWsBridge(wss)
+}).catch(err => {
+  console.warn('[WS Bridge] 初始化失败:', err.message)
+})
+const WS_PORT = (process.env.WS_PORT ? parseInt(process.env.WS_PORT) : 3001)
+wsHttpServer.listen(WS_PORT, () => {
+  console.log(`[WS Bridge] 小程序 WebSocket 服务运行在 ws://localhost:${WS_PORT}/ws`)
 })
 
 // 启动

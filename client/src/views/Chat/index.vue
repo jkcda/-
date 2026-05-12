@@ -28,7 +28,6 @@
       :currentSessionId="currentSessionId"
       :kbList="kbList"
       :selectedKbId="selectedKbId"
-      :nexusMode="nexusMode"
       :modelList="modelList"
       :selectedModel="selectedModel"
       :imageRatios="imageRatios"
@@ -36,7 +35,6 @@
       :agentList="agentList"
       :currentAgent="currentAgent"
       :loadingStage="loadingStage"
-      @update:nexusMode="nexusMode = $event"
       @update:selectedModel="onModelChange($event)"
       @update:selectedImageRatio="onImageRatioChange($event)"
       @createSessionWithAgent="createNewSessionWithAgent"
@@ -105,7 +103,6 @@ const currentSessionId = ref<string>('')
 const sessionList = ref<SessionItem[]>([])
 const kbList = ref<KnowledgeBase[]>([])
 const selectedKbId = ref<number | null>(null)
-const nexusMode = ref(true)
 const selectedModel = ref<string>(localStorage.getItem('nexusSelectedModel') || '')
 const modelList = ref<{ id: string; name: string; type: string; desc: string }[]>([])
 const imageRatios = ref<{ label: string; value: string }[]>([])
@@ -540,7 +537,6 @@ const sendMessage = async (payload: { content: string; files: File[] }) => {
         userId,
         files: uploadedFiles.length > 0 ? uploadedFiles : undefined,
         kbId: selectedKbId.value || undefined,
-        nexusMode: nexusMode.value,
         model: selectedModel.value || undefined,
         agentId: currentAgent.value?.id || undefined,
         maxVideoFrames: uploadedFiles.some(f => f.type.startsWith('video/')) ? 40 : undefined

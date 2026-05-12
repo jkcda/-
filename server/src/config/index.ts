@@ -16,6 +16,8 @@ const SETTING_KEYS = [
   'EMAIL_PASS',
   'JWT_SECRET',
   'CLIENT_URL',
+  'WECHAT_APPID',
+  'WECHAT_SECRET',
 ] as const
 
 type SettingKey = (typeof SETTING_KEYS)[number]
@@ -32,6 +34,8 @@ const ENV_MAP: Record<SettingKey, string | undefined> = {
   EMAIL_PASS: process.env.EMAIL_PASS,
   JWT_SECRET: process.env.JWT_SECRET,
   CLIENT_URL: process.env.CLIENT_URL,
+  WECHAT_APPID: process.env.WECHAT_APPID,
+  WECHAT_SECRET: process.env.WECHAT_SECRET,
 }
 
 /** 从数据库加载所有配置到内存（DB 有值则用 DB，否则 fallback 到环境变量） */
@@ -83,6 +87,8 @@ export function getMaskedSettings(): { key_name: string; description: string; ma
     EMAIL_PASS: 'QQ邮箱 SMTP 授权码',
     JWT_SECRET: 'JWT 签名密钥（用于签发和验证登录凭证）',
     CLIENT_URL: '前端访问地址（用于邮件验证链接，如 https://你的域名.com）',
+    WECHAT_APPID: '微信小程序 AppID（用于微信登录）',
+    WECHAT_SECRET: '微信小程序 AppSecret（用于微信登录）',
   }
   return SETTING_KEYS.map(k => {
     const val = getSetting(k)

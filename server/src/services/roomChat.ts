@@ -126,7 +126,6 @@ export async function handleRoomMessage(
         userId,
         model: 'deepseek-ai/DeepSeek-V4-Flash',
         customSystemPrompt: agent.system_prompt + '\n\n' + roomContextPrompt,
-        nexusMode: false,
         userRole,
         permissions: { kbRetrieval: false, memory: false, imageGeneration: false },
       }

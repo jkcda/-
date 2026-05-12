@@ -191,6 +191,18 @@ CREATE TABLE IF NOT EXISTS `chat_room_members` (
   INDEX `idx_crm_user` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='聊天室成员表';
 
+-- 微信用户关联表（uniapp 小程序登录用）
+CREATE TABLE IF NOT EXISTS `wechat_users` (
+  `id` INT PRIMARY KEY AUTO_INCREMENT COMMENT '关联ID',
+  `openid` VARCHAR(100) NOT NULL COMMENT '微信 openid',
+  `unionid` VARCHAR(100) NULL COMMENT '微信 unionid',
+  `user_id` INT NOT NULL COMMENT '用户ID',
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  UNIQUE KEY `uq_wu_openid` (`openid`),
+  INDEX `idx_wu_user_id` (`user_id`),
+  FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='微信用户关联表';
+
 -- 示例数据（可选，用于测试）
 -- INSERT INTO users (username, email, password, role) VALUES
 -- ('admin', 'admin@example.com', '$2a$10$example_hashed_password', 'admin'),

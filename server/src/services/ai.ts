@@ -173,7 +173,6 @@ export async function chatWithAIStream(
   files?: UploadedFile[],
   kbId?: number,
   webSearchEnabled: boolean = false,
-  nexusMode: boolean = true,
   maxVideoFrames?: number,
   model?: string,
   userRole?: string,
@@ -238,10 +237,7 @@ export async function chatWithAIStream(
       const multimodalMsg = await buildMultimodalContent(message, files!, effectiveFrames, webSearchText)
 
       const isFirstMessage = historyMessages.length === 0
-      const systemPrompt = nexusMode
-        ? (isFirstMessage ? NEXUS_SYSTEM_PROMPT + '\n\n' + firstMessageSystemPrompt : NEXUS_SYSTEM_PROMPT)
-        : undefined
-
+      const systemPrompt = isFirstMessage ? NEXUS_SYSTEM_PROMPT + '\n\n' + firstMessageSystemPrompt : NEXUS_SYSTEM_PROMPT
       const modelId = model || config.ai.defaultModel
       const modelCfg = config.ai.models.find(m => m.id === modelId)
       const activeClient = getClient(modelCfg?.provider || 'modelscope')
@@ -306,7 +302,7 @@ export async function chatWithAIStream(
 
     // Agent 管线（纯文本 / 含文档）
     const events = agentStream(
-      { userId, kbId, model, nexusMode, customSystemPrompt, userRole, permissions: { kbRetrieval: !!kbId, memory: !!userId, imageGeneration: true } },
+      { userId, kbId, model, customSystemPrompt, userRole, permissions: { kbRetrieval: !!kbId, memory: !!userId, imageGeneration: true } },
       historyMessages,
       agentMessage
     )
