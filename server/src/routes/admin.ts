@@ -6,7 +6,7 @@ import { ApiResponse } from '../utils/response.js'
 import { ChatHistoryModel } from '../models/chatHistory.js'
 import { UserModel } from '../models/user.js'
 import { getMaskedSettings, getSetting, updateSetting } from '../config/index.js'
-import config from '../config/index.js'
+import config, { defaultImageConfig } from '../config/index.js'
 import { providerManager } from '../providers/index.js'
 import pool from '../utils/db.js'
 
@@ -245,40 +245,33 @@ router.get('/settings', authMiddleware, adminMiddleware, (_req, res) => {
   }
 })
 
-// GET /api/admin/providers - 获取供应商列表及状态（仅管理员）
-router.get('/providers', authMiddleware, adminMiddleware, (_req, res) => {
+// GET /api/admin/capabilities - 获取能力配置（LLM / 图片生成）
+router.get('/capabilities', authMiddleware, adminMiddleware, (_req, res) => {
   try {
-    const providers = providerManager.getAllProviders()
-    ApiResponse.success(res, { providers }, '获取供应商列表成功')
+    const caps = providerManager.getCapabilities()
+    ApiResponse.success(res, { capabilities: caps }, '获取能力配置成功')
   } catch (error: any) {
     ApiResponse.internalServerError(res, '服务器错误', error.message)
   }
 })
 
-// PUT /api/admin/providers/:id - 更新供应商配置（baseURL / requestTemplate）（仅管理员）
-router.put('/providers/:id', authMiddleware, adminMiddleware, async (req, res) => {
+// PUT /api/admin/capabilities/llm - 更新 LLM 能力配置
+router.put('/capabilities/llm', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const providerId = String(req.params.id)
-    const { baseURL, requestTemplate } = req.body
-    if (!config.ai.providers[providerId]) {
-      return ApiResponse.badRequest(res, `供应商 ${providerId} 不存在`)
-    }
+    const { apiKey, format, baseURL, model, requestTemplate, name } = req.body
+    await providerManager.saveLLMConfig({ apiKey, format, baseURL, model, requestTemplate, name })
+    ApiResponse.success(res, null, 'LLM 配置已更新')
+  } catch (error: any) {
+    ApiResponse.internalServerError(res, '服务器错误', error.message)
+  }
+})
 
-    // 读取当前 PROVIDER_CONFIG
-    let overrides: Record<string, any> = {}
-    try {
-      const raw = getSetting('PROVIDER_CONFIG')
-      if (raw) overrides = JSON.parse(raw)
-    } catch {}
-
-    // 更新此供应商的配置
-    if (!overrides[providerId]) overrides[providerId] = {}
-    if (baseURL !== undefined) overrides[providerId].baseURL = baseURL
-    if (requestTemplate !== undefined) overrides[providerId].requestTemplate = requestTemplate
-
-    // 保存
-    await updateSetting('PROVIDER_CONFIG', JSON.stringify(overrides, null, 2))
-    ApiResponse.success(res, null, `供应商 ${providerId} 配置已更新`)
+// PUT /api/admin/capabilities/image - 更新图片生成能力配置
+router.put('/capabilities/image', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { apiKey, baseURL, model, requestTemplate, defaultSize, name } = req.body
+    await providerManager.saveImageConfig({ apiKey, baseURL, model, requestTemplate, defaultSize, name })
+    ApiResponse.success(res, null, '图片生成配置已更新')
   } catch (error: any) {
     ApiResponse.internalServerError(res, '服务器错误', error.message)
   }

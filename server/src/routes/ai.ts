@@ -241,21 +241,32 @@ router.delete('/memory', authMiddleware as any, adminMiddleware as any, async (r
   }
 })
 
-// GET /api/ai/models - 获取可用模型列表
+// GET /api/ai/models - 获取可用配置
 router.get('/models', (_req, res) => {
-  ApiResponse.success(res, { models: config.ai.models, imageRatios: config.ai.imageRatios }, '获取模型列表成功')
+  const llmCfg = providerManager.getLLMConfig()
+  const imgCfg = providerManager.getImageConfig()
+  // 向后兼容：返回 models 列表（只有当前配置的模型）
+  ApiResponse.success(res, {
+    llm: { name: llmCfg.name, model: llmCfg.model, format: llmCfg.format, baseURL: llmCfg.baseURL },
+    image: { name: imgCfg.name, model: imgCfg.model, baseURL: imgCfg.baseURL, defaultSize: imgCfg.defaultSize },
+    models: [{
+      id: llmCfg.model,
+      name: llmCfg.name ? `${llmCfg.name} - ${llmCfg.model}` : llmCfg.model,
+      type: 'multimodal',
+      desc: '当前配置的 LLM 模型',
+    }],
+    imageRatios: config.ai.imageRatios,
+  }, '获取配置成功')
 })
 
 // POST /api/ai/image - 文生图（多供应商）
 router.post('/image', async (req, res) => {
   try {
-    const { prompt, model, sessionId, userId, size } = req.body
+    const { prompt, sessionId, userId, size } = req.body
     if (!prompt) return ApiResponse.badRequest(res, '请提供图片描述')
 
-    const modelId = model || 'doubao-seedream-4-5-251128'
-    const provider = config.ai.models.find(m => m.id === modelId)?.provider || 'volcengine'
-
-    console.log(`[ImageGen] 供应商: ${provider}, 模型: ${modelId}, prompt: "${prompt.slice(0, 80)}..."`)
+    const imgCfg = providerManager.getImageConfig()
+    console.log(`[ImageGen] 供应商: ${imgCfg.name}, 模型: ${imgCfg.model}, prompt: "${prompt.slice(0, 80)}..."`)
 
     // 保存用户 prompt 到数据库
     if (sessionId) {
@@ -266,7 +277,7 @@ router.post('/image', async (req, res) => {
       }
     }
 
-    const imageUrl = await providerManager.generateImage(prompt, modelId, size || config.ai.defaultImageRatio)
+    const imageUrl = await providerManager.generateImage(prompt, size || imgCfg.defaultSize)
     if (imageUrl) {
       if (sessionId) {
         try {

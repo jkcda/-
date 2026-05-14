@@ -55,12 +55,31 @@ export const updateSetting = (key_name: string, value: string) => {
   return request.put('/admin/settings', { key_name, value })
 }
 
-// 获取供应商列表
-export const getProviders = () => {
-  return request.get('/admin/providers')
+// 获取能力配置（LLM / 图片生成）
+export const getCapabilities = () => {
+  return request.get('/admin/capabilities')
 }
 
-// 更新供应商配置
-export const updateProvider = (id: string, data: { baseURL?: string; requestTemplate?: string }) => {
-  return request.put(`/admin/providers/${id}`, data)
+// 更新 LLM 能力配置
+export const updateLLMConfig = (data: {
+  name?: string
+  apiKey?: string
+  format?: string
+  baseURL?: string
+  model?: string
+  requestTemplate?: string
+}) => {
+  return request.put('/admin/capabilities/llm', data)
+}
+
+// 更新图片生成能力配置
+export const updateImageConfig = (data: {
+  name?: string
+  apiKey?: string
+  baseURL?: string
+  model?: string
+  requestTemplate?: string
+  defaultSize?: string
+}) => {
+  return request.put('/admin/capabilities/image', data)
 }

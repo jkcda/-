@@ -28,7 +28,7 @@
         </el-menu-item>
         <el-menu-item index="/admin/providers">
           <el-icon><Setting /></el-icon>
-          <span>供应商管理</span>
+          <span>能力配置</span>
         </el-menu-item>
       </el-menu>
       <div class="sidebar-collapse" @click="toggleSidebar">
@@ -116,7 +116,7 @@ const pageTitle = computed(() => {
     '/admin/dashboard': '对话统计',
     '/admin/users': '用户管理',
     '/admin/api-keys': 'API Key 管理',
-    '/admin/providers': '供应商管理'
+    '/admin/providers': '能力配置'
   }
   return titles[route.path] || '后台管理'
 })

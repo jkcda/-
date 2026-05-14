@@ -124,7 +124,6 @@ export async function handleRoomMessage(
     try {
       const cfg: AgentConfig = {
         userId,
-        model: 'deepseek-ai/DeepSeek-V4-Flash',
         customSystemPrompt: agent.system_prompt + '\n\n' + roomContextPrompt,
         userRole,
         permissions: { kbRetrieval: false, memory: false, imageGeneration: false },

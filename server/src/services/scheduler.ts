@@ -78,7 +78,7 @@ async function batchSchedule(
     `[${a.agent_id}] ${a.name}（${a.system_prompt.slice(0, 200)}）`
   ).join('\n')
 
-  const model = providerManager.createLangChainModel('deepseek-ai/DeepSeek-V4-Flash')
+  const model = providerManager.createLangChainModel()
   // 覆写默认参数
   model.maxTokens = 200
   model.temperature = 0

@@ -77,7 +77,7 @@ function createTools(opts: { userId?: number | null; kbId?: number | null; permi
         const size = sizeMap[ratio || ''] || opts.defaultImageRatio || config.ai.defaultImageRatio
 
         try {
-          const imageUrl = await providerManager.generateImage(prompt, 'doubao-seedream-4-5-251128', size)
+          const imageUrl = await providerManager.generateImage(prompt, size)
           if (!imageUrl) return '图片生成失败：API 返回为空'
           return JSON.stringify({ imageUrl, prompt, ratio: ratio || '16:9' })
         } catch (e: any) {
@@ -290,7 +290,7 @@ export async function createChatAgent(cfg: AgentConfig) {
     ...mcpTools
   ]
 
-  const chatModel = providerManager.createLangChainModel(cfg.model)
+  const chatModel = providerManager.createLangChainModel()
 
   const now = new Date()
   const currentDate = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日`
@@ -392,25 +392,24 @@ async function* rolePlayStream(
   ]
 
   try {
-    const modelCfg = providerManager.getModelConfig(cfg.model)
-    const providerId = modelCfg.providerId
-    const hasTemplate = !!providerManager.getRequestTemplate(providerId)
+    const llmCfg = providerManager.getLLMConfig()
+    const hasTemplate = !!llmCfg.requestTemplate
 
     // 有请求模板时用用户自定义 body，否则用默认格式
     const body = hasTemplate
-      ? providerManager.buildRequestBody(providerId, apiMessages, true, { model: modelCfg.modelId })
+      ? providerManager.buildRequestBody(llmCfg, apiMessages, true)
       : {
-          model: modelCfg.modelId || config.ai.defaultModel,
+          model: llmCfg.model,
           messages: apiMessages,
           max_tokens: config.ai.maxTokens,
           temperature: 0.7,
           stream: true,
         }
 
-    const resp = await fetch(`${modelCfg.baseURL}/v1/chat/completions`, {
+    const resp = await fetch(`${llmCfg.baseURL}/v1/chat/completions`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${modelCfg.apiKey}`,
+        'Authorization': `Bearer ${llmCfg.apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),

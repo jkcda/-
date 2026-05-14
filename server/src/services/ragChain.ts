@@ -35,24 +35,16 @@ async function rewriteQuery(query: string, context?: string): Promise<string> {
   if (!needsRewrite(query)) return query
 
   try {
-    const client = providerManager.createAnthropicClient()
     const contextBlock = context
       ? `对话上下文:\n${context.slice(-2000)}\n\n`
       : ''
-    const response = await client.messages.create({
-      model: config.ai.defaultModel,
-      max_tokens: 200,
-      messages: [{
-        role: 'user',
-        content: `${contextBlock}将以下用户问题改写为更具体、完整的检索查询。去除指代词（如"它"、"这个"），补充隐含的上下文信息。只输出改写后的句子，不要解释。
+    const rewritten = (await providerManager.chatCompletion([{
+      role: 'user',
+      content: `${contextBlock}将以下用户问题改写为更具体、完整的检索查询。去除指代词（如"它"、"这个"），补充隐含的上下文信息。只输出改写后的句子，不要解释。
 
 用户问题: ${query}
 改写后的查询:`
-      }]
-    })
-
-    const block0 = response.content[0]
-    const rewritten = (block0?.type === 'text' ? block0.text : '').trim()
+    }], 200)).trim()
     if (rewritten && rewritten !== query) {
       console.log(`[RAG] 查询重写: "${query}" → "${rewritten}"`)
       return rewritten
@@ -204,13 +196,9 @@ async function rerankWithLLM(
       `[${i}] 来源:${c.source} 分:${c.score.toFixed(3)}\n${c.content.slice(0, 400)}`
     ).join('\n\n')
 
-    const client = providerManager.createAnthropicClient()
-    const response = await client.messages.create({
-      model: config.ai.defaultModel,
-      max_tokens: 80,
-      messages: [{
-        role: 'user',
-        content: `从以下检索结果中选出与问题最相关的${topK}条。只输出编号，用英文逗号分隔，如: 3,7,1,5
+    const text = (await providerManager.chatCompletion([{
+      role: 'user',
+      content: `从以下检索结果中选出与问题最相关的${topK}条。只输出编号，用英文逗号分隔，如: 3,7,1,5
 
 问题: ${query}
 
@@ -218,11 +206,7 @@ async function rerankWithLLM(
 ${items}
 
 最相关${topK}条编号:`
-      }]
-    })
-
-    const block0 = response.content[0]
-    const text = (block0?.type === 'text' ? block0.text : '').trim()
+    }], 80)).trim()
     const indices = text
       .split(/[,，\s]+/)
       .map((s: string) => parseInt(s, 10))

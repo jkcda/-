@@ -1,95 +1,99 @@
-/**
- * ProviderManager — 多供应商 AI 能力调度中心
- *
- * 职责：
- * 1. 根据 modelId 或能力类型 -> 解析到对应的供应商配置（API Key + BaseURL)
- * 2. 提供简单工厂方法：创建各 SDK 客户端，或直接调用供应商 API
- * 3. 支持通过 PROVIDER_CONFIG 动态覆盖供应商 baseURL 和请求模板
- * 4. 新增供应商只需在 config.ai.providers 里加一条配置，无需改服务代码
- *
- * PROVIDER_CONFIG 格式（存储在 system_settings 中）：
- * {
- *   "modelscope": {
- *     "baseURL": "https://自定义URL",
- *     "requestTemplate": "{\"model\":\"...\",\"max_tokens\":4096,\"temperature\":0.7}"
- *   }
- * }
- */
-
 import Anthropic from '@anthropic-ai/sdk'
 import { OpenAI } from 'openai'
 import { ChatOpenAI } from '@langchain/openai'
-import config, { getSetting } from '../config/index.js'
-import type { ProviderConfig } from './types.js'
-
-interface ProviderOverride {
-  baseURL?: string
-  requestTemplate?: string
-}
-
-type ProviderOverrides = Record<string, ProviderOverride>
+import config, { getSetting, updateSetting, defaultLLMConfig, defaultImageConfig, getMaskedSettings } from '../config/index.js'
+import type { CapabilityLLMConfig, CapabilityImageConfig } from './types.js'
 
 class ProviderManager {
-  // ── 动态覆盖（从 PROVIDER_CONFIG 加载） ──
+  // ═══════════════════════════════════════════════
+  //  能力配置读取（以能力为中心）
+  // ═══════════════════════════════════════════════
 
-  /** 从 PROVIDER_CONFIG 加载所有覆盖配置 */
-  private getOverrides(): ProviderOverrides {
-    try {
-      const raw = getSetting('PROVIDER_CONFIG')
-      if (!raw) return {}
-      const parsed = JSON.parse(raw)
-      if (typeof parsed === 'object' && !Array.isArray(parsed)) return parsed
-      return {}
-    } catch { return {} }
+  /** 读取 LLM 能力配置 */
+  getLLMConfig(): CapabilityLLMConfig {
+    const raw = getSetting('CAPABILITY_LLM')
+    if (raw) {
+      try {
+        return { ...defaultLLMConfig, ...JSON.parse(raw) }
+      } catch {}
+    }
+    return { ...defaultLLMConfig }
   }
 
-  /** 获取某个供应商的覆盖配置 */
-  getOverride(providerId: string): ProviderOverride {
-    return this.getOverrides()[providerId] || {}
+  /** 读取图片生成能力配置 */
+  getImageConfig(): CapabilityImageConfig {
+    const raw = getSetting('CAPABILITY_IMAGE')
+    if (raw) {
+      try {
+        return { ...defaultImageConfig, ...JSON.parse(raw) }
+      } catch {}
+    }
+    return { ...defaultImageConfig }
   }
 
-  /** 获取覆盖后的 baseURL */
-  getEffectiveBaseURL(providerId: string): string {
-    const ov = this.getOverride(providerId)
-    if (ov.baseURL) return ov.baseURL
-    return config.ai.providers[providerId]?.baseURL || ''
+  /** 保存 LLM 配置 */
+  async saveLLMConfig(cfg: Partial<CapabilityLLMConfig>): Promise<void> {
+    const current = this.getLLMConfig()
+    const merged = { ...current, ...cfg } satisfies CapabilityLLMConfig
+    await updateSetting('CAPABILITY_LLM', JSON.stringify(merged))
   }
 
-  /** 获取请求模板 */
-  getRequestTemplate(providerId: string): string {
-    return this.getOverride(providerId).requestTemplate || ''
+  /** 保存图片生成配置 */
+  async saveImageConfig(cfg: Partial<CapabilityImageConfig>): Promise<void> {
+    const current = this.getImageConfig()
+    const merged = { ...current, ...cfg } satisfies CapabilityImageConfig
+    await updateSetting('CAPABILITY_IMAGE', JSON.stringify(merged))
   }
 
-  /** 保存完整覆盖配置 */
-  saveOverrides(overrides: ProviderOverrides): void {
-    // 由 admin route 调用，写入 system_settings
-    // 实际写入在 admin.ts 中通过 updateSetting 完成
+  // ═══════════════════════════════════════════════
+  //  SDK 客户端工厂（基于能力配置）
+  // ═══════════════════════════════════════════════
+
+  /** 创建 Anthropic SDK 客户端（基于 LLM 配置） */
+  createAnthropicClient(): Anthropic {
+    const cfg = this.getLLMConfig()
+    return new Anthropic({ apiKey: cfg.apiKey, baseURL: cfg.baseURL })
+  }
+
+  /** 创建 LangChain ChatOpenAI 模型（基于 LLM 配置） */
+  createLangChainModel(): ChatOpenAI {
+    const cfg = this.getLLMConfig()
+    return new ChatOpenAI({
+      model: cfg.model,
+      apiKey: cfg.apiKey,
+      configuration: { baseURL: cfg.baseURL + '/v1' },
+      maxTokens: config.ai.maxTokens,
+      temperature: 0.7,
+    })
+  }
+
+  /** 创建 OpenAI SDK 客户端（用于 embedding，基于 LLM 配置） */
+  createOpenAIClient(): OpenAI {
+    const cfg = this.getLLMConfig()
+    return new OpenAI({ apiKey: cfg.apiKey, baseURL: cfg.baseURL + '/v1' })
+  }
+
+  // ═══════════════════════════════════════════════
+  //  请求模板 & body 构建
+  // ═══════════════════════════════════════════════
+
+  buildRequestTemplate(cfg: CapabilityLLMConfig): string {
+    return cfg.requestTemplate || ''
   }
 
   /**
-   * 根据供应商的 requestTemplate 生成请求 body
-   * 用户可以在模板中定义 model / max_tokens / temperature 等参数
-   * 系统自动注入 messages 和 stream
+   * 构建请求 body
+   * 有模板则用模板合并 messages/stream，否则用默认格式
    */
-  buildRequestBody(providerId: string, messages: any[], stream: boolean, extra?: Record<string, any>): any {
-    const template = this.getRequestTemplate(providerId)
-    if (template) {
+  buildRequestBody(cfg: CapabilityLLMConfig, messages: any[], stream: boolean, extra?: Record<string, any>): any {
+    if (cfg.requestTemplate) {
       try {
-        const base = JSON.parse(template)
-        // 合成最终 body：模板中的字段优先，messages/stream 由系统注入
-        return {
-          ...base,
-          messages,
-          stream,
-          ...extra,
-        }
-      } catch {
-        // 模板解析失败，回退默认
-      }
+        const base = JSON.parse(cfg.requestTemplate)
+        return { ...base, messages, stream, ...extra }
+      } catch {}
     }
-    // 无模板，用默认 OpenAI 格式
     return {
-      model: config.ai.defaultModel,
+      model: cfg.model,
       messages,
       stream,
       max_tokens: config.ai.maxTokens,
@@ -99,112 +103,22 @@ class ProviderManager {
   }
 
   // ═══════════════════════════════════════════════
-  //  核心：根据 modelId 或能力类型 -> 解析供应商
-  // ═══════════════════════════════════════════════
-
-  /** 根据 modelId 获取供应商配置 + API key + 完整模型名 */
-  getModelConfig(modelId?: string): ProviderConfig {
-    const id = modelId || config.ai.defaultModel
-    const model = config.ai.models.find(m => m.id === id)
-    const providerId = model?.provider || 'modelscope'
-    const def = config.ai.providers[providerId]
-    if (!def) throw new Error(`[Provider] 未定义的供应商: ${providerId}`)
-    const apiKey = getSetting(def.apiKeySetting)
-    if (!apiKey) throw new Error(`[Provider] ${def.name} 的 API Key 未配置（${def.apiKeySetting}）`)
-    const baseURL = this.getEffectiveBaseURL(providerId)
-    return { providerId, apiKey, baseURL, modelId: id }
-  }
-
-  /** 获取指定供应商的配置（不依赖 modelId） */
-  getProviderConfig(providerId: string): ProviderConfig {
-    const def = config.ai.providers[providerId]
-    if (!def) throw new Error(`[Provider] 未定义的供应商: ${providerId}`)
-    const apiKey = getSetting(def.apiKeySetting)
-    const baseURL = this.getEffectiveBaseURL(providerId)
-    return { providerId, apiKey, baseURL }
-  }
-
-  /** 根据能力类型获取第一个支持的供应商配置 */
-  getProviderForCapability(cap: 'chat' | 'image' | 'embedding' | 'speech' | 'search', prefer?: string): ProviderConfig {
-    const keyMap: Record<string, string> = {
-      chat: 'chatSupport',
-      image: 'imageSupport',
-      embedding: 'embeddingSupport',
-      speech: 'speechSupport',
-      search: 'searchSupport',
-    }
-    const prop = keyMap[cap]
-    if (!prop) throw new Error(`[Provider] 未知能力: ${cap}`)
-
-    if (prefer && config.ai.providers[prefer] && (config.ai.providers[prefer] as any)[prop]) {
-      return this.getProviderConfig(prefer)
-    }
-    for (const [id, def] of Object.entries(config.ai.providers)) {
-      if ((def as any)[prop]) {
-        return this.getProviderConfig(id)
-      }
-    }
-    throw new Error(`[Provider] 没有供应商支持能力: ${cap}`)
-  }
-
-  // ═══════════════════════════════════════════════
-  //  SDK 客户端工厂
-  // ═══════════════════════════════════════════════
-
-  /** 创建 Anthropic SDK 客户端 */
-  createAnthropicClient(modelId?: string): Anthropic {
-    const cfg = this.getModelConfig(modelId)
-    return new Anthropic({ apiKey: cfg.apiKey, baseURL: cfg.baseURL })
-  }
-
-  /** 创建 OpenAI SDK 客户端 */
-  createOpenAIClient(providerId?: string): OpenAI {
-    const cfg = providerId
-      ? this.getProviderConfig(providerId)
-      : this.getProviderForCapability('embedding')
-    return new OpenAI({ apiKey: cfg.apiKey, baseURL: cfg.baseURL + '/v1' })
-  }
-
-  /** 创建 LangChain ChatOpenAI 模型 */
-  createLangChainModel(modelId?: string): ChatOpenAI {
-    const cfg = this.getModelConfig(modelId)
-    return new ChatOpenAI({
-      model: cfg.modelId || config.ai.defaultModel,
-      apiKey: cfg.apiKey,
-      configuration: { baseURL: cfg.baseURL + '/v1' },
-      maxTokens: config.ai.maxTokens,
-      temperature: 0.7,
-    })
-  }
-
-  /** 获取供应商 baseURL（含覆盖） */
-  getBaseURL(providerId: string): string {
-    return this.getEffectiveBaseURL(providerId)
-  }
-
-  // ═══════════════════════════════════════════════
-  //  高层 API 调用
+  //  LLM 流式调用（OpenAI 格式）
   // ═══════════════════════════════════════════════
 
   /**
-   * 直接调用供应商的 /v1/chat/completions 接口（SSE 流式）
-   * 适用于：有 requestTemplate 的供应商，主对话非多模态场景
-   * 返回解析后的 content 块
+   * 直接调用 /v1/chat/completions（SSE 流式）
+   * 适用于 OpenAI 兼容格式的 LLM
    */
   async *chatStreamRaw(
-    messages: Array<{ role: string; content: string }>,
-    opts: {
-      modelId?: string
-      system?: string
-    } = {}
+    messages: Array<{ role: string; content: any }>,
+    opts: { system?: string } = {}
   ): AsyncGenerator<string> {
-    const cfg = this.getModelConfig(opts.modelId)
-    const body = this.buildRequestBody(
-      cfg.providerId,
-      opts.system ? [{ role: 'system', content: opts.system }, ...messages] : messages,
-      true,
-      { model: opts.modelId || cfg.modelId }
-    )
+    const cfg = this.getLLMConfig()
+    const apiMessages = opts.system
+      ? [{ role: 'system', content: opts.system }, ...messages]
+      : messages
+    const body = this.buildRequestBody(cfg, apiMessages, true, { model: cfg.model })
 
     const resp = await fetch(`${cfg.baseURL}/v1/chat/completions`, {
       method: 'POST',
@@ -243,19 +157,91 @@ class ProviderManager {
     }
   }
 
-  /** 文生图 */
-  async generateImage(prompt: string, modelId?: string, size?: string): Promise<string> {
-    const mCfg = modelId ? this.getModelConfig(modelId) : this.getProviderForCapability('image')
-    const resp = await fetch(`${mCfg.baseURL}/api/v3/images/generations`, {
+  /**
+   * 单次文本补全（非流式），自动适配 OpenAI / Anthropic 格式
+   * 用于 RAG 重写、重排、摘要等内部调用
+   */
+  async chatCompletion(messages: Array<{ role: string; content: string }>, maxTokens: number = 150): Promise<string> {
+    const cfg = this.getLLMConfig()
+
+    if (cfg.format === 'openai' || cfg.requestTemplate) {
+      const body = this.buildRequestBody(cfg, messages, false, { model: cfg.model, max_tokens: maxTokens })
+      const resp = await fetch(`${cfg.baseURL}/v1/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${cfg.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      })
+      if (!resp.ok) {
+        const err = await resp.text().catch(() => '')
+        throw new Error(`chatCompletion 错误 (${resp.status}): ${err.slice(0, 200)}`)
+      }
+      const data = await resp.json() as any
+      return data.choices?.[0]?.message?.content || ''
+    }
+
+    // Anthropic 格式
+    const client = this.createAnthropicClient()
+    const systemMsg = messages.find(m => m.role === 'system')
+    const userMsgs = messages.filter(m => m.role !== 'system')
+    const response = await client.messages.create({
+      model: cfg.model,
+      max_tokens: maxTokens,
+      ...(systemMsg ? { system: systemMsg.content } : {}),
+      messages: userMsgs.map(m => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+      })),
+    })
+    const textBlock = response.content.find(b => b.type === 'text')
+    return (textBlock as any)?.text || ''
+  }
+
+  // ═══════════════════════════════════════════════
+  //  图片生成
+  // ═══════════════════════════════════════════════
+
+  async generateImage(prompt: string, size?: string): Promise<string> {
+    const cfg = this.getImageConfig()
+
+    // 有请求模板时用自定义 body
+    if (cfg.requestTemplate) {
+      try {
+        const base = JSON.parse(cfg.requestTemplate)
+        const body = { ...base, prompt, stream: false }
+        const resp = await fetch(`${cfg.baseURL}/api/v3/images/generations`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${cfg.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(body),
+        })
+        if (!resp.ok) {
+          const err = await resp.text().catch(() => '')
+          throw new Error(`图片生成失败 (${resp.status}): ${err.slice(0, 200)}`)
+        }
+        const data = await resp.json() as any
+        return data?.data?.[0]?.url || ''
+      } catch (e: any) {
+        if (e.message?.startsWith('图片生成失败')) throw e
+        // 模板解析失败，回退默认
+      }
+    }
+
+    // 默认格式（火山引擎 Seedream）
+    const resp = await fetch(`${cfg.baseURL}/api/v3/images/generations`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${mCfg.apiKey}`,
+        'Authorization': `Bearer ${cfg.apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: modelId || 'doubao-seedream-4-5-251128',
+        model: cfg.model,
         prompt,
-        size: size || config.ai.defaultImageRatio,
+        size: size || cfg.defaultSize,
         sequential_image_generation: 'disabled',
         response_format: 'url',
         stream: false,
@@ -270,7 +256,10 @@ class ProviderManager {
     return data?.data?.[0]?.url || ''
   }
 
-  /** Embedding */
+  // ═══════════════════════════════════════════════
+  //  Embedding
+  // ═══════════════════════════════════════════════
+
   async createEmbedding(texts: string[]): Promise<number[][]> {
     const client = this.createOpenAIClient()
     const response = await client.embeddings.create({
@@ -280,9 +269,12 @@ class ProviderManager {
     return response.data.sort((a, b) => a.index - b.index).map(d => d.embedding)
   }
 
-  /** 语音转写 */
+  // ═══════════════════════════════════════════════
+  //  语音转写
+  // ═══════════════════════════════════════════════
+
   async transcribeAudio(audio: Blob | Buffer): Promise<string> {
-    const cfg = this.getProviderForCapability('speech')
+    const cfg = this.getLLMConfig()
     const form = new FormData()
     form.append('file', audio instanceof Blob ? audio : new Blob([audio as BlobPart], { type: 'audio/wav' }), 'audio.wav')
     form.append('model', 'iic/SenseVoiceSmall')
@@ -300,42 +292,15 @@ class ProviderManager {
     return data.text?.trim() || ''
   }
 
-  /** 获取所有已注册供应商的运行时信息（含覆盖配置） */
-  getAllProviders() {
-    const overrides = this.getOverrides()
-    const result: Array<{
-      id: string
-      name: string
-      apiKeySetting: string
-      baseURL: string
-      capabilities: string[]
-      maskedKey: string
-      enabled: boolean
-      requestTemplate: string
-    }> = []
-    for (const [id, def] of Object.entries(config.ai.providers)) {
-      const val = getSetting(def.apiKeySetting)
-      const masked = val.length > 8
-        ? val.slice(0, 4) + '***' + val.slice(-4)
-        : val ? '****' : '（未配置）'
-      const caps: string[] = []
-      if (def.chatSupport) caps.push('对话')
-      if (def.imageSupport) caps.push('文生图')
-      if (def.embeddingSupport) caps.push('Embedding')
-      if (def.speechSupport) caps.push('语音转写')
-      const ov = overrides[id] || {}
-      result.push({
-        id, name: def.name, apiKeySetting: def.apiKeySetting,
-        baseURL: ov.baseURL || def.baseURL,
-        capabilities: caps,
-        maskedKey: masked,
-        enabled: !!val,
-        requestTemplate: ov.requestTemplate || '',
-      })
-    }
-    return result
+  // ═══════════════════════════════════════════════
+  //  运行时信息（供管理后台展示）
+  // ═══════════════════════════════════════════════
+
+  getCapabilities() {
+    const llm = this.getLLMConfig()
+    const img = this.getImageConfig()
+    return { llm, img }
   }
 }
 
-// 全局单例
 export const providerManager = new ProviderManager()

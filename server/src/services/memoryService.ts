@@ -96,16 +96,10 @@ async function generateSummary(userId: number, sessionId: string, roundCount: nu
   if (recent.length === 0) return
   const dialogText = recent.map((r: any) => r.text).join('\n\n')
 
-  const client = providerManager.createAnthropicClient()
-  const msg = await client.messages.create({
-    model: config.ai.defaultModel,
-    max_tokens: 200,
-    messages: [{
-      role: 'user',
-      content: `请用 1-2 句中文总结以下对话的核心内容，只输出摘要本身：\n\n${dialogText}`
-    }]
-  })
-  const summary = (msg.content[0] as any)?.text?.trim()
+  const summary = (await providerManager.chatCompletion([{
+    role: 'user',
+    content: `请用 1-2 句中文总结以下对话的核心内容，只输出摘要本身：\n\n${dialogText}`
+  }], 200)).trim()
   if (!summary) return
 
   const summaryText = `[会话摘要 · 第${roundCount}轮 · ${formatRelativeTime(new Date().toISOString())}]\n${summary}`

@@ -1,49 +1,30 @@
-// ── Provider 抽象层类型定义 ──
+// ── 能力配置（用户可自由配置，以能力为中心） ──
 
-export interface ProviderDef {
-  id: string
+export interface CapabilityLLMConfig {
   name: string
-  apiKeySetting: string
+  apiKey: string
+  /** openai = /v1/chat/completions, anthropic = Anthropic SDK */
+  format: 'openai' | 'anthropic'
   baseURL: string
-  chatSupport: boolean
-  imageSupport: boolean
-  embeddingSupport: boolean
-  speechSupport: boolean
+  model: string
+  requestTemplate: string
 }
 
-export interface ModelDef {
-  id: string
+export interface CapabilityImageConfig {
   name: string
-  type: 'text' | 'multimodal' | 'vision'
-  provider: string
-  desc?: string
-}
-
-export interface ProviderConfig {
   apiKey: string
   baseURL: string
-  providerId: string
-  modelId?: string
+  model: string
+  requestTemplate: string
+  defaultSize: string
 }
 
-// ── 图片生成 ──
 export interface ImageGenResult {
   imageUrl: string
   prompt: string
   size: string
 }
 
-// ── Embedding ──
-export interface EmbeddingResult {
-  vectors: number[][]
-}
-
-// ── 语音转写 ──
-export interface SpeechResult {
-  text: string
-}
-
-// ── 搜索结果 ──
 export interface SearchSource {
   title: string
   url: string
@@ -53,18 +34,4 @@ export interface SearchSource {
 export interface SearchResult {
   text: string
   sources: SearchSource[]
-}
-
-// ── 运行时动态配置的 Provider 信息 ──
-export interface ProviderRuntimeInfo {
-  id: string
-  name: string
-  apiKeySetting: string
-  baseURL: string
-  chatSupport: boolean
-  imageSupport: boolean
-  embeddingSupport: boolean
-  speechSupport: boolean
-  maskedKey: string
-  enabled: boolean
 }

@@ -243,27 +243,26 @@ export async function chatWithAIStream(
 
       const isFirstMessage = historyMessages.length === 0
       const systemPrompt = isFirstMessage ? NEXUS_SYSTEM_PROMPT + '\n\n' + firstMessageSystemPrompt : NEXUS_SYSTEM_PROMPT
-      const modelId = model || config.ai.defaultModel
-      const provCfg = providerManager.getModelConfig(modelId)
+      const llmCfg = providerManager.getLLMConfig()
 
-      // 如果供应商有请求模板，走 OpenAI 格式 fetch
-      if (providerManager.getRequestTemplate(provCfg.providerId)) {
+      // 根据 LLM 配置的格式选择路径
+      if (llmCfg.format === 'openai' || llmCfg.requestTemplate) {
         const openaiMsg = { role: 'user', content: parsed.openaiContent }
         const historyMsg = contextText ? { role: 'user', content: contextText } : undefined
         const openaiMessages = historyMsg ? [historyMsg, openaiMsg] : [openaiMsg]
-        const stream = providerManager.chatStreamRaw(openaiMessages as any, { modelId, system: systemPrompt })
+        const stream = providerManager.chatStreamRaw(openaiMessages as any, { system: systemPrompt })
         return { stream, sessionId, agentMode: true as const }
       }
 
-      // 否则走原有的 Anthropic SDK 路径
-      const activeClient = providerManager.createAnthropicClient(modelId)
+      // Anthropic 格式 → Anthropic SDK
+      const activeClient = providerManager.createAnthropicClient()
       const historyBlocks: Anthropic.MessageParam[] = contextText
         ? [{ role: 'user' as const, content: `以下是历史对话:\n${contextText}` }]
         : []
       const messages: Anthropic.MessageParam[] = [...historyBlocks, multimodalMsg]
 
       const anthropicStream = await activeClient.messages.stream({
-        model: modelId,
+        model: llmCfg.model,
         max_tokens: config.ai.maxTokens,
         ...(systemPrompt ? { system: systemPrompt } : {}),
         messages,
