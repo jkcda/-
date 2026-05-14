@@ -156,6 +156,12 @@ async function handleAiChat(ws: WebSocket, client: WsClient, data: any) {
     if (agentMode) {
       for await (const event of stream) {
         if (ws.readyState !== ws.OPEN) break
+        // chatStreamRaw 直接吐文本内容（请求模板路径）
+        if (typeof event === 'string') {
+          assistantContent += event
+          sendJson(ws, 'ai:chunk', { content: event })
+          continue
+        }
         switch (event.type) {
           case 'content':
             assistantContent += event.content || ''

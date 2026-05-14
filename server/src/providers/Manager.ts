@@ -186,6 +186,63 @@ class ProviderManager {
   //  高层 API 调用
   // ═══════════════════════════════════════════════
 
+  /**
+   * 直接调用供应商的 /v1/chat/completions 接口（SSE 流式）
+   * 适用于：有 requestTemplate 的供应商，主对话非多模态场景
+   * 返回解析后的 content 块
+   */
+  async *chatStreamRaw(
+    messages: Array<{ role: string; content: string }>,
+    opts: {
+      modelId?: string
+      system?: string
+    } = {}
+  ): AsyncGenerator<string> {
+    const cfg = this.getModelConfig(opts.modelId)
+    const body = this.buildRequestBody(
+      cfg.providerId,
+      opts.system ? [{ role: 'system', content: opts.system }, ...messages] : messages,
+      true,
+      { model: opts.modelId || cfg.modelId }
+    )
+
+    const resp = await fetch(`${cfg.baseURL}/v1/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${cfg.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    })
+    if (!resp.ok) {
+      const err = await resp.text().catch(() => '')
+      throw new Error(`API 错误 (${resp.status}): ${err.slice(0, 200)}`)
+    }
+
+    const reader = resp.body!.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+
+      for (const line of lines) {
+        const trimmed = line.trim()
+        if (!trimmed || !trimmed.startsWith('data: ')) continue
+        if (trimmed === 'data: [DONE]') continue
+        try {
+          const json = JSON.parse(trimmed.slice(6))
+          const content = json.choices?.[0]?.delta?.content
+          if (content) yield content
+        } catch { /* skip malformed chunk */ }
+      }
+    }
+  }
+
   /** 文生图 */
   async generateImage(prompt: string, modelId?: string, size?: string): Promise<string> {
     const mCfg = modelId ? this.getModelConfig(modelId) : this.getProviderForCapability('image')

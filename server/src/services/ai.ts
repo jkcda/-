@@ -86,14 +86,20 @@ function imageToBase64(filePath: string): { data: string; mediaType: string } {
   }
 }
 
-async function buildMultimodalContent(
+interface ParsedMedia {
+  documentContext: string
+  videoTranscript: string
+  videoFrames: string[]
+  anthropicBlocks: any[]
+  openaiContent: Array<{ type: string; text?: string; image_url?: any }>
+}
+
+async function parseUploadedFiles(
   message: string,
   files: UploadedFile[],
-  maxVideoFrames: number = 600,
+  maxVideoFrames: number,
   webSearchText?: string
-): Promise<Anthropic.MessageParam> {
-  const contentBlocks: any[] = []
-
+): Promise<ParsedMedia> {
   let documentContext = ''
   let videoTranscript = ''
   const videoFrames: string[] = []
@@ -114,7 +120,6 @@ async function buildMultimodalContent(
         videoFrames.push(...sampled)
       } catch (e: any) {
         console.error(`[Video] 处理视频失败 (${file.name}):`, e.message)
-        // 视频处理失败不阻塞对话，继续处理其他文件
       }
     }
   }
@@ -127,35 +132,42 @@ async function buildMultimodalContent(
     ? '\n\n以上是视频的关键帧截图，请结合画面和语音转写内容进行综合分析。'
     : documentContext ? '\n请根据文档内容和用户问题进行回答。' : ''
   const textContent = textParts.join('\n\n') + promptSuffix
-  contentBlocks.push({ type: 'text', text: textContent })
 
-  // 视频帧作为图片发送给 VL 模型
+  // Anthropic 格式
+  const anthropicBlocks: any[] = [{ type: 'text', text: textContent }]
   for (const frame of videoFrames) {
-    contentBlocks.push({
-      type: 'image',
-      source: { type: 'base64', media_type: 'image/jpeg', data: frame }
-    })
+    anthropicBlocks.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: frame } })
   }
-
   for (const file of files) {
     if (file.type.startsWith('image/')) {
       try {
         const { data, mediaType } = imageToBase64(file.url)
-        contentBlocks.push({
-          type: 'image',
-          source: {
-            type: 'base64',
-            media_type: mediaType,
-            data
-          }
-        })
+        anthropicBlocks.push({ type: 'image', source: { type: 'base64', media_type: mediaType, data } })
       } catch {
-        contentBlocks.push({ type: 'text', text: `\n[图片上传失败: ${file.name}]` })
+        anthropicBlocks.push({ type: 'text', text: `\n[图片上传失败: ${file.name}]` })
       }
     }
   }
 
-  return { role: 'user', content: contentBlocks }
+  // OpenAI 格式
+  const openaiContent: Array<{ type: string; text?: string; image_url?: any }> = [{ type: 'text', text: textContent }]
+  for (const frame of videoFrames) {
+    openaiContent.push({ type: 'image_url', image_url: { url: `data:image/jpeg;base64,${frame}` } })
+  }
+  for (const file of files) {
+    if (file.type.startsWith('image/')) {
+      try {
+        const { data, mediaType } = imageToBase64(file.url)
+        openaiContent.push({ type: 'image_url', image_url: { url: `data:${mediaType};base64,${data}` } })
+      } catch {}
+    }
+  }
+
+  return { documentContext, videoTranscript, videoFrames, anthropicBlocks, openaiContent }
+}
+
+function buildAnthropicMessage(parsed: ParsedMedia): Anthropic.MessageParam {
+  return { role: 'user', content: parsed.anthropicBlocks }
 }
 
 export async function chatWithAIStream(
@@ -226,26 +238,38 @@ export async function chatWithAIStream(
       }
 
       const contextText = historyMessages.map(m => `${m.role === 'user' ? '用户' : '助手'}: ${m.content}`).join('\n')
-      const multimodalMsg = await buildMultimodalContent(message, files!, effectiveFrames, webSearchText)
+      const parsed = await parseUploadedFiles(message, files!, effectiveFrames, webSearchText)
+      const multimodalMsg = buildAnthropicMessage(parsed)
 
       const isFirstMessage = historyMessages.length === 0
       const systemPrompt = isFirstMessage ? NEXUS_SYSTEM_PROMPT + '\n\n' + firstMessageSystemPrompt : NEXUS_SYSTEM_PROMPT
       const modelId = model || config.ai.defaultModel
-      const activeClient = providerManager.createAnthropicClient(modelId)
+      const provCfg = providerManager.getModelConfig(modelId)
 
+      // 如果供应商有请求模板，走 OpenAI 格式 fetch
+      if (providerManager.getRequestTemplate(provCfg.providerId)) {
+        const openaiMsg = { role: 'user', content: parsed.openaiContent }
+        const historyMsg = contextText ? { role: 'user', content: contextText } : undefined
+        const openaiMessages = historyMsg ? [historyMsg, openaiMsg] : [openaiMsg]
+        const stream = providerManager.chatStreamRaw(openaiMessages as any, { modelId, system: systemPrompt })
+        return { stream, sessionId, agentMode: true as const }
+      }
+
+      // 否则走原有的 Anthropic SDK 路径
+      const activeClient = providerManager.createAnthropicClient(modelId)
       const historyBlocks: Anthropic.MessageParam[] = contextText
         ? [{ role: 'user' as const, content: `以下是历史对话:\n${contextText}` }]
         : []
       const messages: Anthropic.MessageParam[] = [...historyBlocks, multimodalMsg]
 
-      const stream = await activeClient.messages.stream({
+      const anthropicStream = await activeClient.messages.stream({
         model: modelId,
         max_tokens: config.ai.maxTokens,
         ...(systemPrompt ? { system: systemPrompt } : {}),
         messages,
       })
 
-      return { stream, sessionId, agentMode: false as const }
+      return { stream: anthropicStream, sessionId, agentMode: false as const }
     }
 
     // 预解析文档文件，将内容注入消息，避免 Agent 用 MCP 工具乱扫 PDF 二进制

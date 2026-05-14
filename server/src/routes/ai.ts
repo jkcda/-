@@ -61,6 +61,12 @@ router.post('/chat', async (req, res) => {
       if (agentMode) {
         // Agent 流式：事件已结构化，直接发射 SSE
         for await (const event of stream) {
+          // chatStreamRaw 直接吐文本内容（请求模板路径）
+          if (typeof event === 'string') {
+            assistantContent += event
+            res.write(`data: ${JSON.stringify({ content: event })}\n\n`)
+            continue
+          }
           switch (event.type) {
             case 'content':
               assistantContent += event.content || ''
