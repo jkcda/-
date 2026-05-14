@@ -195,150 +195,74 @@
 
       <!-- 桌面端布局 -->
       <template v-if="!isMobile">
-        <div class="kb-selector-row">
-          <template v-if="kbList.length > 0">
-            <span class="kb-selector-label">知识库：</span>
-            <el-select
-              :model-value="selectedKbId"
-              placeholder="选择知识库（可选）"
-              clearable
-              size="small"
-              style="width: 180px"
-              @update:model-value="$emit('update:selectedKbId', $event ?? null)"
-            >
-              <el-option
-                v-for="kb in kbList"
-                :key="kb.id"
-                :label="kb.name"
-                :value="kb.id"
-              />
-            </el-select>
-          </template>
-          <el-select
-            v-if="modelList.length > 0"
-            :model-value="selectedModel"
-            size="small"
-            style="width: 170px; margin-left: 0"
-            @update:model-value="$emit('update:selectedModel', $event ?? '')"
-          >
-            <el-option
-              v-for="m in modelList"
-              :key="m.id"
-              :label="`${m.name} · ${m.type === 'multimodal' ? '多模态' : m.type === 'vision' ? '视觉' : '文本'}`"
-              :value="m.id"
-            />
-          </el-select>
-          <el-select
-            v-if="imageRatios.length > 0"
-            :model-value="selectedImageRatio"
-            size="small"
-            style="width: 150px; margin-left: 6px"
-            @update:model-value="$emit('update:selectedImageRatio', $event ?? '')"
-          >
-            <el-option
-              v-for="r in imageRatios"
-              :key="r.value"
-              :label="r.label"
-              :value="r.value"
-            />
-          </el-select>
-          <el-switch
-            :model-value="autoSpeakEnabled"
-            size="small"
-            active-text="朗读"
-            style="margin-left: 8px"
-            @change="onAutoSpeakToggle"
-          />
-          <el-select
-            v-if="autoSpeakEnabled && voices.length > 0"
-            :model-value="selectedVoiceId"
-            size="small"
-            style="width: 130px; margin-left: 6px"
-            @update:model-value="onVoiceSelect"
-          >
-            <el-option
-              v-for="v in voices"
-              :key="v.id"
-              :label="v.name"
-              :value="v.id"
-            />
-          </el-select>
-        </div>
-        <div class="input-row">
-          <div v-if="!currentAgent" class="upload-btns">
-            <input
-              ref="imageInputRef"
-              type="file"
-              accept="image/*"
-              multiple
-              hidden
-              @change="onFilesSelected($event, 'image')"
-            />
-            <el-tooltip content="上传图片">
-              <el-button size="small" circle @click="imageInputRef?.click()">
-                <el-icon><PictureFilled /></el-icon>
-              </el-button>
-            </el-tooltip>
-
-            <input
-              ref="docInputRef"
-              type="file"
-              accept=".txt,.pdf,.doc,.docx,.md"
-              multiple
-              hidden
-              @change="onFilesSelected($event, 'doc')"
-            />
-            <el-tooltip content="上传文档">
-              <el-button size="small" circle @click="docInputRef?.click()">
-                <el-icon><FolderOpened /></el-icon>
-              </el-button>
-            </el-tooltip>
-
-            <input
-              ref="videoInputRef"
-              type="file"
-              accept="video/*"
-              hidden
-              @change="onFilesSelected($event, 'video')"
-            />
-            <el-tooltip content="上传视频">
-              <el-button size="small" circle @click="videoInputRef?.click()">
-                <el-icon><VideoCameraFilled /></el-icon>
-              </el-button>
-            </el-tooltip>
-
-            <el-tooltip :content="isRecording ? '录音中...' : '语音输入'">
-              <el-button
-                size="small"
-                circle
-                :type="isRecording ? 'danger' : undefined"
-                @click="toggleRecording"
-              >
-                <el-icon><Microphone /></el-icon>
-              </el-button>
-            </el-tooltip>
+        <!-- 展开的附加功能面板 -->
+        <div v-if="showExtras" class="desktop-extras-panel">
+          <div class="extras-grid">
+            <div class="extras-section">
+              <span class="extras-label">上传</span>
+              <div class="extras-btns">
+                <template v-if="!currentAgent">
+                  <input ref="imageInputRef" type="file" accept="image/*" multiple hidden @change="onFilesSelected($event, 'image')" />
+                  <el-button size="small" @click="imageInputRef?.click()"><el-icon><PictureFilled /></el-icon>图片</el-button>
+                  <input ref="docInputRef" type="file" accept=".txt,.pdf,.doc,.docx,.md" multiple hidden @change="onFilesSelected($event, 'doc')" />
+                  <el-button size="small" @click="docInputRef?.click()"><el-icon><FolderOpened /></el-icon>文档</el-button>
+                  <input ref="videoInputRef" type="file" accept="video/*" hidden @change="onFilesSelected($event, 'video')" />
+                  <el-button size="small" @click="videoInputRef?.click()"><el-icon><VideoCameraFilled /></el-icon>视频</el-button>
+                </template>
+                <el-button size="small" :type="isRecording ? 'danger' : undefined" @click="toggleRecording">
+                  <el-icon><Microphone /></el-icon>语音
+                </el-button>
+              </div>
+            </div>
+            <div class="extras-section">
+              <span class="extras-label">设置</span>
+              <div class="extras-selects">
+                <el-select v-if="kbList.length > 0" :model-value="selectedKbId" placeholder="知识库" clearable size="small" @update:model-value="$emit('update:selectedKbId', $event ?? null)">
+                  <el-option v-for="kb in kbList" :key="kb.id" :label="kb.name" :value="kb.id" />
+                </el-select>
+                <el-select v-if="modelList.length > 0" :model-value="selectedModel" size="small" @update:model-value="$emit('update:selectedModel', $event ?? '')">
+                  <el-option v-for="m in modelList" :key="m.id" :label="m.name" :value="m.id" />
+                </el-select>
+                <el-select v-if="imageRatios.length > 0" :model-value="selectedImageRatio" size="small" @update:model-value="$emit('update:selectedImageRatio', $event ?? '')">
+                  <el-option v-for="r in imageRatios" :key="r.value" :label="r.label" :value="r.value" />
+                </el-select>
+                <el-switch :model-value="autoSpeakEnabled" size="small" active-text="朗读" @change="onAutoSpeakToggle" />
+                <el-select v-if="autoSpeakEnabled && voices.length > 0" :model-value="selectedVoiceId" size="small" style="width: 100px" @update:model-value="onVoiceSelect">
+                  <el-option v-for="v in voices" :key="v.id" :label="v.name" :value="v.id" />
+                </el-select>
+              </div>
+            </div>
           </div>
+        </div>
 
+        <div class="input-row">
+          <el-button
+            class="extras-toggle"
+            :class="{ active: showExtras }"
+            size="small"
+            circle
+            @click="showExtras = !showExtras"
+          >
+            <el-icon :size="20"><Plus /></el-icon>
+          </el-button>
           <el-input
             v-model="inputMessage"
             type="textarea"
             :rows="3"
-            placeholder="请输入您的问题... (Enter 发送)"
+            placeholder="输入消息... (Enter 发送)"
             @keydown.enter.exact.prevent="handleSend"
             class="text-input"
           />
+          <el-button
+            type="primary"
+            class="click-particle send-btn"
+            @click="handleSend"
+            :loading="isLoading"
+            :disabled="!currentSessionId"
+          >
+            发送
+          </el-button>
         </div>
-
-        <el-button
-          type="primary"
-          class="click-particle"
-          @click="handleSend"
-          :loading="isLoading"
-          :disabled="!currentSessionId"
-          style="margin-top: 10px;"
-        >
-          发送
-        </el-button>
       </template>
 
       <!-- 移动端单行布局 -->
@@ -465,6 +389,7 @@ const selectedFiles = ref<SelectedFile[]>([])
 // 移动端附加面板
 const isMobile = useMediaQuery('(max-width: 768px)')
 const showMobileExtras = ref(false)
+const showExtras = ref(false)
 
 // 当前角色头像
 const currentAvatar = computed(() => {
@@ -1149,14 +1074,65 @@ defineExpose({ scrollToBottom })
 .input-row {
   display: flex;
   gap: 8px;
-  align-items: flex-start;
+  align-items: flex-end;
 }
 
-.upload-btns {
+.send-btn {
+  flex-shrink: 0;
+  margin-bottom: 0;
+}
+
+/* 附加功能面板 */
+.desktop-extras-panel {
+  margin-bottom: 10px;
+  padding: 12px 16px;
+  background: var(--color-bg-deep);
+  border-radius: var(--radius-sm);
+  border: var(--border-thin) var(--color-border);
+}
+
+.extras-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.extras-section {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.extras-label {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.extras-btns {
   display: flex;
   gap: 4px;
-  padding-top: 4px;
+}
+
+.extras-selects {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+/* + 号切换按钮 */
+.extras-toggle {
   flex-shrink: 0;
+  transition: transform 0.2s, background var(--transition-fast);
+  width: 36px;
+  height: 36px;
+}
+
+.extras-toggle.active {
+  transform: rotate(45deg);
+  background: var(--color-bg-input);
+  border-color: var(--color-magic-gold);
 }
 
 .text-input {
@@ -1415,19 +1391,6 @@ defineExpose({ scrollToBottom })
     display: flex;
     align-items: center;
     gap: 8px;
-  }
-
-  .extras-toggle {
-    flex-shrink: 0;
-    transition: transform 0.2s, background var(--transition-fast);
-    width: 36px;
-    height: 36px;
-  }
-
-  .extras-toggle.active {
-    transform: rotate(45deg);
-    background: var(--color-bg-input);
-    border-color: var(--color-magic-gold);
   }
 
   .mobile-text-input {

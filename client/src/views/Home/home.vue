@@ -33,51 +33,33 @@
       <div class="features-grid">
         <div class="feature-card">
           <el-icon class="feature-icon"><ChatDotRound /></el-icon>
-          <h3>智能对话</h3>
-          <p>基于先进的大模型技术，提供流畅自然的对话体验，理解上下文，生成连贯回复</p>
+          <h3>多模态对话</h3>
+          <p>支持文本、图片、视频、文档多种输入，AI 实时流式回复</p>
         </div>
         <div class="feature-card">
-          <el-icon class="feature-icon"><User /></el-icon>
-          <h3>用户系统</h3>
-          <p>完整的用户注册、登录系统，确保数据安全，为不同用户提供独立的对话空间</p>
+          <el-icon class="feature-icon"><PictureFilled /></el-icon>
+          <h3>AI 生图</h3>
+          <p>输入描述词即可生成高质量图片，支持多种尺寸比例</p>
         </div>
         <div class="feature-card">
-          <el-icon class="feature-icon"><Timer /></el-icon>
-          <h3>历史记录</h3>
-          <p>自动保存对话历史，支持查看和管理，让您随时回顾之前的对话内容</p>
+          <el-icon class="feature-icon"><Collection /></el-icon>
+          <h3>知识库</h3>
+          <p>上传文档构建个人知识库，AI 基于你的资料精准回答</p>
         </div>
         <div class="feature-card">
-          <el-icon class="feature-icon"><RefreshRight /></el-icon>
-          <h3>流式输出</h3>
-          <p>AI 回复实时展示，避免等待，提供更加流畅的交互体验</p>
+          <el-icon class="feature-icon"><UserFilled /></el-icon>
+          <h3>角色扮演</h3>
+          <p>自定义 AI 角色的性格、背景和语气，打造专属对话伙伴</p>
         </div>
-      </div>
-    </section>
-
-    <!-- 技术优势 -->
-    <section class="advantages-section">
-      <h2>技术优势</h2>
-      <div class="advantages-content">
-        <div class="advantage-item">
-          <el-icon class="advantage-icon"><Cpu /></el-icon>
-          <div>
-            <h3>先进的 AI 模型</h3>
-            <p>集成最新的大模型技术，提供高质量的智能回复</p>
-          </div>
+        <div class="feature-card">
+          <el-icon class="feature-icon"><Connection /></el-icon>
+          <h3>聊天室</h3>
+          <p>多个 AI 角色同时互动，自动调度发言，模拟真实群聊</p>
         </div>
-        <div class="advantage-item">
-          <el-icon class="advantage-icon"><Lock /></el-icon>
-          <div>
-            <h3>安全可靠</h3>
-            <p>完善的认证机制和数据隔离，保护用户隐私和数据安全</p>
-          </div>
-        </div>
-        <div class="advantage-item">
-          <el-icon class="advantage-icon"><Grid /></el-icon>
-          <div>
-            <h3>响应式设计</h3>
-            <p>适配不同设备，提供一致的用户体验</p>
-          </div>
+        <div class="feature-card">
+          <el-icon class="feature-icon"><Setting /></el-icon>
+          <h3>能力配置</h3>
+          <p>自由配置大语言模型和生图供应商，自定义 API Key 和模型</p>
         </div>
       </div>
     </section>
@@ -89,22 +71,22 @@
         <div class="step-item">
           <div class="step-number">1</div>
           <div class="step-content">
-            <h3>注册账号</h3>
-            <p>创建您的个人账号，开始智能对话之旅</p>
+            <h3>注册登录</h3>
+            <p>创建账号并登录，进入奈克瑟的世界</p>
           </div>
         </div>
         <div class="step-item">
           <div class="step-number">2</div>
           <div class="step-content">
-            <h3>登录系统</h3>
-            <p>使用您的账号登录，进入个人对话空间</p>
+            <h3>配置能力</h3>
+            <p>在「能力配置」中设置自己的 API Key 和模型</p>
           </div>
         </div>
         <div class="step-item">
           <div class="step-number">3</div>
           <div class="step-content">
             <h3>开始对话</h3>
-            <p>唤醒奈克瑟，探索数据之海的秘密</p>
+            <p>选择 AI 对话、角色扮演或聊天室，自由探索</p>
           </div>
         </div>
       </div>
@@ -114,7 +96,7 @@
 
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
-import { ChatDotRound, User, Timer, RefreshRight, Cpu, Lock, Grid } from '@element-plus/icons-vue'
+import { ChatDotRound, PictureFilled, Collection, UserFilled, Connection, Setting } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/userStore'
 
 const router = useRouter()
