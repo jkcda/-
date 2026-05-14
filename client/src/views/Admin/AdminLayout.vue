@@ -14,15 +14,15 @@
         router
         @select="mobileSidebarOpen = false"
       >
-        <el-menu-item index="/admin/dashboard">
+        <el-menu-item v-if="isAdmin" index="/admin/dashboard">
           <el-icon><DataAnalysis /></el-icon>
           <span>对话统计</span>
         </el-menu-item>
-        <el-menu-item index="/admin/users">
+        <el-menu-item v-if="isAdmin" index="/admin/users">
           <el-icon><User /></el-icon>
           <span>用户管理</span>
         </el-menu-item>
-        <el-menu-item index="/admin/api-keys">
+        <el-menu-item v-if="isAdmin" index="/admin/api-keys">
           <el-icon><Key /></el-icon>
           <span>API Key 管理</span>
         </el-menu-item>
@@ -82,6 +82,7 @@ const isMobile = ref(window.innerWidth < 768)
 const isCollapsed = ref(isMobile.value)
 const mobileSidebarOpen = ref(false)
 const userInfo = ref<any>(userStore.getUserInfo())
+const isAdmin = computed(() => (userInfo.value as any)?.role === 'admin')
 
 const toggleSidebar = () => {
   if (isMobile.value) {
@@ -102,6 +103,10 @@ const handleResize = () => {
 }
 
 onMounted(() => {
+  // 非管理员访问 admin 时自动跳转到能力配置
+  if (!isAdmin.value && route.path === '/admin') {
+    router.replace('/admin/providers')
+  }
   window.addEventListener('resize', handleResize)
 })
 
@@ -116,7 +121,7 @@ const pageTitle = computed(() => {
     '/admin/dashboard': '对话统计',
     '/admin/users': '用户管理',
     '/admin/api-keys': 'API Key 管理',
-    '/admin/providers': '能力配置'
+    '/admin/providers': '模型供应商配置'
   }
   return titles[route.path] || '后台管理'
 })

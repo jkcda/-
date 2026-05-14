@@ -55,16 +55,12 @@ const router = createRouter({
         }
       ]
     },
-    // 后台路由 - 仅管理员可访问
+    // 后台路由
     {
       path: '/admin',
       component: AdminLayout,
-      meta: { requiresAdmin: true },
+      redirect: '/admin/providers',
       children: [
-        {
-          path: '',
-          redirect: '/admin/dashboard'
-        },
         {
           path: 'dashboard',
           component: AdminDashboard,
@@ -83,7 +79,7 @@ const router = createRouter({
         {
           path: 'providers',
           component: AdminProviders,
-          meta: { title: '供应商管理', requiresAdmin: true }
+          meta: { title: '模型供应商配置' }
         }
       ]
     },

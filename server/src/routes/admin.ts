@@ -245,8 +245,8 @@ router.get('/settings', authMiddleware, adminMiddleware, (_req, res) => {
   }
 })
 
-// GET /api/admin/capabilities - 获取能力配置（LLM / 图片生成）
-router.get('/capabilities', authMiddleware, adminMiddleware, (_req, res) => {
+// GET /api/admin/capabilities - 获取能力配置（所有登录用户可用）
+router.get('/capabilities', authMiddleware, (_req, res) => {
   try {
     const caps = providerManager.getCapabilities()
     ApiResponse.success(res, { capabilities: caps }, '获取能力配置成功')
@@ -255,8 +255,8 @@ router.get('/capabilities', authMiddleware, adminMiddleware, (_req, res) => {
   }
 })
 
-// PUT /api/admin/capabilities/llm - 更新 LLM 能力配置
-router.put('/capabilities/llm', authMiddleware, adminMiddleware, async (req, res) => {
+// PUT /api/admin/capabilities/llm - 更新 LLM 能力配置（所有登录用户可用）
+router.put('/capabilities/llm', authMiddleware, async (req, res) => {
   try {
     const { apiKey, format, baseURL, model, requestTemplate, name } = req.body
     await providerManager.saveLLMConfig({ apiKey, format, baseURL, model, requestTemplate, name })
@@ -266,8 +266,8 @@ router.put('/capabilities/llm', authMiddleware, adminMiddleware, async (req, res
   }
 })
 
-// PUT /api/admin/capabilities/image - 更新图片生成能力配置
-router.put('/capabilities/image', authMiddleware, adminMiddleware, async (req, res) => {
+// PUT /api/admin/capabilities/image - 更新图片生成能力配置（所有登录用户可用）
+router.put('/capabilities/image', authMiddleware, async (req, res) => {
   try {
     const { apiKey, baseURL, model, requestTemplate, defaultSize, name } = req.body
     await providerManager.saveImageConfig({ apiKey, baseURL, model, requestTemplate, defaultSize, name })
