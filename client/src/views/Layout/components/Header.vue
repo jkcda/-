@@ -17,6 +17,7 @@
       <router-link to="/knowledge-base" @click="mobileMenuOpen = false">知识库</router-link>
       <router-link to="/agents" @click="mobileMenuOpen = false">角色扮演</router-link>
       <router-link to="/rooms" @click="mobileMenuOpen = false">聊天室</router-link>
+      <router-link v-if="userInfo" to="/admin/providers" @click="mobileMenuOpen = false">能力配置</router-link>
       <router-link v-if="isAdmin" to="/admin/dashboard" class="admin-link" @click="mobileMenuOpen = false">后台管理</router-link>
 
       <div class="mobile-user-actions">
