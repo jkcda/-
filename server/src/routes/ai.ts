@@ -11,8 +11,16 @@ import { adminMiddleware } from '../middleware/admin.js'
 import { UserModel } from '../models/user.js'
 import config, { getSetting } from '../config/index.js'
 import { providerManager } from '../providers/index.js'
+import { getGuestRemaining, consumeGuestQuota, MAX_GUEST_QUESTIONS } from '../services/guestLimit.js'
 
 const router = express.Router()
+
+// GET /api/ai/guest-status - 查询游客剩余次数
+router.get('/guest-status', (req, res) => {
+  const clientIp = req.ip || req.socket.remoteAddress || 'unknown'
+  const remaining = getGuestRemaining(clientIp)
+  ApiResponse.success(res, { remaining, max: MAX_GUEST_QUESTIONS })
+})
 
 // POST /api/ai/chat - AI对话（统一入口：Agent 工具调用 + 多模态流式）
 router.post('/chat', async (req, res) => {
@@ -25,6 +33,15 @@ router.post('/chat', async (req, res) => {
 
     if (!sessionId) {
       return ApiResponse.badRequest(res, '请提供会话ID')
+    }
+
+    // 游客限流：未登录用户通过 IP 限制 10 次
+    if (!userId) {
+      const clientIp = req.ip || req.socket.remoteAddress || 'unknown'
+      const remaining = getGuestRemaining(clientIp)
+      if (remaining <= 0) {
+        return ApiResponse.badRequest(res, '游客提问次数已用完（10次），请注册账号后继续使用')
+      }
     }
 
     // SSE 流式
@@ -96,6 +113,12 @@ router.post('/chat', async (req, res) => {
             }
           }
         }
+      }
+
+      // 游客消耗配额
+      if (!userId) {
+        const clientIp = req.ip || req.socket.remoteAddress || 'unknown'
+        consumeGuestQuota(clientIp)
       }
 
       // 保存助手消息

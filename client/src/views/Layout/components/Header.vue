@@ -28,6 +28,7 @@
           </el-button>
         </template>
         <template v-else>
+          <span v-if="isGuestPage" class="guest-badge">游客模式</span>
           <router-link to="/login" @click="mobileMenuOpen = false">登录</router-link>
           <router-link to="/register" @click="mobileMenuOpen = false">注册</router-link>
         </template>
@@ -47,6 +48,7 @@
         </el-button>
       </div>
       <div v-else class="login-register">
+        <span v-if="isGuestPage" class="guest-badge">游客模式</span>
         <router-link to="/login">登录</router-link>
         <router-link to="/register">注册</router-link>
       </div>
@@ -55,8 +57,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted, computed } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Menu, Close } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/userStore'
@@ -64,10 +66,12 @@ import { logout } from '@/apis/user'
 
 const userStore = useUserStore()
 const router = useRouter()
+const route = useRoute()
 const userInfo = ref<any>(null)
 const logoutLoading = ref(false)
 const isAdmin = ref(false)
 const mobileMenuOpen = ref(false)
+const isGuestPage = computed(() => !userInfo.value && route.path === '/chat')
 const logoExists = ref(true)
 
 const onLogoError = () => {
@@ -212,6 +216,15 @@ onMounted(() => {
   background: var(--color-primary);
   color: var(--color-silver);
   box-shadow: var(--shadow-glow);
+}
+
+.guest-badge {
+  font-size: 12px;
+  color: var(--color-magic-gold);
+  background: rgba(212, 175, 55, 0.1);
+  padding: 4px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(212, 175, 55, 0.3);
 }
 
 .mobile-menu-btn {

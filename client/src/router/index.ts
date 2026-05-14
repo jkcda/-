@@ -123,14 +123,11 @@ router.beforeEach((to, from, next) => {
   const token = localStorage.getItem('token')
   const userInfoStr = localStorage.getItem('userInfo')
 
-  // 定义不需要登录就能访问的页面
-  const publicPages = ['/auth/login', '/auth/register', '/verify', '/login', '/register', '/']
+  // 游客可访问的页面（无需登录）
+  const guestPages = ['/auth/login', '/auth/register', '/verify', '/login', '/register', '/', '/chat']
 
-  // 检查当前页面是否需要登录
-  const requiresAuth = !publicPages.includes(to.path)
-
-  // 如果页面需要登录但用户未登录
-  if (requiresAuth && !token) {
+  // 检查是否需要登录
+  if (!token && !guestPages.includes(to.path)) {
     return next('/auth/login')
   }
 
