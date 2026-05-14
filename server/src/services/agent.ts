@@ -8,6 +8,7 @@ import { recallMemory, forgetAllMemories } from './memoryService.js'
 import { getMcpTools } from './mcp.js'
 import { fsTools } from './fileSystem.js'
 import { createPPTX, createDOCX } from './documentGenerator.js'
+import { codeToPDF, documentToMarkdown, generateResume } from './pdfGenerator.js'
 import { UserModel } from '../models/user.js'
 import { ChatHistoryModel } from '../models/chatHistory.js'
 import pool from '../utils/db.js'
@@ -158,6 +159,75 @@ fileName 以 .docx 结尾。`,
           items: z.array(z.string()).optional().describe('要点列表（bullets 用）'),
           tableData: z.object({ headers: z.array(z.string()), rows: z.array(z.array(z.string())) }).optional().describe('表格数据（table 用）'),
         })).describe('文档内容'),
+      }),
+    })
+  )
+
+  // 文档转 Markdown
+  tools.push(
+    tool(async ({ filePath, fileType }: { filePath: string; fileType: string }) => {
+      const text = await documentToMarkdown(filePath, fileType)
+      if (!text || text.trim().length === 0) return '文档解析失败或内容为空'
+      return `文档已转换为文本（共 ${text.length} 字符）。以下是内容：\n\n${text.slice(0, 8000)}${text.length > 8000 ? '\n\n...（内容过长，已截断前8000字符）' : ''}`
+    }, {
+      name: 'convert_to_markdown',
+      description: '将已上传的文档（PDF/Word/Markdown/文本）解析为可读文本。需要提供文件路径和 MIME 类型。支持的类型：text/plain, application/pdf, application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document。',
+      schema: z.object({
+        filePath: z.string().describe('文件路径（从用户上传消息中的 file.url 获取）'),
+        fileType: z.string().describe('文件 MIME 类型，如 application/pdf'),
+      }),
+    })
+  )
+
+  // 代码转 HTML（可打印为 PDF）
+  tools.push(
+    tool(async ({ code, language, title, description }: { code: string; language?: string; title?: string; description?: string }) => {
+      const link = await codeToPDF({ code, language, title, description })
+      return `代码文档已生成：[📥 下载 HTML](${link})（用浏览器打开后可打印为 PDF）`
+    }, {
+      name: 'generate_code_pdf',
+      description: `将代码生成带语法高亮的 HTML 文档，用户可用浏览器打开后打印为 PDF。
+支持 language: javascript, typescript, python, java, c, cpp, go, rust, html, css, sql, bash, json, yaml, markdown 等。
+如果不确定语言，可以留空自动检测。`,
+      schema: z.object({
+        code: z.string().describe('要转换的代码内容'),
+        language: z.string().optional().describe('编程语言（如 python, javascript, typescript），不填则自动检测'),
+        title: z.string().optional().describe('文档标题'),
+        description: z.string().optional().describe('简短描述'),
+      }),
+    })
+  )
+
+  // 简历生成
+  tools.push(
+    tool(async (opts: any) => {
+      const link = await generateResume(opts)
+      return `简历已生成：[📥 下载 HTML](${link})（用浏览器打开后可打印为 PDF）`
+    }, {
+      name: 'generate_resume',
+      description: `生成一份精美的简历 HTML 文档。你需要根据对话内容尽可能填满所有字段。
+theme 可选值：gold（金色/默认）、blue（蓝色）、dark（灰暗）。
+experience 中每个经验包含 company（公司）、role（职位）、period（时间段如"2020-2024"）、bullets（要点列表）。
+education 中每个包含 school（学校）、degree（学位）、period（时间段）。`,
+      schema: z.object({
+        name: z.string().describe('姓名'),
+        title: z.string().optional().describe('目标职位'),
+        email: z.string().optional().describe('邮箱'),
+        phone: z.string().optional().describe('电话'),
+        summary: z.string().optional().describe('个人概述（2-3句）'),
+        skills: z.array(z.string()).optional().describe('技能列表'),
+        theme: z.enum(['blue', 'dark', 'gold']).optional().describe('主题配色（默认 gold）'),
+        experience: z.array(z.object({
+          company: z.string(),
+          role: z.string(),
+          period: z.string(),
+          bullets: z.array(z.string()),
+        })).optional().describe('工作经历'),
+        education: z.array(z.object({
+          school: z.string(),
+          degree: z.string(),
+          period: z.string(),
+        })).optional().describe('教育背景'),
       }),
     })
   )
