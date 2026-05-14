@@ -388,15 +388,35 @@ const refreshSessionMeta = async () => {
 const startTypewriter = (msgIndex: number) => {
   stopTypewriter()
   typingMessageIndex.value = msgIndex
-  const msg = messages.value[msgIndex]
+
+  let fullContent = ''
+  let typedLength = 0
+
+  const tick = () => {
+    if (typingMessageIndex.value !== msgIndex) return
+    const remaining = fullContent.length - typedLength
+    if (remaining <= 0) return
+
+    let charsPerTick = 2 + Math.floor(Math.random() * 4)
+    if (remaining > 200) charsPerTick = 8
+    else if (remaining < charsPerTick) charsPerTick = remaining
+
+    typedLength += charsPerTick
+    if (typedLength > fullContent.length) typedLength = fullContent.length
+
+    const msg = messages.value[msgIndex]
+    if (msg) msg.content = fullContent.slice(0, typedLength)
+    messageAreaRef.value?.scrollToBottom()
+  }
+
+  typewriterTimer = setInterval(tick, 30)
 
   return {
-    append: (chunk: string) => {
-      if (typingMessageIndex.value !== msgIndex) return
-      if (msg) msg.content += chunk
-      messageAreaRef.value?.scrollToBottom()
-    },
+    append: (chunk: string) => { fullContent += chunk },
     flush: () => {
+      stopTypewriter()
+      const msg = messages.value[msgIndex]
+      if (msg) msg.content = fullContent
       typingMessageIndex.value = -1
       messageAreaRef.value?.scrollToBottom()
     }

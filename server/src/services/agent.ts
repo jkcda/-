@@ -491,7 +491,7 @@ export async function* agentStream(
   try {
     const stream = await agent.streamEvents(
       { messages: langchainMessages },
-      { version: 'v2', recursionLimit: 100 }
+      { version: 'v2' }
     )
 
     for await (const event of stream) {

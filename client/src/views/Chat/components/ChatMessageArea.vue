@@ -53,7 +53,7 @@
       <div
         v-for="(msg, index) in messages"
         :key="index"
-        v-show="index !== typingMessageIndex && (msg.content || !isLoading || index !== messages.length - 1)"
+        v-show="msg.content || !isLoading || index !== messages.length - 1"
         :class="['message', msg.role]"
       >
         <div v-if="msg.role === 'assistant'" class="message-avatar">
@@ -110,13 +110,14 @@
           <el-icon :size="16"><Headset /></el-icon>
         </el-button>
       </div>
-      <!-- 生成中的头像叠加层 -->
-      <div v-if="isLoading && typingMessageIndex !== -1" class="message assistant generating">
-        <div class="message-avatar generating-avatar">
-          <img :src="currentAvatar" alt="AI" class="avatar-img" />
-          <div class="avatar-stream-overlay">
-            <span class="stream-text">{{ messages[typingMessageIndex]?.content?.slice(-80) || '正在生成...' }}</span>
-          </div>
+      <div v-if="isLoading && typingMessageIndex === -1" class="message assistant">
+        <div class="message-content typing-indicator">
+          <img
+            :src="loadingImage"
+            class="loading-image"
+            alt="loading"
+          />
+          <span class="loading-text">{{ loadingText }}</span>
         </div>
       </div>
     </div>
@@ -1160,48 +1161,6 @@ defineExpose({ scrollToBottom })
 .loading-text {
   font-size: 13px;
   color: var(--color-text-muted);
-}
-
-/* 生成中头像流式文字叠加 */
-.generating-avatar {
-  position: relative;
-  width: 48px;
-  height: 48px;
-  flex-shrink: 0;
-}
-
-.generating-avatar .avatar-img {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  object-fit: cover;
-  animation: glow-pulse 1.5s ease-in-out infinite;
-  border: 2px solid var(--color-magic-gold);
-  box-shadow: 0 0 12px var(--color-gold-glow);
-}
-
-.avatar-stream-overlay {
-  position: absolute;
-  top: 56px;
-  left: 0;
-  min-width: 200px;
-  max-width: 320px;
-  background: var(--color-bg-card);
-  border: var(--border-thin) var(--color-border);
-  border-radius: var(--radius-sm);
-  padding: 8px 12px;
-  box-shadow: var(--shadow-glow);
-}
-
-.stream-text {
-  font-size: 13px;
-  color: var(--color-silver);
-  line-height: 1.5;
-  word-break: break-word;
-  display: -webkit-box;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
 }
 
 .typing-dots {
