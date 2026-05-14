@@ -56,8 +56,17 @@
         v-show="msg.content || !isLoading || index !== messages.length - 1"
         :class="['message', msg.role]"
       >
-        <div v-if="msg.role === 'assistant'" class="message-avatar" :class="{ 'avatar-thinking': isLoading && (index === typingMessageIndex || (typingMessageIndex === -1 && index === messages.length - 1)) }">
-          <img :src="currentAvatar" alt="AI" />
+        <div v-if="msg.role === 'assistant'" class="message-avatar-wrapper">
+          <div class="message-avatar" :class="{ 'avatar-thinking': isLoading && (index === typingMessageIndex || (typingMessageIndex === -1 && index === messages.length - 1)) }">
+            <img
+              :src="isLoading && (index === typingMessageIndex || (typingMessageIndex === -1 && index === messages.length - 1)) ? loadingImage : currentAvatar"
+              alt="AI"
+            />
+          </div>
+          <span
+            v-if="isLoading && (index === typingMessageIndex || (typingMessageIndex === -1 && index === messages.length - 1))"
+            class="avatar-stage-text"
+          >{{ loadingText }}</span>
         </div>
         <div class="message-content">
           <div v-html="renderMarkdown(msg.content)"></div>
@@ -1173,6 +1182,23 @@ defineExpose({ scrollToBottom })
 @keyframes avatar-glow {
   0%, 100% { box-shadow: 0 0 8px var(--color-gold-glow); }
   50% { box-shadow: 0 0 20px var(--color-gold-glow), 0 0 32px rgba(212, 175, 55, 0.4); }
+}
+
+.message-avatar-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.avatar-stage-text {
+  font-size: 11px;
+  color: var(--color-magic-gold);
+  text-align: center;
+  max-width: 80px;
+  line-height: 1.3;
+  animation: float-up 2s ease-in-out infinite;
 }
 
 .typing-dots {
