@@ -56,7 +56,7 @@
         v-show="msg.content || !isLoading || index !== messages.length - 1"
         :class="['message', msg.role]"
       >
-        <div v-if="msg.role === 'assistant'" class="message-avatar">
+        <div v-if="msg.role === 'assistant'" class="message-avatar" :class="{ 'avatar-thinking': isLoading && (index === typingMessageIndex || (typingMessageIndex === -1 && index === messages.length - 1)) }">
           <img :src="currentAvatar" alt="AI" />
         </div>
         <div class="message-content">
@@ -1161,6 +1161,18 @@ defineExpose({ scrollToBottom })
 .loading-text {
   font-size: 13px;
   color: var(--color-text-muted);
+}
+
+/* 头像思考动画 */
+.avatar-thinking img {
+  animation: avatar-glow 1.5s ease-in-out infinite;
+  border: 2px solid var(--color-magic-gold) !important;
+  box-shadow: 0 0 12px var(--color-gold-glow) !important;
+}
+
+@keyframes avatar-glow {
+  0%, 100% { box-shadow: 0 0 8px var(--color-gold-glow); }
+  50% { box-shadow: 0 0 20px var(--color-gold-glow), 0 0 32px rgba(212, 175, 55, 0.4); }
 }
 
 .typing-dots {
