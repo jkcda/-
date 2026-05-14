@@ -54,3 +54,13 @@ export const getSettings = () => {
 export const updateSetting = (key_name: string, value: string) => {
   return request.put('/admin/settings', { key_name, value })
 }
+
+// 获取供应商列表
+export const getProviders = () => {
+  return request.get('/admin/providers')
+}
+
+// 更新供应商配置
+export const updateProvider = (id: string, data: { baseURL?: string; requestTemplate?: string }) => {
+  return request.put(`/admin/providers/${id}`, data)
+}

@@ -10,6 +10,7 @@ import { authMiddleware } from '../middleware/auth.js'
 import { adminMiddleware } from '../middleware/admin.js'
 import { UserModel } from '../models/user.js'
 import config, { getSetting } from '../config/index.js'
+import { providerManager } from '../providers/index.js'
 
 const router = express.Router()
 
@@ -246,8 +247,7 @@ router.post('/image', async (req, res) => {
     if (!prompt) return ApiResponse.badRequest(res, '请提供图片描述')
 
     const modelId = model || 'doubao-seedream-4-5-251128'
-    const modelCfg = config.ai.models.find(m => m.id === modelId)
-    const provider = modelCfg?.provider || 'volcengine'
+    const provider = config.ai.models.find(m => m.id === modelId)?.provider || 'volcengine'
 
     console.log(`[ImageGen] 供应商: ${provider}, 模型: ${modelId}, prompt: "${prompt.slice(0, 80)}..."`)
 
@@ -260,50 +260,16 @@ router.post('/image', async (req, res) => {
       }
     }
 
-    if (provider === 'volcengine') {
-      // 火山引擎 ARK API
-      const resp = await fetch(
-        `${config.ai.volcengine.baseURL}/api/v3/images/generations`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${getSetting('ARK_API_KEY')}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            model: modelId,
-            prompt,
-            sequential_image_generation: 'disabled',
-            response_format: 'url',
-            size: size || config.ai.defaultImageRatio,
-            stream: false,
-            watermark: true
-          })
-        }
-      )
-
-      if (!resp.ok) {
-        const errText = await resp.text().catch(() => '')
-        console.error('[ImageGen] 火山引擎错误:', resp.status, errText)
-        return ApiResponse.internalServerError(res, `图片生成失败 (${resp.status})`)
+    const imageUrl = await providerManager.generateImage(prompt, modelId, size || config.ai.defaultImageRatio)
+    if (imageUrl) {
+      if (sessionId) {
+        try {
+          await ChatHistoryModel.create(sessionId, userId || null, 'assistant', `[生成图片](${imageUrl})`)
+        } catch {}
       }
-
-      const data = await resp.json()
-      console.log('[ImageGen] 火山引擎响应:', JSON.stringify(data).slice(0, 300))
-      const imageUrl = data?.data?.[0]?.url
-      if (imageUrl) {
-        // 保存生成结果到数据库
-        if (sessionId) {
-          try {
-            await ChatHistoryModel.create(sessionId, userId || null, 'assistant', `[生成图片](${imageUrl})`)
-          } catch {}
-        }
-        return ApiResponse.success(res, { imageUrl }, '图片生成成功')
-      }
-      return ApiResponse.internalServerError(res, '图片生成返回为空')
+      return ApiResponse.success(res, { imageUrl }, '图片生成成功')
     }
-
-    ApiResponse.internalServerError(res, '该供应商暂不支持文生图')
+    return ApiResponse.internalServerError(res, '图片生成返回为空')
   } catch (error: any) {
     console.error('[ImageGen] 失败:', error.message)
     ApiResponse.internalServerError(res, '图片生成失败', error.message)

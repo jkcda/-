@@ -1,9 +1,10 @@
 import { execSync } from 'child_process'
 import { createRequire } from 'module'
-import config, { getSetting } from '../config/index.js'
+import config from '../config/index.js'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
+import { providerManager } from '../providers/index.js'
 
 const ffmpegPath = createRequire(import.meta.url)('ffmpeg-static')
 
@@ -94,27 +95,11 @@ export async function preloadTranscriber(): Promise<void> {
 async function transcribeViaAPI(audioPath: string): Promise<string> {
   try {
     const buffer = fs.readFileSync(audioPath)
-    console.log(`[ASR-API] 调用 ModelScope，音频 ${(buffer.length / 1024).toFixed(1)}KB`)
+    console.log(`[ASR-API] 调用语音转写，音频 ${(buffer.length / 1024).toFixed(1)}KB`)
 
-    // 用 multipart/form-data（OpenAI 标准格式）
-    const form = new FormData()
-    form.append('file', new Blob([buffer], { type: 'audio/wav' }), 'audio.wav')
-    form.append('model', 'iic/SenseVoiceSmall')
-
-    const res = await fetch('https://api-inference.modelscope.cn/v1/audio/transcriptions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${getSetting('DASHSCOPE_API_KEY')}`,
-      },
-      body: form
-    })
-    if (!res.ok) {
-      const err = await res.text().catch(() => '')
-      throw new Error(`ASR API ${res.status}: ${err.slice(0, 200)}`)
-    }
-    const data = await res.json() as { text?: string }
-    console.log(`[ASR-API] 完成: "${data.text?.slice(0, 50)}"`)
-    return data.text?.trim() || ''
+    const text = await providerManager.transcribeAudio(buffer)
+    console.log(`[ASR-API] 完成: "${text.slice(0, 50)}"`)
+    return text
   } catch (e: any) {
     console.error('[ASR-API] 失败:', e.message)
     return ''

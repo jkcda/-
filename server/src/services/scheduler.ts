@@ -1,6 +1,5 @@
 import type { RoomAgent } from '../models/room.js'
-import { ChatOpenAI } from '@langchain/openai'
-import { getSetting } from '../config/index.js'
+import { providerManager } from '../providers/index.js'
 
 const agentLastReply = new Map<string, number>()
 const AGENT_COOLDOWN_MS = 4000
@@ -79,13 +78,10 @@ async function batchSchedule(
     `[${a.agent_id}] ${a.name}（${a.system_prompt.slice(0, 200)}）`
   ).join('\n')
 
-  const model = new ChatOpenAI({
-    model: 'deepseek-ai/DeepSeek-V4-Flash',
-    apiKey: getSetting('DASHSCOPE_API_KEY'),
-    configuration: { baseURL: 'https://api-inference.modelscope.cn/v1' },
-    maxTokens: 200,
-    temperature: 0,
-  })
+  const model = providerManager.createLangChainModel('deepseek-ai/DeepSeek-V4-Flash')
+  // 覆写默认参数
+  model.maxTokens = 200
+  model.temperature = 0
 
   const prompt = `你是群聊调度器。判断哪些角色应该回复用户的消息。
 

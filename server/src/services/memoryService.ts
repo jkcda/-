@@ -4,6 +4,7 @@ import config, { getSetting } from '../config/index.js'
 import path from 'path'
 import fs from 'fs'
 import type { Connection, Table } from '@lancedb/lancedb'
+import { providerManager } from '../providers/index.js'
 
 let _connection: Connection | null = null
 
@@ -95,8 +96,7 @@ async function generateSummary(userId: number, sessionId: string, roundCount: nu
   if (recent.length === 0) return
   const dialogText = recent.map((r: any) => r.text).join('\n\n')
 
-  const Anthropic = (await import('@anthropic-ai/sdk')).default
-  const client = new Anthropic({ apiKey: getSetting('DASHSCOPE_API_KEY'), baseURL: config.ai.modelscope.baseURL })
+  const client = providerManager.createAnthropicClient()
   const msg = await client.messages.create({
     model: config.ai.defaultModel,
     max_tokens: 200,

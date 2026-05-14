@@ -27,6 +27,16 @@ function sendJson(ws: WebSocket, event: string, data: any) {
   }
 }
 
+// 广播消息给房间内所有 WS 客户端
+function broadcastToRoom(roomId: number, event: string, data: any) {
+  for (const [ws, client] of clients) {
+    const rooms = (ws as any)._rooms as Set<number> | undefined
+    if (rooms && rooms.has(roomId)) {
+      sendJson(ws, event, data)
+    }
+  }
+}
+
 export function initWsBridge(wss: WebSocketServer) {
   wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
     // 从 URL query 中提取 token 进行 JWT 鉴权
@@ -237,20 +247,19 @@ async function handleRoomSend(ws: WebSocket, client: WsClient, data: any) {
       await RoomModel.addMember(roomId, client.userId)
     }
 
-    // 通过 Socket.IO 房间机制广播（Web 端监听器已经在 rooom:send 处理生成逻辑）
     const io = getIO()
     const fakeSocket = {
       emit: (event: string, msg: any) => {
-        // 把 Socket.IO 发出的 room:* 事件转发给这个 WS 客户端
-        sendJson(ws, event, msg)
+        // 广播 AI 回复给房间内所有 WS 客户端
+        broadcastToRoom(roomId, event, msg)
       },
       join: () => {},
       leave: () => {},
       data: { user: { id: client.userId, username: client.username, role: client.role } },
     } as any
 
-    // 直接把消息内容通过原生 WS 发给当前客户端作为 user message 回显
-    sendJson(ws, 'room:message', {
+    // 广播用户消息给房间内所有 WS 客户端
+    broadcastToRoom(roomId, 'room:message', {
       id: Date.now(), roomId, userId: client.userId,
       username: client.username, content: message,
       files: files || [], role: 'user',

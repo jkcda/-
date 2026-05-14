@@ -13,6 +13,7 @@ import AdminLayout from '@/views/Admin/AdminLayout.vue'
 import AdminDashboard from '@/views/Admin/AdminDashboard.vue'
 import AdminUsers from '@/views/Admin/AdminUsers.vue'
 import AdminApiKeys from '@/views/Admin/ApiKeys.vue'
+import AdminProviders from '@/views/Admin/Providers.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -78,6 +79,11 @@ const router = createRouter({
           path: 'api-keys',
           component: AdminApiKeys,
           meta: { title: 'API Key 管理', requiresAdmin: true }
+        },
+        {
+          path: 'providers',
+          component: AdminProviders,
+          meta: { title: '供应商管理', requiresAdmin: true }
         }
       ]
     },

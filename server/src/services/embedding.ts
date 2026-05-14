@@ -1,11 +1,6 @@
-import { OpenAI } from 'openai'
-import config, { getSetting } from '../config/index.js'
+import config from '../config/index.js'
 import { cacheGet, cacheSet, hashKey } from './cache.js'
-
-const client = new OpenAI({
-  apiKey: getSetting('DASHSCOPE_API_KEY'),
-  baseURL: config.ai.modelscope.baseURL + '/v1'
-})
+import { providerManager } from '../providers/index.js'
 
 // LanceDB 兼容的 embeddings 实例（含 embedQuery / embedDocuments）
 export function getEmbeddings() {
@@ -13,13 +8,7 @@ export function getEmbeddings() {
 }
 
 async function callEmbedding(texts: string[]): Promise<number[][]> {
-  const response = await client.embeddings.create({
-    model: config.embeddings.modelName,
-    input: texts
-  })
-  return response.data
-    .sort((a, b) => a.index - b.index)
-    .map(d => d.embedding)
+  return providerManager.createEmbedding(texts)
 }
 
 export async function embedQuery(text: string): Promise<number[]> {

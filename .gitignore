@@ -42,7 +42,6 @@ server/uploads/
 server/.playwright-mcp/
 *.png
 *.jpg
-
 # 本地文件
 *.pdf
 *.doc

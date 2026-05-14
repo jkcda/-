@@ -1,4 +1,3 @@
-import { ChatOpenAI } from '@langchain/openai'
 import { createAgent } from 'langchain'
 import { tool } from '@langchain/core/tools'
 import { z } from 'zod'
@@ -13,6 +12,7 @@ import { UserModel } from '../models/user.js'
 import { ChatHistoryModel } from '../models/chatHistory.js'
 import pool from '../utils/db.js'
 import bcrypt from 'bcryptjs'
+import { providerManager } from '../providers/index.js'
 
 /**
  * 创建可用工具列表
@@ -76,27 +76,13 @@ function createTools(opts: { userId?: number | null; kbId?: number | null; permi
         }
         const size = sizeMap[ratio || ''] || opts.defaultImageRatio || config.ai.defaultImageRatio
 
-        const resp = await fetch(`${config.ai.volcengine.baseURL}/api/v3/images/generations`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${getSetting('ARK_API_KEY')}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'doubao-seedream-4-5-251128',
-            prompt,
-            size,
-            sequential_image_generation: 'disabled',
-            response_format: 'url',
-            stream: false,
-            watermark: true,
-          }),
-        })
-        if (!resp.ok) return `图片生成失败 (HTTP ${resp.status})`
-        const data = await resp.json() as any
-        const imageUrl = data?.data?.[0]?.url
-        if (!imageUrl) return '图片生成失败：API 返回为空'
-        return JSON.stringify({ imageUrl, prompt, ratio: ratio || '16:9' })
+        try {
+          const imageUrl = await providerManager.generateImage(prompt, 'doubao-seedream-4-5-251128', size)
+          if (!imageUrl) return '图片生成失败：API 返回为空'
+          return JSON.stringify({ imageUrl, prompt, ratio: ratio || '16:9' })
+        } catch (e: any) {
+          return `图片生成失败: ${e.message}`
+        }
       }, {
         name: 'generate_image',
         description: '根据文字描述生成图片。用户需要配图、插图、海报等时使用。支持指定宽高比。',
@@ -304,13 +290,7 @@ export async function createChatAgent(cfg: AgentConfig) {
     ...mcpTools
   ]
 
-  const chatModel = new ChatOpenAI({
-    model: cfg.model || config.ai.defaultModel,
-    apiKey: getSetting('DASHSCOPE_API_KEY'),
-    configuration: { baseURL: 'https://api-inference.modelscope.cn/v1' },
-    maxTokens: config.ai.maxTokens,
-    temperature: 0.7,
-  })
+  const chatModel = providerManager.createLangChainModel(cfg.model)
 
   const now = new Date()
   const currentDate = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日`
@@ -412,19 +392,28 @@ async function* rolePlayStream(
   ]
 
   try {
-    const resp = await fetch('https://api-inference.modelscope.cn/v1/chat/completions', {
+    const modelCfg = providerManager.getModelConfig(cfg.model)
+    const providerId = modelCfg.providerId
+    const hasTemplate = !!providerManager.getRequestTemplate(providerId)
+
+    // 有请求模板时用用户自定义 body，否则用默认格式
+    const body = hasTemplate
+      ? providerManager.buildRequestBody(providerId, apiMessages, true, { model: modelCfg.modelId })
+      : {
+          model: modelCfg.modelId || config.ai.defaultModel,
+          messages: apiMessages,
+          max_tokens: config.ai.maxTokens,
+          temperature: 0.7,
+          stream: true,
+        }
+
+    const resp = await fetch(`${modelCfg.baseURL}/v1/chat/completions`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${getSetting('DASHSCOPE_API_KEY')}`,
+        'Authorization': `Bearer ${modelCfg.apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        model: cfg.model || config.ai.defaultModel,
-        messages: apiMessages,
-        max_tokens: config.ai.maxTokens,
-        temperature: 0.7,
-        stream: true,
-      }),
+      body: JSON.stringify(body),
     })
 
     if (!resp.ok) {

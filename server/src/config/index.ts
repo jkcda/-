@@ -9,15 +9,18 @@ dotenv.config()
 
 // ── 待动态管理的 API Key 白名单 ──
 const SETTING_KEYS = [
+  // AI 供应商 API Keys
   'DASHSCOPE_API_KEY',
   'ARK_API_KEY',
+  'OPENAI_API_KEY',
   'TAVILY_API_KEY',
+  // AI 供应商自定义配置（baseURL 覆盖、请求模板等）
+  'PROVIDER_CONFIG',
+  // 系统配置
   'EMAIL_USER',
   'EMAIL_PASS',
   'JWT_SECRET',
   'CLIENT_URL',
-  'WECHAT_APPID',
-  'WECHAT_SECRET',
 ] as const
 
 type SettingKey = (typeof SETTING_KEYS)[number]
@@ -29,13 +32,13 @@ const settings = new Map<SettingKey, string>()
 const ENV_MAP: Record<SettingKey, string | undefined> = {
   DASHSCOPE_API_KEY: process.env.DASHSCOPE_API_KEY,
   ARK_API_KEY: process.env.ARK_API_KEY,
+  OPENAI_API_KEY: process.env.OPENAI_API_KEY,
   TAVILY_API_KEY: process.env.TAVILY_API_KEY,
+  PROVIDER_CONFIG: process.env.PROVIDER_CONFIG,
   EMAIL_USER: process.env.EMAIL_USER,
   EMAIL_PASS: process.env.EMAIL_PASS,
   JWT_SECRET: process.env.JWT_SECRET,
   CLIENT_URL: process.env.CLIENT_URL,
-  WECHAT_APPID: process.env.WECHAT_APPID,
-  WECHAT_SECRET: process.env.WECHAT_SECRET,
 }
 
 /** 从数据库加载所有配置到内存（DB 有值则用 DB，否则 fallback 到环境变量） */
@@ -82,13 +85,13 @@ export function getMaskedSettings(): { key_name: string; description: string; ma
   const desc: Record<SettingKey, string> = {
     DASHSCOPE_API_KEY: 'ModelScope API Key（聊天 / Embedding / Agent）',
     ARK_API_KEY: '火山引擎 ARK API Key（图片生成）',
+    OPENAI_API_KEY: 'OpenAI API Key（备用供应商，用于聊天或Embedding）',
     TAVILY_API_KEY: 'Tavily API Key（联网搜索）',
+    PROVIDER_CONFIG: '供应商自定义配置（baseURL 覆盖、请求模板，JSON格式）',
     EMAIL_USER: 'QQ邮箱 SMTP 登录账号',
     EMAIL_PASS: 'QQ邮箱 SMTP 授权码',
     JWT_SECRET: 'JWT 签名密钥（用于签发和验证登录凭证）',
     CLIENT_URL: '前端访问地址（用于邮件验证链接，如 https://你的域名.com）',
-    WECHAT_APPID: '微信小程序 AppID（用于微信登录）',
-    WECHAT_SECRET: '微信小程序 AppSecret（用于微信登录）',
   }
   return SETTING_KEYS.map(k => {
     const val = getSetting(k)
@@ -121,27 +124,68 @@ const config = {
     expiresIn: '7d'
   },
 
-  // AI 配置
+  // AI 配置（Provider 中心化）
   ai: {
-    // ModelScope 魔搭社区
-    modelscope: {
-      baseURL: 'https://api-inference.modelscope.cn',
-    },
-    // 火山引擎 ARK
-    volcengine: {
-      baseURL: process.env.ARK_BASE_URL || 'https://ark.cn-beijing.volces.com',
-    },
+    // ── 供应商注册表 ──
+    // 新增供应商只需在此加一条，对应的 API Key 在 SETTING_KEYS 中注册
+    providers: {
+      modelscope: {
+        name: '魔搭社区',
+        apiKeySetting: 'DASHSCOPE_API_KEY',
+        baseURL: 'https://api-inference.modelscope.cn',
+        chatSupport: true,
+        imageSupport: false,
+        embeddingSupport: true,
+        speechSupport: true,
+      },
+      volcengine: {
+        name: '火山引擎 ARK',
+        apiKeySetting: 'ARK_API_KEY',
+        baseURL: process.env.ARK_BASE_URL || 'https://ark.cn-beijing.volces.com',
+        chatSupport: false,
+        imageSupport: true,
+        embeddingSupport: false,
+        speechSupport: false,
+      },
+      // ── 预留：启用后可在管理后台配置 OPENAI_API_KEY ──
+      // openai: {
+      //   name: 'OpenAI',
+      //   apiKeySetting: 'OPENAI_API_KEY',
+      //   baseURL: 'https://api.openai.com',
+      //   chatSupport: true,
+      //   imageSupport: false,
+      //   embeddingSupport: true,
+      //   speechSupport: false,
+      // },
+    } as Record<string, {
+      name: string
+      apiKeySetting: string
+      baseURL: string
+      chatSupport: boolean
+      imageSupport: boolean
+      embeddingSupport: boolean
+      speechSupport: boolean
+    }>,
+
+    // ── 向后兼容别名 ──
+    get modelscope() { return this.providers.modelscope },
+    get volcengine() { return this.providers.volcengine },
+
     defaultModel: 'Qwen/Qwen3.5-397B-A17B',
     maxTokens: 16384,
-    // 可用模型列表
+    // 可用模型列表（每个模型关联到对应供应商）
     models: [
-      // --- ModelScope 文本 ---
-      { id: 'Qwen/Qwen3.5-397B-A17B',        name: 'Qwen3.5-397B',   type: 'multimodal' as const, provider: 'modelscope' as const, desc: '397B MoE 多模态（默认）' },
-      { id: 'deepseek-ai/DeepSeek-V4-Flash',  name: 'DeepSeek-V4',    type: 'text' as const,        provider: 'modelscope' as const, desc: '文本推理' },
-      { id: 'ZhipuAI/GLM-5.1',                name: 'GLM-5.1',        type: 'text' as const,        provider: 'modelscope' as const, desc: '744B MoE 文本' },
-      { id: 'ZhipuAI/GLM-5',                  name: 'GLM-5',          type: 'text' as const,        provider: 'modelscope' as const, desc: '555B MoE 文本' },
-      { id: 'deepseek-ai/DeepSeek-R1-0528',   name: 'DeepSeek-R1',    type: 'text' as const,        provider: 'modelscope' as const, desc: '推理增强' },
-    ] as { id: string; name: string; type: 'text' | 'multimodal' | 'vision'; provider: 'modelscope' | 'volcengine'; desc: string }[],
+      // --- ModelScope 文本&多模态 ---
+      { id: 'Qwen/Qwen3.5-397B-A17B',        name: 'Qwen3.5-397B',   type: 'multimodal' as const, provider: 'modelscope', desc: '397B MoE 多模态（默认）' },
+      { id: 'deepseek-ai/DeepSeek-V4-Flash',  name: 'DeepSeek-V4',    type: 'text' as const,        provider: 'modelscope', desc: '文本推理' },
+      { id: 'ZhipuAI/GLM-5.1',                name: 'GLM-5.1',        type: 'text' as const,        provider: 'modelscope', desc: '744B MoE 文本' },
+      { id: 'ZhipuAI/GLM-5',                  name: 'GLM-5',          type: 'text' as const,        provider: 'modelscope', desc: '555B MoE 文本' },
+      { id: 'deepseek-ai/DeepSeek-R1-0528',   name: 'DeepSeek-R1',    type: 'text' as const,        provider: 'modelscope', desc: '推理增强' },
+      // --- 火山引擎 ---
+      { id: 'doubao-seedream-4-5-251128',     name: 'Seedream 4.5',   type: 'text' as const,        provider: 'volcengine', desc: '文生图（火山引擎）' },
+      // --- 预留：切换 OpenAI 时只需改 provider: 'openai' ---
+      // { id: 'gpt-4o', name: 'GPT-4o', type: 'multimodal', provider: 'openai', desc: 'OpenAI 多模态' },
+    ] as { id: string; name: string; type: 'text' | 'multimodal' | 'vision'; provider: string; desc: string }[],
     // 图片宽高比配置（Seedream 4.5 等文生图模型）
     imageRatios: [
       { label: '1:1 正方形',   value: '2048x2048' },
@@ -154,10 +198,6 @@ const config = {
       { label: '21:9 超宽屏',  value: '3024x1296' },
     ] as { label: string; value: string }[],
     defaultImageRatio: '2560x1440',
-    // OpenAI 兼容端点（用于 LangChain Agent 工具调用）
-    openai: {
-      baseURL: 'https://api-inference.modelscope.cn/v1',
-    },
   },
 
   // 上下文配置

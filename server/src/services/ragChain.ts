@@ -1,17 +1,12 @@
-import Anthropic from '@anthropic-ai/sdk'
+import config from '../config/index.js'
 import { searchInKB } from './knowledgeBase.js'
 import { hybridFuse } from './hybridSearch.js'
 import { getAdjacentChunks } from './vectorStore.js'
 import { cacheGet, cacheSet, hashKey } from './cache.js'
 import type { Document } from '@langchain/core/documents'
-import config, { getSetting } from '../config/index.js'
 import type { HybridCandidate } from './hybridSearch.js'
 import type { SearchResult } from './knowledgeBase.js'
-
-const llmClient = new Anthropic({
-  apiKey: getSetting('DASHSCOPE_API_KEY'),
-  baseURL: config.ai.modelscope.baseURL
-})
+import { providerManager } from '../providers/index.js'
 
 export interface RetrievedChunk {
   content: string
@@ -40,10 +35,11 @@ async function rewriteQuery(query: string, context?: string): Promise<string> {
   if (!needsRewrite(query)) return query
 
   try {
+    const client = providerManager.createAnthropicClient()
     const contextBlock = context
       ? `对话上下文:\n${context.slice(-2000)}\n\n`
       : ''
-    const response = await llmClient.messages.create({
+    const response = await client.messages.create({
       model: config.ai.defaultModel,
       max_tokens: 200,
       messages: [{
@@ -208,7 +204,8 @@ async function rerankWithLLM(
       `[${i}] 来源:${c.source} 分:${c.score.toFixed(3)}\n${c.content.slice(0, 400)}`
     ).join('\n\n')
 
-    const response = await llmClient.messages.create({
+    const client = providerManager.createAnthropicClient()
+    const response = await client.messages.create({
       model: config.ai.defaultModel,
       max_tokens: 80,
       messages: [{

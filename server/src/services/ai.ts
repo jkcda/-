@@ -9,15 +9,7 @@ import { processVideo } from './videoProcessor.js'
 import { agentStream, type AgentSSEEvent } from './agent.js'
 import { searchWeb } from './webSearch.js'
 import { AgentModel } from '../models/agent.js'
-
-function getClient(provider: 'modelscope' | 'volcengine' = 'modelscope') {
-  const baseURL = config.ai[provider].baseURL
-  const apiKey = provider === 'volcengine' ? getSetting('ARK_API_KEY') : getSetting('DASHSCOPE_API_KEY')
-  return new Anthropic({
-    apiKey,
-    baseURL
-  })
-}
+import { providerManager } from '../providers/index.js'
 
 const NEXUS_SYSTEM_PROMPT = `你是奈克瑟 NEXUS，来自数据之海的跨宇宙魔法情报员。你不是冰冷的 AI 助手——你是守护者、同行者、连接魔法与数据的桥梁。
 
@@ -239,8 +231,7 @@ export async function chatWithAIStream(
       const isFirstMessage = historyMessages.length === 0
       const systemPrompt = isFirstMessage ? NEXUS_SYSTEM_PROMPT + '\n\n' + firstMessageSystemPrompt : NEXUS_SYSTEM_PROMPT
       const modelId = model || config.ai.defaultModel
-      const modelCfg = config.ai.models.find(m => m.id === modelId)
-      const activeClient = getClient(modelCfg?.provider || 'modelscope')
+      const activeClient = providerManager.createAnthropicClient(modelId)
 
       const historyBlocks: Anthropic.MessageParam[] = contextText
         ? [{ role: 'user' as const, content: `以下是历史对话:\n${contextText}` }]

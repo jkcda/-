@@ -26,6 +26,10 @@
           <el-icon><Key /></el-icon>
           <span>API Key 管理</span>
         </el-menu-item>
+        <el-menu-item index="/admin/providers">
+          <el-icon><Setting /></el-icon>
+          <span>供应商管理</span>
+        </el-menu-item>
       </el-menu>
       <div class="sidebar-collapse" @click="toggleSidebar">
         <el-icon :class="{ rotated: isCollapsed && !isMobile }">
@@ -66,7 +70,7 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { DataAnalysis, User, Fold, Menu, Key } from '@element-plus/icons-vue'
+import { DataAnalysis, User, Fold, Menu, Key, Setting } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/userStore'
 import { logout } from '@/apis/user'
 
@@ -111,7 +115,8 @@ const pageTitle = computed(() => {
   const titles: Record<string, string> = {
     '/admin/dashboard': '对话统计',
     '/admin/users': '用户管理',
-    '/admin/api-keys': 'API Key 管理'
+    '/admin/api-keys': 'API Key 管理',
+    '/admin/providers': '供应商管理'
   }
   return titles[route.path] || '后台管理'
 })
