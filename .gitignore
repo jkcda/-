@@ -51,3 +51,8 @@ server/.playwright-mcp/
 # 开发文档（本地维护，不上传）
 client/frontend-dev-doc.md
 server/backend-dev-doc.md
+
+# 测试文档（本地面试用，不上传）
+docs/test-plan.md
+docs/test-cases.md
+docs/bug-reports.md
