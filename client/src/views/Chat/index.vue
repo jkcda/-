@@ -186,7 +186,7 @@ const syncSessionsFromBackend = async () => {
     const userInfo = userStore.getUserInfo()
     const userId = userInfo?.id || null
     if (!userId) return
-    const res = await getSessions(userId)
+    const res = await getSessions()
     if (res.data.success && res.data.result.sessions) {
       const backendSessions: any[] = res.data.result.sessions
       for (const bs of backendSessions) {
@@ -310,7 +310,7 @@ const deleteSession = async (sessionId: string) => {
   try {
     const userInfo = userStore.getUserInfo()
     const userId = userInfo?.id || null
-    await deleteChatHistory(sessionId, userId)
+    await deleteChatHistory(sessionId)
   } catch {
     // 即使后端删除失败也继续清理前端
   }
@@ -335,7 +335,7 @@ const loadHistory = async () => {
   try {
     const userInfo = userStore.getUserInfo()
     const userId = userInfo?.id || null
-    const response = await getChatHistory(currentSessionId.value, userId)
+    const response = await getChatHistory(currentSessionId.value)
     if (response.data.success) {
       const msgs = response.data.result.messages
       if (msgs && msgs.length > 0) {
@@ -367,7 +367,7 @@ const refreshSessionMeta = async () => {
   try {
     const userInfo = userStore.getUserInfo()
     const userId = userInfo?.id || null
-    const res = await getSessions(userId)
+    const res = await getSessions()
     if (res.data.success && res.data.result.sessions) {
       const backendSessions: any[] = res.data.result.sessions
       for (const bs of backendSessions) {
@@ -628,7 +628,7 @@ const clearHistory = async () => {
   try {
     const userInfo = userStore.getUserInfo()
     const userId = userInfo?.id || null
-    const response = await deleteChatHistory(currentSessionId.value, userId)
+    const response = await deleteChatHistory(currentSessionId.value)
     if (response.data.success) {
       messages.value = []
       const sess = sessionList.value.find(s => s.id === currentSessionId.value)

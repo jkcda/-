@@ -156,11 +156,10 @@ router.post('/chat', async (req, res) => {
   }
 })
 
-// GET /api/ai/sessions - 获取用户的会话列表
-router.get('/sessions', async (req, res) => {
+// GET /api/ai/sessions - 获取用户的会话列表（需登录）
+router.get('/sessions', authMiddleware as any, async (req, res) => {
   try {
-    const { userId } = req.query
-    const uid = userId ? Number(userId) : null
+    const uid = req.user!.id
     const sessions = await ChatHistoryModel.getSessionsByUserId(uid)
     const formatted = (sessions as any[]).map(s => ({
       session_id: s.session_id,
@@ -178,10 +177,10 @@ router.get('/sessions', async (req, res) => {
   }
 })
 
-// GET /api/ai/history - 获取对话历史
-router.get('/history', async (req, res) => {
+// GET /api/ai/history - 获取对话历史（需登录）
+router.get('/history', authMiddleware as any, async (req, res) => {
   try {
-    const { sessionId, userId } = req.query
+    const { sessionId } = req.query
 
     if (!sessionId) {
       return ApiResponse.badRequest(res, '请提供会话ID')
@@ -189,7 +188,7 @@ router.get('/history', async (req, res) => {
 
     const history = await ChatHistoryModel.getBySessionIdAndUserId(
       sessionId as string,
-      userId ? Number(userId) : null
+      req.user!.id
     )
 
     const messages = history.map(item => ({
@@ -207,10 +206,10 @@ router.get('/history', async (req, res) => {
   }
 })
 
-// DELETE /api/ai/history - 删除对话历史（含关联文件）
-router.delete('/history', async (req, res) => {
+// DELETE /api/ai/history - 删除对话历史（含关联文件，需登录）
+router.delete('/history', authMiddleware as any, async (req, res) => {
   try {
-    const { sessionId, userId } = req.query
+    const { sessionId } = req.query
 
     if (!sessionId) {
       return ApiResponse.badRequest(res, '请提供会话ID')
@@ -220,7 +219,7 @@ router.delete('/history', async (req, res) => {
     try {
       const history = await ChatHistoryModel.getBySessionIdAndUserId(
         sessionId as string,
-        userId ? Number(userId) : null
+        req.user!.id
       )
       for (const msg of history) {
         if (msg.files) {
@@ -239,9 +238,9 @@ router.delete('/history', async (req, res) => {
     clearSessionCache(sessionId as string)
 
     let memoryCleared = false
-    if (userId) {
+    if (req.user!.id) {
       try {
-        await forgetSession(Number(userId), sessionId as string)
+        await forgetSession(Number(req.user!.id), sessionId as string)
         memoryCleared = true
       } catch {}
     }
@@ -282,19 +281,20 @@ router.get('/models', (_req, res) => {
   }, '获取配置成功')
 })
 
-// POST /api/ai/image - 文生图（多供应商）
-router.post('/image', async (req, res) => {
+// POST /api/ai/image - 文生图（需登录）
+router.post('/image', authMiddleware as any, async (req, res) => {
   try {
-    const { prompt, sessionId, userId, size } = req.body
+    const { prompt, sessionId, size } = req.body
     if (!prompt) return ApiResponse.badRequest(res, '请提供图片描述')
 
     const imgCfg = providerManager.getImageConfig()
     console.log(`[ImageGen] 供应商: ${imgCfg.name}, 模型: ${imgCfg.model}, prompt: "${prompt.slice(0, 80)}..."`)
 
+    const uid = req.user!.id
     // 保存用户 prompt 到数据库
     if (sessionId) {
       try {
-        await ChatHistoryModel.create(sessionId, userId || null, 'user', prompt)
+        await ChatHistoryModel.create(sessionId, uid, 'user', prompt)
       } catch (e: any) {
         console.error('[ImageGen] 保存用户消息失败:', e.message)
       }
@@ -304,7 +304,7 @@ router.post('/image', async (req, res) => {
     if (imageUrl) {
       if (sessionId) {
         try {
-          await ChatHistoryModel.create(sessionId, userId || null, 'assistant', `[生成图片](${imageUrl})`)
+          await ChatHistoryModel.create(sessionId, uid, 'assistant', `[生成图片](${imageUrl})`)
         } catch {}
       }
       return ApiResponse.success(res, { imageUrl }, '图片生成成功')

@@ -8,12 +8,8 @@ interface UploadResult {
 }
 
 // 获取对话历史接口
-export const getChatHistory = (sessionId: string, userId?: number | null) => {
-  const params = new URLSearchParams({ sessionId })
-  if (userId) {
-    params.append('userId', userId.toString())
-  }
-  return request.get(`/ai/history?${params.toString()}`)
+export const getChatHistory = (sessionId: string) => {
+  return request.get(`/ai/history?sessionId=${encodeURIComponent(sessionId)}`)
 }
 
 // AI 聊天接口（流式）
@@ -30,21 +26,13 @@ export const chatWithAI = (data: {
 }
 
 // 获取用户的会话列表
-export const getSessions = (userId?: number | null) => {
-  const params = new URLSearchParams()
-  if (userId) {
-    params.append('userId', userId.toString())
-  }
-  return request.get(`/ai/sessions?${params.toString()}`)
+export const getSessions = () => {
+  return request.get('/ai/sessions')
 }
 
 // 删除对话历史接口
-export const deleteChatHistory = (sessionId: string, userId?: number | null) => {
-  const params = new URLSearchParams({ sessionId })
-  if (userId) {
-    params.append('userId', userId.toString())
-  }
-  return request.delete(`/ai/history?${params.toString()}`)
+export const deleteChatHistory = (sessionId: string) => {
+  return request.delete(`/ai/history?sessionId=${encodeURIComponent(sessionId)}`)
 }
 
 // 清空用户全部 RAG 记忆（管理员专用）
