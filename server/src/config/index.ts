@@ -172,8 +172,8 @@ const config = {
   },
 
   embeddings: {
-    modelName: 'Xenova/bge-base-zh-v1.5',  // 本地运行，无需 API Key，与 LLM 供应商解耦
-    dimension: 768,
+    modelName: 'Xenova/bge-small-zh-v1.5',  // 本地运行 ~100MB，低配服务器自动降级 API
+    dimension: 512,
     batchSize: 100,
   },
 

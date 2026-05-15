@@ -1,22 +1,41 @@
 import config from '../config/index.js'
 import { cacheGet, cacheSet, hashKey } from './cache.js'
+import os from 'os'
 
 // ── 本地 embedding 模型（Xenova Transformers.js，无需 API Key）──
 
 let _extractor: any = null
 let _extractorLoading = false
-let _extractorLoadError: string | null = null
+let _useApiFallback = false
 
-/** 加载本地 feature-extraction pipeline（首次调用时下载模型，约 300MB） */
+/** 检查服务器资源是否足够跑本地模型 */
+function hasEnoughMemory(): boolean {
+  const freeMem = Math.round(os.freemem() / (1024 * 1024))
+  const cpuCount = os.cpus().length
+  // 2核4G 服务器空闲内存通常 800-1500MB，本地模型需要约 600MB
+  const minFreeMem = cpuCount <= 2 ? 800 : 500
+  if (freeMem < minFreeMem) {
+    console.warn(`[Embedding] 服务器资源不足（CPU:${cpuCount}核, 空闲内存:${freeMem}MB < ${minFreeMem}MB），降级为 API 向量化`)
+    return false
+  }
+  return true
+}
+
+/** 加载本地 feature-extraction pipeline（bge-small-zh-v1.5，约 100MB） */
 async function getExtractor() {
   if (_extractor) return _extractor
-  if (_extractorLoadError) throw new Error(_extractorLoadError)
+  if (_useApiFallback) throw new Error('API_FALLBACK')
+
+  if (!hasEnoughMemory()) {
+    _useApiFallback = true
+    throw new Error('API_FALLBACK')
+  }
 
   if (_extractorLoading) {
     for (let i = 0; i < 30; i++) {
       await new Promise(r => setTimeout(r, 2000))
       if (_extractor) return _extractor
-      if (_extractorLoadError) throw new Error(_extractorLoadError)
+      if (_useApiFallback) throw new Error('API_FALLBACK')
     }
     throw new Error('Embedding 模型加载超时（60秒）')
   }
@@ -32,9 +51,9 @@ async function getExtractor() {
     )
     return _extractor
   } catch (e: any) {
-    _extractorLoadError = e.message || '模型加载失败'
-    console.error('[Embedding] 模型加载失败:', _extractorLoadError)
-    throw e
+    _useApiFallback = true
+    console.warn('[Embedding] 本地模型加载失败，降级为 API 向量化:', e.message)
+    throw new Error('API_FALLBACK')
   } finally {
     _extractorLoading = false
   }
@@ -45,7 +64,8 @@ export function getEmbeddings() {
   return { embedQuery, embedDocuments }
 }
 
-async function callEmbedding(texts: string[]): Promise<number[][]> {
+/** 本地模型向量化 */
+async function callEmbeddingLocal(texts: string[]): Promise<number[][]> {
   const extractor = await getExtractor()
   const vectors: number[][] = []
   for (const text of texts) {
@@ -53,6 +73,23 @@ async function callEmbedding(texts: string[]): Promise<number[][]> {
     vectors.push(Array.from(result.data) as number[])
   }
   return vectors
+}
+
+/** API 向量化（降级方案，复用 LLM 配置的 key） */
+async function callEmbeddingApi(texts: string[]): Promise<number[][]> {
+  const { providerManager } = await import('../providers/index.js')
+  return providerManager.createEmbedding(texts)
+}
+
+async function callEmbedding(texts: string[]): Promise<number[][]> {
+  try {
+    return await callEmbeddingLocal(texts)
+  } catch (e: any) {
+    if (e.message === 'API_FALLBACK' || _useApiFallback) {
+      return callEmbeddingApi(texts)
+    }
+    throw e
+  }
 }
 
 export async function embedQuery(text: string): Promise<number[]> {
@@ -103,6 +140,6 @@ export async function preloadEmbeddingModel(): Promise<void> {
   try {
     await getExtractor()
   } catch {
-    // 静默失败，首次使用时再报
+    // 静默失败，首次使用时再报或降级
   }
 }

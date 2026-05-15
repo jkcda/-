@@ -4,6 +4,22 @@ import { ChatOpenAI } from '@langchain/openai'
 import config, { getSetting, updateSetting, defaultLLMConfig, defaultImageConfig, getMaskedSettings } from '../config/index.js'
 import type { CapabilityLLMConfig, CapabilityImageConfig } from './types.js'
 
+function maskKey(key: string): string {
+  if (!key || key.length <= 8) return key ? '****' : ''
+  return key.slice(0, 4) + '***' + key.slice(-4)
+}
+
+function isMaskedKey(incoming: string, stored: string): boolean {
+  if (!incoming || incoming === stored) return true
+  // 检测前端发回来的是否为脱敏值（无改动则保留原 key）
+  if (incoming.includes('***') && stored.length > 8) {
+    const prefix = incoming.slice(0, incoming.indexOf('***'))
+    const suffix = incoming.slice(incoming.indexOf('***') + 3)
+    return stored.startsWith(prefix) && stored.endsWith(suffix)
+  }
+  return false
+}
+
 class ProviderManager {
   // ═══════════════════════════════════════════════
   //  能力配置读取（以能力为中心）
@@ -34,6 +50,10 @@ class ProviderManager {
   /** 保存 LLM 配置 */
   async saveLLMConfig(cfg: Partial<CapabilityLLMConfig>): Promise<void> {
     const current = this.getLLMConfig()
+    // 如果 key 是脱敏值，保留旧 key
+    if (cfg.apiKey && isMaskedKey(cfg.apiKey, current.apiKey)) {
+      delete cfg.apiKey
+    }
     const merged = { ...current, ...cfg } satisfies CapabilityLLMConfig
     await updateSetting('CAPABILITY_LLM', JSON.stringify(merged))
   }
@@ -41,6 +61,9 @@ class ProviderManager {
   /** 保存图片生成配置 */
   async saveImageConfig(cfg: Partial<CapabilityImageConfig>): Promise<void> {
     const current = this.getImageConfig()
+    if (cfg.apiKey && isMaskedKey(cfg.apiKey, current.apiKey)) {
+      delete cfg.apiKey
+    }
     const merged = { ...current, ...cfg } satisfies CapabilityImageConfig
     await updateSetting('CAPABILITY_IMAGE', JSON.stringify(merged))
   }
@@ -299,7 +322,11 @@ class ProviderManager {
   getCapabilities() {
     const llm = this.getLLMConfig()
     const img = this.getImageConfig()
-    return { llm, img }
+    // 脱敏返回，防止 API Key 通过浏览器 Network 面板泄露
+    return {
+      llm: { ...llm, apiKey: maskKey(llm.apiKey) },
+      img: { ...img, apiKey: maskKey(img.apiKey) },
+    }
   }
 }
 
