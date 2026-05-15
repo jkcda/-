@@ -172,7 +172,8 @@ const config = {
   },
 
   embeddings: {
-    modelName: 'qwen/Qwen3-Embedding-0.6B',
+    modelName: 'Xenova/bge-base-zh-v1.5',  // 本地运行，无需 API Key，与 LLM 供应商解耦
+    dimension: 768,
     batchSize: 100,
   },
 

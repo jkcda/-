@@ -30,9 +30,10 @@ export async function getVectorStore(tableName: string): Promise<LanceDB> {
     return new LanceDB(embeddings, { table })
   }
 
-  // 创建空表
+  // 创建空表（维度从 embedding 模型配置读取，默认 768 = bge-base-zh-v1.5）
+  const dim = config.embeddings.dimension || 768
   const table = await conn.createTable(tableName, [
-    { vector: Array(config.rag.chunkSize > 0 ? 1024 : 1).fill(0), text: '', doc_id: 0, kb_id: 0, filename: '', chunk_index: 0 }
+    { vector: Array(dim).fill(0), text: '', doc_id: 0, kb_id: 0, filename: '', chunk_index: 0 }
   ])
   // 删除初始占位行
   await table.delete('doc_id = 0')

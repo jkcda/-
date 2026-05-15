@@ -16,6 +16,9 @@ aiconnent/
 |------|------|
 | [backend.md](./backend.md) | 后端：架构设计、路由 API、服务层、数据模型、配置系统 |
 | [frontend.md](./frontend.md) | Web 前端：页面组件、路由权限、状态管理、API 封装、样式体系 |
+| [test-plan.md](./test-plan.md) | 测试计划：测试范围、策略、通过标准 |
+| [test-cases.md](./test-cases.md) | 测试用例文档：25 条手工测试用例 |
+| [bug-reports.md](./bug-reports.md) | 缺陷报告示例：Bug 记录与复现步骤 |
 | [../server/.env.example](../server/.env.example) | 环境变量配置示例 |
 
 ## 快速启动

@@ -107,6 +107,11 @@ import('./services/videoProcessor.js').then(m => {
   m.preloadTranscriber()
 }).catch(() => {})
 
+// 后台预加载本地 embedding 模型
+import('./services/embedding.js').then(m => {
+  m.preloadEmbeddingModel()
+}).catch(() => {})
+
 // 初始化 MCP 连接（Playwright 浏览器）
 import('./services/mcp.js').then(m => {
   console.log('[MCP] Connecting to MCP servers...')
