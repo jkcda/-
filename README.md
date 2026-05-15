@@ -93,15 +93,3 @@ WS_PORT=3001
 | 语音 | `/api/voice` | `/transcribe`、`/tts` |
 | 管理后台 | `/api/admin` | 用户管理、对话统计、能力配置 |
 | 上传 | `/api` | `/upload`、`/upload/avatar` |
-
-## 部署
-
-```bash
-cd server && npm run build && npm start
-cd client && npm run build
-# dist/ 部署到 nginx，反代 /api、/ws、/uploads 到后端 localhost:3000
-```
-
-## 开发文档
-
-详见 [docs/](./docs/) 目录。

@@ -48,11 +48,11 @@ server/.playwright-mcp/
 *.doc
 *.docx
 *.txt
-# 开发文档（本地维护，不上传）
+# 开发文档
 client/frontend-dev-doc.md
 server/backend-dev-doc.md
 
-# 测试文档（本地面试用，不上传）
+# 测试文档
 docs/test-plan.md
 docs/test-cases.md
 docs/bug-reports.md
