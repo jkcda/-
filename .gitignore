@@ -20,6 +20,7 @@ server/workspace/
 # 编辑器
 .vscode/
 .idea/
+.hbuilderx/
 *.swp
 *.swo
 
