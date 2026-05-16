@@ -258,8 +258,8 @@ router.get('/capabilities', authMiddleware, (_req, res) => {
 // PUT /api/admin/capabilities/llm - 更新 LLM 能力配置（所有登录用户可用）
 router.put('/capabilities/llm', authMiddleware, async (req, res) => {
   try {
-    const { apiKey, format, baseURL, model, requestTemplate, name } = req.body
-    await providerManager.saveLLMConfig({ apiKey, format, baseURL, model, requestTemplate, name })
+    const { apiKey, format, baseURL, model, embeddingModel, requestTemplate, name } = req.body
+    await providerManager.saveLLMConfig({ apiKey, format, baseURL, model, embeddingModel, requestTemplate, name })
     ApiResponse.success(res, null, 'LLM 配置已更新')
   } catch (error: any) {
     ApiResponse.internalServerError(res, '服务器错误', error.message)

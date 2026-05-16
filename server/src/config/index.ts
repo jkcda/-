@@ -94,6 +94,7 @@ export const defaultLLMConfig = {
   format: 'openai' as const,
   baseURL: 'https://api-inference.modelscope.cn',
   model: 'Qwen/Qwen3.5-397B-A17B',
+  embeddingModel: 'BAAI/bge-small-zh-v1.5',
   requestTemplate: '',
 }
 
@@ -142,9 +143,6 @@ const config = {
       { label: '21:9 超宽屏',  value: '3024x1296' },
     ] as { label: string; value: string }[],
     defaultImageRatio: '2560x1440',
-
-    // Embedding 模型
-    embeddingModel: 'qwen/Qwen3-Embedding-0.6B',
   },
 
   context: {

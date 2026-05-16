@@ -7,6 +7,7 @@ export interface CapabilityLLMConfig {
   format: 'openai' | 'anthropic'
   baseURL: string
   model: string
+  embeddingModel: string
   requestTemplate: string
 }
 

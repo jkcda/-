@@ -285,8 +285,9 @@ class ProviderManager {
 
   async createEmbedding(texts: string[]): Promise<number[][]> {
     const client = this.createOpenAIClient()
+    const cfg = this.getLLMConfig()
     const response = await client.embeddings.create({
-      model: config.embeddings.modelName,
+      model: cfg.embeddingModel,
       input: texts,
     })
     return response.data.sort((a, b) => a.index - b.index).map(d => d.embedding)

@@ -92,11 +92,11 @@ POST /api/ai/chat
 | POST | `/chat` | - | AI 对话（SSE 流式），游客限 10 次 |
 | GET | `/guest-status` | - | 查询本 IP 游客剩余次数 |
 | GET | `/models` | - | 获取 LLM/生图能力配置 + 图片比例列表 |
-| GET | `/sessions` | - | 获取会话列表（支持匿名） |
-| GET | `/history` | - | 获取指定会话的对话历史 |
-| DELETE | `/history` | - | 删除会话及关联文件 |
-| DELETE | `/memory` | admin | 清空用户 RAG 记忆 |
-| POST | `/image` | - | AI 文生图 |
+| GET | `/sessions` | auth | 获取当前用户的会话列表 |
+| GET | `/history` | auth | 获取指定会话的对话历史 |
+| DELETE | `/history` | auth | 删除会话及关联文件 |
+| DELETE | `/memory` | auth + admin | 清空指定用户 RAG 记忆 |
+| POST | `/image` | auth | AI 文生图 |
 
 ### 用户 `routes/user.ts` → `/api/user`
 
@@ -119,9 +119,9 @@ POST /api/ai/chat
 | GET | `/chat-stats` | admin | 对话统计数据 |
 | GET | `/chat-history/:userId` | admin | 指定用户的对话历史 |
 | GET/PUT | `/settings` | admin | 系统设置（脱敏展示） |
-| GET | `/capabilities` | auth | 能力配置（LLM + Image） |
-| PUT | `/capabilities/llm` | auth | 更新 LLM 配置 |
-| PUT | `/capabilities/image` | auth | 更新图片生成配置 |
+| GET | `/capabilities` | auth | 能力配置（LLM + Image，apiKey 脱敏返回） |
+| PUT | `/capabilities/llm` | auth | 更新 LLM 配置（脱敏 key 不覆盖原值） |
+| PUT | `/capabilities/image` | auth | 更新图片生成配置（脱敏 key 不覆盖原值） |
 
 ### 其他路由
 
@@ -144,7 +144,7 @@ POST /api/ai/chat
 | `services/ai.ts` | 对话编排：历史加载、多模态解析、Agent/Anthropic 路径分发 |
 | `services/agent.ts` | Agent 系统：`agentStream()`、`createChatAgent()`、LangChain Tools |
 | `services/ragChain.ts` | RAG 管线：查询重写 → 向量检索 → 混合检索 → Small-to-Big → LLM 重排 |
-| `services/embedding.ts` | 向量嵌入（带 Redis 缓存） |
+| `services/embedding.ts` | 向量嵌入（本地模型 + Redis 缓存，低配服务器自动降级 API） |
 | `services/memoryService.ts` | 对话记忆：用户/助手消息配对、分批摘要、分级检索 |
 | `services/webSearch.ts` | 联网搜索（Tavily 主，DuckDuckGo 降级） |
 

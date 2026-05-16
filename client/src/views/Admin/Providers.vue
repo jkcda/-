@@ -25,6 +25,10 @@
             <code class="value">{{ llm.model || '未配置' }}</code>
           </div>
           <div class="info-row">
+            <span class="label">Embedding 模型</span>
+            <code class="value">{{ llm.embeddingModel || '未配置' }}</code>
+          </div>
+          <div class="info-row">
             <span class="label">API Key</span>
             <code class="value" :class="{ 'not-configured': !llm.apiKey }">{{ llm.apiKey ? maskKey(llm.apiKey) : '未配置' }}</code>
           </div>
@@ -106,6 +110,11 @@
           <div class="form-tip">填供应商支持的模型 ID。</div>
         </el-form-item>
 
+        <el-form-item label="Embedding 向量化模型">
+          <el-input v-model="llmForm.embeddingModel" placeholder="例如: BAAI/bge-small-zh-v1.5" clearable />
+          <div class="form-tip">向量化 API 降级时使用的模型名。服务器资源不足时自动切至此模型。</div>
+        </el-form-item>
+
         <el-form-item label="请求模板（可选）">
           <el-input v-model="llmForm.requestTemplate" type="textarea" :rows="8"
             placeholder='{
@@ -181,6 +190,7 @@ interface LLMData {
   format: string
   baseURL: string
   model: string
+  embeddingModel: string
   requestTemplate: string
 }
 
@@ -193,7 +203,7 @@ interface ImageData {
   defaultSize: string
 }
 
-const emptyLLM = (): LLMData => ({ name: '', apiKey: '', format: 'openai', baseURL: '', model: '', requestTemplate: '' })
+const emptyLLM = (): LLMData => ({ name: '', apiKey: '', format: 'openai', baseURL: '', model: '', embeddingModel: '', requestTemplate: '' })
 const emptyImage = (): ImageData => ({ name: '', apiKey: '', baseURL: '', model: '', requestTemplate: '', defaultSize: '' })
 
 const llm = ref<LLMData>(emptyLLM())
